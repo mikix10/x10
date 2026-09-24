@@ -65,11 +65,29 @@ git push origin main
 | `pull_request` | PR obligatoire, **0 approbation requise**, squash uniquement |
 | `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, branche à jour avant merge |
 
-## Deux pièges à ne pas reproduire
+## Dérive : GitHub complète les paramètres omis
+
+À la création, l'API renseigne d'elle-même les paramètres absents du JSON, avec ses propres valeurs par défaut. Le fichier versionné cesse alors de décrire la règle en vigueur, ce qui est précisément ce que ce skill cherche à éviter.
+
+**Après toute création ou modification, comparer et resynchroniser :**
+
+```bash
+gh api repos/mikix10/x10/rulesets/<id> --jq '.rules[] | {type, parameters}'
+```
+
+Tout paramètre ajouté par GitHub doit être reporté explicitement dans `ruleset-main.json`, même s'il conserve la valeur par défaut. Un paramètre implicite est un paramètre qu'on ne relit pas.
+
+C'est ainsi qu'est apparu `require_extra_approval_for_unattributed_changes`, ajouté à `true` lors de la première création.
+
+## Trois pièges à ne pas reproduire
 
 **Les approbations.** `required_approving_review_count` est à **0** et doit le rester tant que le projet a un seul mainteneur : GitHub interdit d'approuver sa propre PR, donc exiger une approbation bloquerait tout merge. La PR reste obligatoire — c'est elle qui déclenche la CI avant fusion.
 
 **Le canari 3.13.** Le job `Tests (Python 3.13)` est **délibérément absent** des vérifications obligatoires. Avec `continue-on-error: true` dans le workflow, il remonte toujours `success`, même quand les tests échouent. L'exiger donnerait une garantie illusoire.
+
+**Les changements non attribués.** `require_extra_approval_for_unattributed_changes` est à **`false`**, et doit le rester tant que le projet a un seul mainteneur. À `true`, un commit dont l'auteur n'est rattaché à aucun compte GitHub exige une approbation supplémentaire — impossible à fournir seul, donc blocage dur sans autre issue que de désactiver le ruleset. C'est la même trappe que les approbations obligatoires, par une autre porte. À repasser à `true` le jour où un second contributeur peut approuver.
+
+Un workflow déclenché uniquement par `workflow_dispatch` ne doit jamais figurer dans les vérifications obligatoires : n'étant pas déclenché par les pull requests, son statut ne remonterait jamais et **toute fusion serait bloquée définitivement**.
 
 ## Escape hatch
 
