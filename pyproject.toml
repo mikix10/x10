@@ -1,0 +1,56 @@
+[project]
+name = "x10-workspace"
+version = "0.1.0"
+description = "Workspace monorepo pour X10 — données géo-hydro-océano-météo open data"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [{ name = "X10 Team" }]
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "pre-commit>=4.6.2",
+]
+
+[tool.uv]
+package = false
+python-preference = "managed"
+
+[tool.uv.workspace]
+members = [
+  "packages/*",
+  "services/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "services"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["ANN"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "x10_api",
+  "x10_catalog",
+  "x10_connectors",
+  "x10_models",
+  "x10_storage",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["packages/*/src", "services/*/src"]

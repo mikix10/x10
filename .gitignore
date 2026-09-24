@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.Python
+cython_debug/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+.uv/
+
+# Build
+build/
+dist/
+.eggs/
+
+# Caches d'outillage
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# Couverture — coverage ecrit htmlcov/ sans point
+.coverage
+.coverage.*
+htmlcov/
+cover/
+coverage.xml
+
+# Secrets et identifiants
+.env
+.env.*
+.pypirc
+
+# Exploration
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Projet
+*.log
+
+# Liste locale des termes proscrits dans les commits (voir CLAUDE.md)
+.denylist
+
+# Reglages Claude Code personnels (chemins et permissions du poste)
+.claude/settings.local.json
+
+# Instructions Claude Code personnelles au mainteneur (voir CLAUDE.md)
+CLAUDE.local.md
+
+# Analyses et positionnement : locaux tant que la version publique
+# factuelle et verifiee n'est pas prete (voir docs-local/README.md)
+docs-local/
+.claude/skills/positioning/

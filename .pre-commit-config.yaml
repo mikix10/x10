@@ -1,0 +1,38 @@
+# Garde-fou local : ces controles s'executent a chaque `git commit`.
+# mypy et pytest en sont volontairement absents (trop lents pour un hook) :
+# ils restent dans le gate manuel et dans la CI.
+#
+# Installation sur un clone neuf : uv run pre-commit install
+# Passage sur tout l'arbre        : uv run pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      # Materialise GitHub Flow en local : refuse un commit direct sur main.
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Detection de secrets avant meme le commit, en complement du push
+  # protection cote GitHub. Voir le skill security.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

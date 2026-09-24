@@ -1,0 +1,24 @@
+# Fins de ligne normalisées : LF dans le dépôt et dans la copie de travail,
+# quel que soit le poste. Rend le comportement indépendant de core.autocrlf.
+* text=auto eol=lf
+
+# Scripts Windows qui exigent CRLF pour être interprétés correctement
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binaires : ne jamais normaliser ni tenter de fusionner
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.zip binary
+*.whl binary
+
+# Données scientifiques
+*.nc binary
+*.grib binary
+*.grib2 binary
+
+# Fichier généré : réduire le bruit dans les revues de pull request
+uv.lock linguist-generated=true
