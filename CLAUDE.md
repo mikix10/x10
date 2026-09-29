@@ -46,6 +46,8 @@ uv build --all-packages        # construire les distributions
 uv lock                        # après tout changement de dépendance (la CI exige --locked)
 ```
 
+Sous VSCode, ces commandes sont aussi exposées en tâches — **Portes de qualité** enchaîne lint, typage et tests. Les extensions recommandées sont proposées à l'ouverture du dossier ; elles sont configurées pour utiliser le `ruff` et le `mypy` **du projet** et non leurs binaires embarqués, faute de quoi l'éditeur et la CI divergeraient en silence.
+
 Python **3.12** (pin dans [.python-version](.python-version)). Le `.venv/` local est provisionné par `uv`. `uv.lock` est commité et la CI le vérifie — toujours le régénérer après avoir touché aux dépendances.
 
 ## Conventions de code
@@ -98,10 +100,10 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - `docs/` et configuration ReadTheDocs (phase 6).
 - Workflow GitHub Actions de release / publication PyPI (phase 5), avec Trusted Publishing plutôt qu'un token.
 - Dockerfiles et manifestes Kubernetes (phase 7).
-- Activer le *secret scanning* et la *push protection* sur GitHub (gratuits sur dépôt public) — réglage d'interface.
 - Dependabot et CodeQL : différés tant que le code métier se résume à des stubs, à activer dès que `x10-connectors` contient du code réel.
 - Monter les actions GitHub de majeure (`checkout` v4 → v7, `setup-uv` v5 → v10, `upload-artifact` v4 → v7) : changement fonctionnel à tester à part.
-- **Protéger `main`** sur GitHub : tant qu'aucune règle n'est active, on peut y pousser et y force-pusher librement, ce qui vide GitHub Flow de son sens. Le ruleset est prêt — voir le skill [github-protection](.claude/skills/github-protection/SKILL.md) —, il reste à authentifier `gh` puis à l'appliquer.
+- Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
+- Configuration de débogage (`launch.json`) et couverture de tests : à l'arrivée du premier code métier.
 
 ## Procédures outillées (skills)
 

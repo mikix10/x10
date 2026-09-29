@@ -11,6 +11,7 @@ cython_debug/
 
 # Environnements virtuels
 .venv/
+.venv-*/
 venv/
 env/
 ENV/
@@ -45,8 +46,11 @@ coverage.xml
 # Exploration
 .ipynb_checkpoints
 
-# IDE
-.vscode/
+# IDE — la configuration partageable est versionnee, le reste non
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 .idea/
 
 # OS
@@ -59,8 +63,12 @@ Thumbs.db
 # Liste locale des termes proscrits dans les commits (voir CLAUDE.md)
 .denylist
 
-# Reglages Claude Code personnels (chemins et permissions du poste)
+# Configuration Claude Code : permissions, hooks et reglages du poste.
+# Non publiee tant que le projet n'a pas d'autre contributeur ;
+# versionnee dans le depot prive.
+.claude/settings.json
 .claude/settings.local.json
+.claude/hooks/
 
 # Instructions Claude Code personnelles au mainteneur (voir CLAUDE.md)
 CLAUDE.local.md

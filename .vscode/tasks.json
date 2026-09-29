@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Ruff : lint",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "ruff", "check", "."],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Ruff : format",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "ruff", "format", "."],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Mypy",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "mypy"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Pytest",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "pytest"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Pre-commit : tout l'arbre",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "pre-commit", "run", "--all-files"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Build des paquets",
+      "type": "process",
+      "command": "uv",
+      "args": ["build", "--all-packages"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Portes de qualite",
+      "detail": "Lint, typage et tests, dans l'ordre. Ce que verifie l'integration continue.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Ruff : lint", "Mypy", "Pytest"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}
