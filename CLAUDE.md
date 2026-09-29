@@ -112,6 +112,8 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - Monter les actions GitHub de majeure (`checkout` v4 → v7, `setup-uv` v5 → v10, `upload-artifact` v4 → v7) : changement fonctionnel à tester à part.
 - Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
 - Configuration de débogage (`launch.json`) et couverture de tests : à l'arrivée du premier code métier.
+- **Journalisation structurée des `ConnectorResult`** — un compte rendu de connecteur porte la provenance, la licence, le volume et l'origine retenue. Ces informations doivent être exploitables en aval, donc émises en journal structuré plutôt qu'en texte libre. À traiter avant le deuxième connecteur, sous peine d'avoir deux formats à réconcilier.
+- Trancher le domicile de `DataSource` : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`. À faire quand le catalogue sera peuplé.
 
 ## Procédures outillées (skills)
 
