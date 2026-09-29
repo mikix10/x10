@@ -11,6 +11,7 @@ cython_debug/
 
 # Environnements virtuels
 .venv/
+.venv-*/
 venv/
 env/
 ENV/
@@ -45,8 +46,11 @@ coverage.xml
 # Exploration
 .ipynb_checkpoints
 
-# IDE
-.vscode/
+# IDE — la configuration partageable est versionnee, le reste non
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 .idea/
 
 # OS
