@@ -26,7 +26,7 @@ Les références bibliographiques citées dans la documentation d'analyse sont a
 
 ## 2. Quality gates
 
-Un hook `pre-commit` exécute automatiquement ruff, les contrôles d'hygiène, `gitleaks` et le refus de commiter sur `main`. Il ne dispense pas du gate complet, qui couvre en plus le typage et les tests :
+Un hook `pre-commit` exécute automatiquement ruff, les contrôles d'hygiène, `gitleaks`, le refus de commiter sur `main` et la recherche d'identifiants personnels. Il ne dispense pas du gate complet, qui couvre en plus le typage et les tests :
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
@@ -35,6 +35,20 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 Tout doit passer. Ne jamais proposer un commit sur un arbre qui échoue — la CI le rejetterait de toute façon.
 
 Ne jamais contourner le hook par `--no-verify`. S'il bloque, c'est qu'il a raison ou que sa configuration est à corriger.
+
+### Identifiants personnels
+
+Le hook `no-personal-identifiers` cherche ce que `gitleaks` ne voit pas. Ces deux outils ne font pas le même travail : `gitleaks` traque des **secrets** — jetons, clés, mots de passe. Une adresse de messagerie ou un chemin de répertoire personnel n'en est pas un, donc il les laisse passer, alors que l'historique d'un dépôt public est permanent.
+
+Le motif couvre les adresses de messagerie et les chemins de répertoire personnel, Windows comme POSIX. Il est écrit dans `.pre-commit-config.yaml`, seul fichier qu'il exclut — puisqu'il s'y trouve en clair et se déclencherait sur lui-même.
+
+Il ne couvre **pas** le raccourci `~`, et c'est délibéré : `~/.ssh/` ne désigne personne, c'est au contraire la forme anonymisée à privilégier. Les chemins nominatifs sont la cible, pas les chemins relatifs au répertoire personnel.
+
+### La règle du point unique
+
+Aucun chemin absolu nominatif ni identité concrète ne doit figurer ailleurs que dans `CLAUDE.local.md`, non versionné. Partout ailleurs — documentation, procédures, réglages, skills — employer une variable d'environnement, le raccourci `~`, ou un marqueur entre chevrons.
+
+Si le hook se déclenche légitimement, par exemple sur une adresse de contact que le projet doit publier, ne pas élargir le motif : ajouter une exclusion nommée pour ce fichier précis, de sorte que la dérogation reste lisible.
 
 Si le changement touche une source de données, un moyen d'accès ou une surface d'exposition, invoquer aussi le skill `security`.
 
@@ -114,7 +128,21 @@ git config user.name && git config user.email && git config commit.gpgsign
 git log --show-signature -1
 ```
 
-`G` = bonne signature. Un `N` sur un commit récent signale une configuration locale perdue — la rétablir avant de continuer plutôt que de laisser passer des commits non signés.
+Trois codes à savoir distinguer, car les confondre mène à des conclusions fausses :
+
+| Code | Sens | Que faire |
+|---|---|---|
+| `G` | bonne signature, vérifiée localement | rien |
+| `N` | **aucune signature** | anomalie : la configuration locale a été perdue, la rétablir avant de continuer |
+| `E` | signature présente, **invérifiable en local** | normal sur un commit de squash, voir ci-dessous |
+
+Un `E` apparaît sur les commits créés par GitHub — fusions en squash notamment — parce qu'il les signe avec sa propre clé GPG RSA, que notre configuration SSH ne sait pas vérifier. GitHub les considère bien *Verified*, ce que confirme :
+
+```bash
+gh api repos/mikix10/x10/commits/main --jq '.commit.verification'
+```
+
+Ne pas traiter un `E` comme une anomalie. Seul `N` en est une.
 
 Identité et clé doivent rester cohérentes, sinon GitHub refuse le badge « Verified ». Ne jamais commiter sous une autre identité sans confirmation.
 

@@ -5,7 +5,7 @@ description: Poser, vérifier ou modifier la protection de la branche main de X1
 
 # Protection de `main` — X10
 
-La protection est définie dans `ruleset-main.json`, à côté de ce fichier. Elle est **versionnée** : on la relit, on la modifie en revue, on la restaure à l'identique. Ne jamais la régler à la souris sans reporter le changement dans ce JSON, sinon les deux divergent en silence.
+La configuration est définie dans deux fichiers versionnés, à côté de celui-ci : `ruleset-main.json` pour la protection de branche, `repo-settings.json` pour les réglages du dépôt. Elle est **versionnée** : on la relit, on la modifie en revue, on la restaure à l'identique. Ne jamais la régler à la souris sans reporter le changement dans ce JSON, sinon les deux divergent en silence.
 
 ## Prérequis
 
@@ -88,6 +88,49 @@ C'est ainsi qu'est apparu `require_extra_approval_for_unattributed_changes`, ajo
 **Les changements non attribués.** `require_extra_approval_for_unattributed_changes` est à **`false`**, et doit le rester tant que le projet a un seul mainteneur. À `true`, un commit dont l'auteur n'est rattaché à aucun compte GitHub exige une approbation supplémentaire — impossible à fournir seul, donc blocage dur sans autre issue que de désactiver le ruleset. C'est la même trappe que les approbations obligatoires, par une autre porte. À repasser à `true` le jour où un second contributeur peut approuver.
 
 Un workflow déclenché uniquement par `workflow_dispatch` ne doit jamais figurer dans les vérifications obligatoires : n'étant pas déclenché par les pull requests, son statut ne remonterait jamais et **toute fusion serait bloquée définitivement**.
+
+## Réglages du dépôt
+
+`repo-settings.json` couvre ce que l'interface expose sous **Settings → General**. Sans lui, ces réglages ne vivraient que dans l'interface : illisibles en revue, et un changement passerait inaperçu.
+
+```bash
+gh api -X PATCH repos/mikix10/x10 --input .claude/skills/github-protection/repo-settings.json
+```
+
+Vérifier, et détecter toute dérive :
+
+```bash
+gh api repos/mikix10/x10 --jq 'to_entries[] | select(.key | IN("has_issues","has_projects","has_wiki","has_discussions","has_downloads","allow_squash_merge","allow_merge_commit","allow_rebase_merge","allow_auto_merge","allow_update_branch","delete_branch_on_merge","squash_merge_commit_title","squash_merge_commit_message","web_commit_signoff_required")) | "\(.key) = \(.value)"'
+```
+
+### Pourquoi ces valeurs
+
+| Réglage | Raison |
+|---|---|
+| `allow_squash_merge` seul | `required_linear_history` interdit les commits de fusion ; le rebase-merge réécrit l'historique. Le squash est la seule méthode cohérente. |
+| `allow_update_branch` | **Indispensable** avec `strict_required_status_checks_policy` : dès que `main` avance, les PR deviennent périmées. Ce réglage fournit le bouton « Update branch », qui fusionne `main` dans la branche en un clic — sans rebase, conforme à la règle de non-réécriture. |
+| `allow_auto_merge` | Programme la fusion dès l'ouverture : elle part quand les vérifications passent. Confort réel pour un mainteneur seul, sans affaiblir aucune règle. |
+| `delete_branch_on_merge` | Évite l'accumulation de branches mortes. |
+| `has_wiki`, `has_projects`, `has_discussions` | Désactivés : fonctions inutilisées, donc surface en moins. |
+| `has_downloads` | Fonction vestigiale, laissée désactivée. |
+| `squash_merge_commit_message` | `COMMIT_MESSAGES` préserve le message Conventional Commits quand la branche n'a qu'un commit. Sur une branche à plusieurs commits, tous les messages sont concaténés : passer à `PR_BODY` si cela devient verbeux. |
+
+Les champs propres au dépôt — `name`, `description`, `homepage` — sont **volontairement absents** : c'est ce qui rend le fichier réutilisable tel quel.
+
+## Réutiliser sur un autre dépôt
+
+Les deux fichiers sont écrits pour servir de modèle de configuration. Aucun ne contient le nom du dépôt : celui-ci est passé en argument.
+
+```bash
+gh api -X PATCH repos/<owner>/<repo> --input repo-settings.json
+gh api -X POST  repos/<owner>/<repo>/rulesets --input ruleset-main.json
+```
+
+`ruleset-main.json` cible `~DEFAULT_BRANCH` et non un nom en dur, il s'applique donc quelle que soit la branche par défaut.
+
+**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
+
+Deux réglages ne passent pas par ces fichiers et restent à faire dans l'interface : la *push protection* du secret scanning, et l'auto-fermeture des tickets liés à une PR fusionnée, qu'aucun champ de l'API REST n'expose à ce jour.
 
 ## Escape hatch
 

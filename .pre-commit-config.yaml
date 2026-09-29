@@ -36,3 +36,17 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+
+  # Identifiants personnels. Ni gitleaks ni detect-private-key ne les voient :
+  # ils cherchent des secrets, pas une adresse de messagerie ni un chemin de
+  # repertoire personnel. C'est pourtant par la qu'une fuite est deja arrivee.
+  - repo: local
+    hooks:
+      - id: no-personal-identifiers
+        name: Aucun identifiant personnel
+        language: pygrep
+        types: [text]
+        # Ce fichier est exclu parce qu'il contient le motif lui-meme : le mot
+        # AppData y figure en clair et declencherait le hook a chaque passage.
+        exclude: ^\.pre-commit-config\.yaml$
+        entry: '(?i)(?:[a-z0-9._%+-]+@(?!example\.(?:com|org))[a-z0-9.-]+\.[a-z]{2,}|C:\\Users\\|/home/[a-z]|/Users/[a-z]|AppData)'

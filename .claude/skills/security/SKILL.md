@@ -25,6 +25,14 @@ Document vivant, à compléter au fil des sources et des moyens d'accès intégr
 - `detect-private-key` en `pre-commit` couvre les clés privées.
 - `.env`, `.env.*` et `.pypirc` sont ignorés par git.
 
+### Identifiants personnels — un angle mort distinct
+
+`gitleaks` traque des **secrets**. Une adresse de messagerie ou un chemin de répertoire personnel n'en est pas un : il les laisse passer, et le *push protection* de GitHub aussi. Ce ne sont pourtant pas des informations anodines sur un dépôt public, dont l'historique est permanent.
+
+Le hook `no-personal-identifiers` comble cet angle mort. Voir le skill `commit`.
+
+La configuration personnelle du mainteneur — identité, chemins, outillage du poste — vit dans un `CLAUDE.local.md` non versionné, jamais dans `CLAUDE.md` ni dans un skill.
+
 ### En cas de fuite — l'ordre compte
 
 **L'historique git est permanent.** Un secret commité puis retiré au commit suivant reste lisible dans l'historique, et sur un dépôt public il est moissonné en quelques minutes.
