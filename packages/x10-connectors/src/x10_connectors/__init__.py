@@ -1,25 +1,36 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from .base import BaseConnector, ConnectorResult
+from .ecmwf_ifs import (
+    DEFAULT_MAX_BYTES,
+    DEFAULT_PARAMETERS,
+    ORIGINS,
+    SOURCE_FORMAT,
+    SOURCE_KIND,
+    SOURCE_LICENSE,
+    SOURCE_NAME,
+    SOURCE_PROVIDER,
+    SOURCE_URL,
+    EcmwfIfsError,
+    EcmwfIfsOpenDataConnector,
+    EcmwfIfsRequest,
+    OpenDataClient,
+)
 
-
-@dataclass
-class ConnectorResult:
-    """Compte rendu d'une opération de connecteur."""
-
-    source: str
-    status: str
-    message: str = ""
-
-
-class BaseConnector:
-    """Base commune aux connecteurs de sources externes."""
-
-    def __init__(self, source_name: str) -> None:
-        self.source_name = source_name
-
-    def fetch(self) -> ConnectorResult:
-        raise NotImplementedError("Subclasses must implement fetch().")
-
-
-__all__ = ["BaseConnector", "ConnectorResult"]
+__all__ = [
+    "DEFAULT_MAX_BYTES",
+    "DEFAULT_PARAMETERS",
+    "ORIGINS",
+    "SOURCE_FORMAT",
+    "SOURCE_KIND",
+    "SOURCE_LICENSE",
+    "SOURCE_NAME",
+    "SOURCE_PROVIDER",
+    "SOURCE_URL",
+    "BaseConnector",
+    "ConnectorResult",
+    "EcmwfIfsError",
+    "EcmwfIfsOpenDataConnector",
+    "EcmwfIfsRequest",
+    "OpenDataClient",
+]

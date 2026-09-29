@@ -16,7 +16,7 @@ Documents de cadrage à lire avant toute décision d'architecture :
 
 ## État réel du dépôt
 
-Le socle technique est en place (licence, métadonnées PyPI, quality gates, CI, lockfile), mais le **code métier reste un ensemble de stubs** : les modèles et interfaces sont définis, aucun connecteur réel n'existe, l'API n'expose aucun endpoint.
+Le socle technique est en place, et **un premier connecteur réel existe** : `EcmwfIfsOpenDataConnector` télécharge des messages GRIB2 depuis ECMWF open data. Le reste demeure un ensemble d'ébauches — l'API n'expose aucun point d'entrée, le catalogue n'est pas peuplé, rien n'est décodé ni stocké.
 
 ## Structure
 
@@ -26,7 +26,7 @@ Monorepo `uv` workspace (`[tool.uv.workspace]` dans [pyproject.toml](pyproject.t
 |---|---|---|
 | [packages/x10-models/](packages/x10-models/) | modèles de domaine partagés | `GeoPoint`, `Provenance`, `Observation` (Pydantic, frozen) |
 | [packages/x10-catalog/](packages/x10-catalog/) | registre des sources et métadonnées | `DataSource`, `CatalogEntry` (Pydantic, frozen) |
-| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult` |
+| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector` |
 | [packages/x10-storage/](packages/x10-storage/) | abstractions de persistance | `StorageAdapter`, `StorageRecord` |
 | [services/x10-api/](services/x10-api/) | démonstrateur API (FastAPI) | fonction `hello()` |
 
@@ -44,6 +44,10 @@ uv run ruff format .           # format (la CI vérifie avec --check)
 uv run mypy                    # typage strict sur les src/
 uv build --all-packages        # construire les distributions
 uv lock                        # après tout changement de dépendance (la CI exige --locked)
+
+# Tests atteignant un service reel : exclus par defaut, et exigent l'extra.
+UV_PROJECT_ENVIRONMENT=.venv-ecmwf uv sync --all-packages --dev --extra ecmwf
+UV_PROJECT_ENVIRONMENT=.venv-ecmwf uv run pytest -m network
 ```
 
 Sous VSCode, ces commandes sont aussi exposées en tâches — **Portes de qualité** enchaîne lint, typage et tests. Les extensions recommandées sont proposées à l'ouverture du dossier ; elles sont configurées pour utiliser le `ruff` et le `mypy` **du projet** et non leurs binaires embarqués, faute de quoi l'éditeur et la CI divergeraient en silence.
@@ -85,13 +89,17 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Règle de volumétrie** : ne jamais instancier un modèle Pydantic par point de grille. Les données maillées (GRIB/NetCDF) restent dans des tableaux `xarray`/`numpy` ; les modèles servent aux métadonnées, entrées de catalogue, provenance et payloads API. `Observation` vaut pour les séries ponctuelles (stations, bouées), pas pour un champ IFS 0.25°.
 - **Backend de build : `hatchling`, déclaré membre par membre.** Les cinq paquets sont en Python pur ; la seule chose que `setuptools` ferait mieux, compiler des extensions C, ne nous sert pas puisque le travail natif est délégué à `cfgrib`/`eccodes`, que nous consommons sous forme de wheels sans jamais les construire. Le backend n'a par ailleurs aucun effet sur le déploiement : la vraie contrainte de conteneurisation sera la bibliothèque C ecCodes, identique quel que soit le backend.
   **Corollaire à ne pas perdre de vue** : chaque membre porte son propre `[build-system]`. Le jour où un paquet devra embarquer une extension compilée — hypothèse crédible en géosciences — il basculera seul vers `setuptools` ou `meson-python`. Ne jamais uniformiser le backend « par cohérence » : c'est cette granularité qui donne l'évolutivité.
+- **Accès ECMWF : le client officiel `ecmwf-opendata`**, en extra optionnel `ecmwf` de `x10-connectors`. Il implémente déjà l'index et les plages d'octets que nos décisions visaient, et expose quatre origines — ECMWF, AWS, Azure, Google — ce qui sert la redondance. Ne pas réimplémenter.
+  **Deux pièges vérifiés le 29/09/2026.** Le client n'expose **aucun délai maximal** de requête ; ses valeurs de reprise par défaut, 500 tentatives espacées de 120 s, autorisent une attente de plusieurs heures. Le connecteur les abaisse à 3 et 10 s, et un test le garantit.
+- **La sélection par plages d'octets ne porte jamais sur la géographie.** L'index adresse le message, et un message GRIB2 est un champ global dont la section de données est un bloc unique compressé en CCSDS — template 42, grille 1440 × 721. Un sous-domaine s'obtient après décodage, pas au téléchargement. Vrai pour tout client.
+- **`DataSource` vit dans `x10-catalog`, mais un connecteur doit décrire sa source.** Plutôt que d'inverser la règle de dépendance, le connecteur porte des constantes de module — nom, producteur, licence, URL. À trancher quand le catalogue sera peuplé : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`.
 - **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Ordre de travail retenu
 
 1. ~~**Socle technique**~~ — fait : workspace `uv`, `uv.lock`, `LICENSE`, métadonnées PyPI, ruff, `mypy --strict`, pytest, hook `pre-commit`, CI 3.12 avec canari 3.13, commits signés.
 2. **Protéger `main`** puis reprendre le travail en pull request — voir « Reste à faire ».
-3. **Connecteur ECMWF IFS** concret, pour valider les abstractions par l'usage.
+3. ~~**Connecteur ECMWF IFS**~~ — fait. Leçons consignées dans « Décisions arrêtées ».
 4. **Modèle de catalogue multi-origines** — une information logique peut avoir plusieurs sources, avec une politique de résolution. Le `CatalogEntry` actuel, qui porte une source unique, ne le permet pas.
 5. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
 
