@@ -29,7 +29,12 @@ members = [
 
 [tool.pytest.ini_options]
 testpaths = ["packages", "services"]
-addopts = "-q"
+# Les tests reseau sont exclus par defaut : l'integration continue n'a pas a
+# dependre d'un service tiers. Les lancer par `uv run pytest -m network`.
+addopts = "-q -m 'not network'"
+markers = [
+  "network: atteint un service distant reel, desactive par defaut",
+]
 
 [tool.ruff]
 line-length = 100
@@ -54,3 +59,9 @@ known-first-party = [
 python_version = "3.12"
 strict = true
 files = ["packages/*/src", "services/*/src"]
+
+# Derogations nommees, limitees aux modules sans marqueur py.typed.
+# Verifie le 29/09/2026 : aucune des deux distributions n'en fournit.
+[[tool.mypy.overrides]]
+module = ["ecmwf.opendata.*", "multiurl.*"]
+ignore_missing_imports = true

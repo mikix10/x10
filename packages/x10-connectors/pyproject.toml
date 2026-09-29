@@ -22,7 +22,19 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Atmospheric Science",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+  "x10-models",
+]
+
+[project.optional-dependencies]
+# Client officiel du producteur. Optionnel : le noyau doit rester installable
+# sans la pile scientifique. Voir la section « Portee » de CLAUDE.md.
+ecmwf = [
+  "ecmwf-opendata>=0.3.34",
+]
+
+[tool.uv.sources]
+x10-models = { workspace = true }
 
 [project.urls]
 Homepage = "https://github.com/mikix10/x10"

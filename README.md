@@ -1,5 +1,12 @@
 # X10 — GeoMetOc Open Data Server
 
+[![CI](https://github.com/mikix10/x10/actions/workflows/ci.yml/badge.svg)](https://github.com/mikix10/x10/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/release/python-3120/)
+[![Licence BSD-3-Clause](https://img.shields.io/badge/licence-BSD--3--Clause-blue)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Vérifié par mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-actif-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+
 ## Contexte
 
 X10 est la composante d'exploitation de données géo-hydro-océano-météo open data.
