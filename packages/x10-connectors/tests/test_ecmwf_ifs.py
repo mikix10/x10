@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import struct
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -50,7 +50,7 @@ def test_la_requete_par_defaut_porte_les_quatre_parametres_de_surface():
     "kwargs",
     [
         {"parameters": ()},
-        {"origin": "un-nuage-inconnu"},
+        {"origins": ("un-nuage-inconnu",)},
         {"step": -6},
     ],
 )
@@ -93,7 +93,7 @@ def test_l_origine_demandee_est_transmise(tmp_path):
     clients: list[_ClientSimule] = []
     connecteur = EcmwfIfsOpenDataConnector(
         tmp_path,
-        EcmwfIfsRequest(origin="aws"),
+        EcmwfIfsRequest(origins=("aws",)),
         client_factory=_fabrique(clients),
     )
     connecteur.fetch()
@@ -109,16 +109,17 @@ def test_le_resultat_porte_la_provenance_et_la_licence(tmp_path):
 
     assert resultat.outcome == "success"
     assert resultat.source == SOURCE_NAME
-    assert resultat.provenance is not None
-    assert resultat.provenance.license == SOURCE_LICENSE
-    assert resultat.provenance.retrieval_time is not None
-    assert len(resultat.artefacts) == len(DEFAULT_PARAMETERS)
+    assert resultat.retrieval is not None
+    assert resultat.retrieval.license == SOURCE_LICENSE
+    assert resultat.retrieval.origin == "ecmwf"
+    assert len(resultat.retrieval.artefacts) == len(DEFAULT_PARAMETERS)
 
 
 def test_les_artefacts_existent_et_sont_sous_la_racine(tmp_path):
     resultat = EcmwfIfsOpenDataConnector(tmp_path, client_factory=_fabrique([])).fetch()
 
-    for chemin in resultat.artefacts:
+    assert resultat.retrieval is not None
+    for chemin in resultat.retrieval.artefacts:
         assert chemin.exists()
         assert chemin.is_relative_to(tmp_path.resolve())
 
@@ -158,10 +159,103 @@ def test_telechargement_reel_de_messages_grib2(tmp_path):
     resultat = EcmwfIfsOpenDataConnector(tmp_path, EcmwfIfsRequest(step=0)).fetch()
 
     assert resultat.outcome == "success"
-    assert len(resultat.artefacts) == 4
-    for chemin in resultat.artefacts:
+    assert resultat.retrieval is not None
+    assert len(resultat.retrieval.artefacts) == 4
+    for chemin in resultat.retrieval.artefacts:
         donnees = chemin.read_bytes()
         assert donnees[:4] == b"GRIB", f"{chemin.name} n'est pas un GRIB"
         assert donnees[7] == 2, "edition GRIB attendue : 2"
         assert struct.unpack(">Q", donnees[8:16])[0] == len(donnees)
         assert donnees[-4:] == b"7777"
+
+
+# --- Bascule d'origine ---------------------------------------------------------
+
+
+class _ClientDefaillant:
+    """Echoue sur certaines origines, reussit sur les autres."""
+
+    tentatives: ClassVar[list[str]] = []
+    en_panne: ClassVar[set[str]] = set()
+
+    def __init__(self, source: str, **kwargs: Any) -> None:
+        self.source = source
+        self.kwargs = kwargs
+        _ClientDefaillant.tentatives.append(source)
+
+    def retrieve(self, request: dict[str, Any], target: str) -> None:
+        if self.source in self.en_panne:
+            raise ConnectionError(f"{self.source} ne repond pas")
+        Path(target).write_bytes(b"GRIB" + b"\x00" * 1016 + b"7777")
+
+
+def _fabrique_defaillante(en_panne: set[str]):
+    _ClientDefaillant.tentatives = []
+    _ClientDefaillant.en_panne = en_panne
+
+    def fabrique(**kwargs: Any) -> _ClientDefaillant:
+        return _ClientDefaillant(**kwargs)
+
+    return fabrique
+
+
+def test_une_origine_inaccessible_entraine_un_repli(tmp_path):
+    connecteur = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(parameters=("2t",), origins=("ecmwf", "aws", "google")),
+        client_factory=_fabrique_defaillante({"ecmwf"}),
+    )
+    resultat = connecteur.fetch()
+
+    assert _ClientDefaillant.tentatives == ["ecmwf", "aws"]
+    assert resultat.outcome == "success"
+
+
+def test_le_lignage_porte_l_origine_retenue_et_non_celle_demandee(tmp_path):
+    resultat = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(parameters=("2t",), origins=("ecmwf", "aws")),
+        client_factory=_fabrique_defaillante({"ecmwf"}),
+    ).fetch()
+
+    assert resultat.origin == "aws"
+    assert resultat.retrieval is not None
+    assert resultat.retrieval.origin == "aws"
+
+
+def test_l_echec_de_toutes_les_origines_est_propage(tmp_path):
+    connecteur = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(parameters=("2t",), origins=("ecmwf", "aws")),
+        client_factory=_fabrique_defaillante({"ecmwf", "aws"}),
+    )
+    with pytest.raises(ConnectionError):
+        connecteur.fetch()
+
+    assert _ClientDefaillant.tentatives == ["ecmwf", "aws"]
+
+
+def test_une_erreur_de_notre_fait_n_entraine_aucun_repli(tmp_path):
+    """Le plafond de volume vaut pour toutes les origines : réessayer
+    ailleurs téléchargerait la même donnée trop volumineuse."""
+    connecteur = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(parameters=("2t",), origins=("ecmwf", "aws", "google")),
+        max_bytes=100,
+        client_factory=_fabrique_defaillante(set()),
+    )
+    with pytest.raises(EcmwfIfsError, match="plafond"):
+        connecteur.fetch()
+
+    assert _ClientDefaillant.tentatives == ["ecmwf"], "aucun repli ne doit avoir lieu"
+
+
+def test_un_fichier_partiel_ne_survit_pas_a_une_bascule(tmp_path):
+    """Sans nettoyage, un artefact de l'origine en panne subsisterait."""
+    EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(parameters=("2t", "10u"), origins=("ecmwf", "aws")),
+        client_factory=_fabrique_defaillante({"ecmwf"}),
+    ).fetch()
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["10u-0h.grib2", "2t-0h.grib2"]

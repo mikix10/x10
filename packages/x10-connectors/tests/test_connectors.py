@@ -38,10 +38,20 @@ def test_le_resultat_se_serialise_en_json():
     """Il traverse XCom et les journaux : la sérialisation n'est pas optionnelle."""
     from pathlib import Path
 
-    charge = _resultat(artefacts=(Path("a/b.grib2"),)).model_dump_json()
+    from x10_models import Retrieval
+
+    lignage = Retrieval(
+        artefacts=(Path("a/b.grib2"),),
+        retrieved_at=datetime(2026, 1, 1, tzinfo=UTC),
+        dataset="un-jeu",
+        origin="aws",
+        agent="x10-connectors 0.1.0",
+    )
+    charge = _resultat(retrieval=lignage).model_dump_json()
 
     assert '"outcome":"success"' in charge
     assert "b.grib2" in charge
+    assert '"origin":"aws"' in charge
     assert "2026-01-01T00:00:00Z" in charge
 
 

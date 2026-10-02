@@ -24,7 +24,11 @@ classifiers = [
 ]
 dependencies = [
   "pydantic>=2.7.0",
+  "x10-models",
 ]
+
+[tool.uv.sources]
+x10-models = { workspace = true }
 
 [project.urls]
 Homepage = "https://github.com/mikix10/x10"

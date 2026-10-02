@@ -27,7 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from x10_models import Provenance
+from x10_models import Retrieval
 
 from .base import BaseConnector, ConnectorResult
 from .observability import (
@@ -79,6 +79,16 @@ class EcmwfIfsError(RuntimeError):
     """Échec d'une récupération ECMWF IFS."""
 
 
+#: Agent responsable, pour le lignage.
+AGENT = "x10-connectors 0.1.0"
+
+#: Erreurs qui **n'entraînent pas** de repli sur une autre origine : elles
+#: viennent de la requête ou de nous, pas du diffuseur. Une autre origine
+#: servirait la même donnée et échouerait de la même manière. Tout le reste —
+#: réseau, HTTP, erreurs propres au client — déclenche une bascule.
+NON_REESSAYABLE = (EcmwfIfsError, ValueError, TypeError)
+
+
 @dataclass(frozen=True)
 class EcmwfIfsRequest:
     """Sélection à télécharger.
@@ -91,13 +101,24 @@ class EcmwfIfsRequest:
     step: int = 0
     time: int = 0
     date: int = -1
-    origin: str = "ecmwf"
+    #: Origines à tenter, **dans l'ordre**. Le connecteur passe à la suivante
+    #: quand une origine est inaccessible. L'ordre vient en général de
+    #: `CatalogEntry.origins()`, que l'appelant résout — un connecteur n'a pas
+    #: à connaître le catalogue.
+    origins: tuple[str, ...] = ("ecmwf",)
 
     def __post_init__(self) -> None:
         if not self.parameters:
             raise ValueError("Au moins un paramètre est requis.")
-        if self.origin not in ORIGINS:
-            raise ValueError(f"Origine inconnue : {self.origin!r}. Attendu l'une de {ORIGINS}.")
+        if not self.origins:
+            raise ValueError("Au moins une origine est requise.")
+        inconnues = sorted(set(self.origins) - set(ORIGINS))
+        if inconnues:
+            raise ValueError(
+                f"Origine(s) inconnue(s) : {', '.join(inconnues)}. Attendu parmi {ORIGINS}."
+            )
+        if len(set(self.origins)) != len(self.origins):
+            raise ValueError("Une origine ne peut pas figurer deux fois dans l'ordre de repli.")
         if self.step < 0:
             raise ValueError("L'échéance ne peut pas être négative.")
 
@@ -146,10 +167,10 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         self.run_id = run_id or str(uuid.uuid4())
         self._client_factory = client_factory
 
-    def _client(self) -> OpenDataClient:
+    def _client(self, origin: str) -> OpenDataClient:
         if self._client_factory is not None:
             return self._client_factory(
-                source=self.request.origin,
+                source=origin,
                 maximum_retries=self.max_retries,
                 retry_after=self.retry_after,
             )
@@ -161,7 +182,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 "uv sync --all-packages --extra ecmwf"
             ) from exc
         client: OpenDataClient = Client(
-            source=self.request.origin,
+            source=origin,
             model="ifs",
             resol="0p25",
             verify=True,
@@ -181,8 +202,8 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             "param": parameter,
         }
 
-    def _download(self, root: Path) -> tuple[list[Path], int]:
-        client = self._client()
+    def _download(self, root: Path, origin: str) -> tuple[list[Path], int]:
+        client = self._client(origin)
         artefacts: list[Path] = []
         downloaded = 0
         for parameter in self.request.parameters:
@@ -202,67 +223,115 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             artefacts.append(target)
         return artefacts, downloaded
 
+    def _champs_debut(self, origin: str, attempt: int) -> dict[str, Any]:
+        return fetch_started_fields(
+            source=SOURCE_NAME,
+            run_id=self.run_id,
+            origin=origin,
+            attempt=attempt,
+            details={
+                "parameters": list(self.request.parameters),
+                "step": self.request.step,
+            },
+        )
+
+    def _tenter(self, root: Path, origin: str) -> tuple[list[Path], int]:
+        """Une tentative sur une origine. Nettoie derrière elle en cas d'échec,
+        faute de quoi un fichier partiel subsisterait avant la bascule."""
+        try:
+            return self._download(root, origin)
+        except Exception:
+            for reste in root.glob(f"*-{self.request.step}h.grib2"):
+                reste.unlink(missing_ok=True)
+            raise
+
     def fetch(self) -> ConnectorResult:
         root = self.destination.resolve()
         root.mkdir(parents=True, exist_ok=True)
 
         started_at = datetime.now(UTC)
         debut = time.perf_counter_ns()
-        _log.info(
-            "Récupération ECMWF IFS démarrée",
-            extra=fetch_started_fields(
-                source=SOURCE_NAME,
-                run_id=self.run_id,
-                origin=self.request.origin,
-                details={
-                    "parameters": list(self.request.parameters),
-                    "step": self.request.step,
-                },
-            ),
-        )
+        origines = self.request.origins
 
-        try:
-            artefacts, downloaded = self._download(root)
-        except Exception as erreur:
-            _log.error(
-                "Récupération ECMWF IFS en échec",
-                extra={
-                    **fetch_started_fields(
-                        source=SOURCE_NAME, run_id=self.run_id, origin=self.request.origin
-                    ),
-                    **failure_fields(erreur),
-                    "event.duration": time.perf_counter_ns() - debut,
-                },
+        artefacts: list[Path] = []
+        downloaded = 0
+        retenue = ""
+        for rang, origin in enumerate(origines, start=1):
+            _log.info(
+                "Récupération ECMWF IFS démarrée",
+                extra=self._champs_debut(origin, rang),
             )
-            raise
+            try:
+                artefacts, downloaded = self._tenter(root, origin)
+            except NON_REESSAYABLE as erreur:
+                # Un défaut de notre fait ou de la requête : une autre origine
+                # servirait la même donnée et échouerait de la même manière.
+                _log.error(
+                    "Récupération ECMWF IFS en échec, sans repli",
+                    extra={
+                        **self._champs_debut(origin, rang),
+                        **failure_fields(erreur),
+                        "event.duration": time.perf_counter_ns() - debut,
+                    },
+                )
+                raise
+            except Exception as erreur:
+                # Un repli reste un incident mineur ; l'échec de la dernière
+                # origine est terminal et doit remonter comme tel.
+                dernier = rang == len(origines)
+                journalise = _log.error if dernier else _log.warning
+                journalise(
+                    "Toutes les origines sont inaccessibles"
+                    if dernier
+                    else "Origine inaccessible, repli sur la suivante",
+                    extra={
+                        **self._champs_debut(origin, rang),
+                        **failure_fields(erreur),
+                        "event.duration": time.perf_counter_ns() - debut,
+                    },
+                )
+                if dernier:
+                    raise
+                continue
+            retenue = origin
+            break
 
         resultat = ConnectorResult(
             source=SOURCE_NAME,
             outcome="success",
             message=(
                 f"{len(artefacts)} message(s) GRIB2 récupéré(s) depuis l'origine "
-                f"{self.request.origin!r}, {downloaded} octets."
+                f"{retenue!r}, {downloaded} octets."
             ),
             run_id=self.run_id,
-            origin=self.request.origin,
+            origin=retenue,
             started_at=started_at,
             duration_ns=time.perf_counter_ns() - debut,
             bytes_downloaded=downloaded,
-            provenance=Provenance(
-                source_name=SOURCE_NAME,
-                source_url=SOURCE_URL,
-                retrieval_time=datetime.now(UTC),
+            retrieval=Retrieval(
+                artefacts=tuple(artefacts),
+                retrieved_at=datetime.now(UTC),
+                dataset=SOURCE_NAME,
+                origin=retenue,
+                selection={
+                    "parameters": list(self.request.parameters),
+                    "step": self.request.step,
+                    "time": self.request.time,
+                    "date": self.request.date,
+                },
+                agent=AGENT,
                 license=SOURCE_LICENSE,
             ),
-            artefacts=tuple(artefacts),
         )
         _log.info("Récupération ECMWF IFS terminée", extra=fetch_finished_fields(resultat))
         return resultat
 
 
 __all__ = [
+    "AGENT",
     "DEFAULT_MAX_BYTES",
     "DEFAULT_PARAMETERS",
+    "NON_REESSAYABLE",
     "ORIGINS",
     "SOURCE_FORMAT",
     "SOURCE_KIND",
