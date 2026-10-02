@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from x10_models import Provenance
+from x10_models import Retrieval
 
 #: Vocabulaire fermé d'`event.outcome` dans Elastic Common Schema. Le statut
 #: adopte ces valeurs plutôt que les siennes : une correspondance de moins à
@@ -43,8 +42,10 @@ class ConnectorResult(BaseModel):
     duration_ns: int = Field(ge=0)
     bytes_downloaded: int = Field(default=0, ge=0)
 
-    provenance: Provenance | None = None
-    artefacts: tuple[Path, ...] = ()
+    #: Lignage de ce qui a été acquis : artefacts, origine effectivement
+    #: retenue, licence. Le compte rendu dit **comment l'appel s'est passé**,
+    #: le lignage dit **d'où vient la donnée** — deux questions distinctes.
+    retrieval: Retrieval | None = None
 
 
 class BaseConnector:

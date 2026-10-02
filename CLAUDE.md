@@ -24,15 +24,17 @@ Monorepo `uv` workspace (`[tool.uv.workspace]` dans [pyproject.toml](pyproject.t
 
 | Chemin | Rôle | Contenu actuel |
 |---|---|---|
-| [packages/x10-models/](packages/x10-models/) | modèles de domaine partagés | `GeoPoint`, `Provenance`, `Observation` (Pydantic, frozen) |
-| [packages/x10-catalog/](packages/x10-catalog/) | registre des sources et métadonnées | `DataSource`, `CatalogEntry` (Pydantic, frozen) |
+| [packages/x10-models/](packages/x10-models/) | **vocabulaire** de domaine partagé | `Agent`, `Dataset`, `Distribution`, `Retrieval`, `GeoPoint`, `Observation`, `Provenance` |
+| [packages/x10-catalog/](packages/x10-catalog/) | **registre** et politique de résolution | `CatalogEntry`, ordre de repli entre origines |
 | [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector`, journalisation ECS |
 | [packages/x10-storage/](packages/x10-storage/) | abstractions de persistance | `StorageAdapter`, `StorageRecord` |
 | [services/x10-api/](services/x10-api/) | démonstrateur API (FastAPI) | fonction `hello()` |
 
 Chaque membre suit le même moule, à reproduire pour tout nouveau package : layout `src/`, build `hatchling`, `version = "0.1.0"`, `requires-python = ">=3.12,<3.14"`, `license = "BSD-3-Clause"` avec une copie de `LICENSE` dans le dossier du package, classifiers et `project.urls` renseignés, marqueur `py.typed`, dossier `tests/`, et toute l'API publique exportée depuis le `__init__.py` avec un `__all__` explicite.
 
-Règle de dépendance : `x10-api` → packages ; `x10-connectors` / `x10-storage` / `x10-catalog` → `x10-models`. Ne pas créer de dépendance descendante depuis `x10-models`. Aucune dépendance interne n'est encore câblée — les ajouter en `[tool.uv.sources]` (`{ workspace = true }`) quand elles deviennent nécessaires.
+Règle de dépendance : `x10-api` → packages ; `x10-connectors` / `x10-storage` / `x10-catalog` → `x10-models`. Ne pas créer de dépendance descendante depuis `x10-models`, qui ne dépend de rien. `x10-connectors` et `x10-catalog` y sont câblés en `[tool.uv.sources]` (`{ workspace = true }`).
+
+**`x10-connectors` ne dépend pas de `x10-catalog`, et ne doit pas en dépendre.** Un connecteur ignore l'existence d'un catalogue : c'est l'appelant qui résout une entrée et lui transmet l'ordre des origines à tenter, par `CatalogEntry.origins()`.
 
 ## Commandes
 
@@ -97,6 +99,14 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Journalisation : `logging` standard, champs Elastic Common Schema, et la bibliothèque n'impose rien.** Aucun `basicConfig`, aucun handler, aucun format — seulement un `NullHandler`. C'est l'application qui choisit la destination et le rendu ; imposer du JSON casserait toute application nous intégrant. Un `EcsJsonFormatter` est fourni **pour les applications**, rien ne l'installe.
   **Trois points du schéma à respecter.** `event.outcome` n'admet que `success`, `failure` ou `unknown` — le champ `outcome` de `ConnectorResult` reprend ce vocabulaire pour éviter une correspondance. `event.duration` se compte en **nanosecondes**. Et `event.category` a un vocabulaire fermé où aucune valeur ne désigne l'acquisition de données ; `network` et `file` sont retenues.
   **Deux pièges vérifiés.** `extra=` lève une `KeyError` sur les attributs réservés de `LogRecord` — `message`, `name`, `levelname`, `asctime`, `args` — donc la journalisation échouerait elle-même ; un test vérifie qu'aucun champ émis n'y figure. Et le rendu JSON est en **ASCII pur** : une console `cp1252` corromprait sinon les accents de nos messages.
+- **Vocabulaire aligné sur DCAT, PROV-O et INSPIRE.** La correspondance complète est dans [docs/vocabulaire.md](docs/vocabulaire.md) — notre pierre de Rosette, qui joue le rôle que GeoDCAT-AP joue entre INSPIRE et DCAT. **La consulter avant d'ajouter ou de renommer un terme du vocabulaire** : la plupart des notions sont déjà normalisées.
+  Deux points vérifiés le 02/10/2026. La codelist INSPIRE des rôles est gouvernée au niveau **« Legal (EU) »**, donc réglementaire. Et `dcterms:publisher` n'est **pas** une propriété de `dcat:Distribution` : elle appartient à la ressource, d'où `Dataset.publisher` et une extension X10 nommée `Distribution.provider`, DCAT ne modélisant aucun agent par distribution.
+- **Licence et restriction d'accès sont deux notions.** `Distribution.license` porte les conditions d'usage, `Distribution.access_rights` les motifs juridiques de restriction, repris verbatim de la codelist INSPIRE des alinéas de l'article 13. Les confondre produit des métadonnées fausses.
+- **Vocabulaire du catalogue aligné sur DCAT et PROV-O**, sans sérialisation RDF. Ces standards distinguent depuis longtemps ce que notre premier modèle confondait : `dcterms:creator` le producteur, `dcterms:publisher` le diffuseur, `dcat:Distribution` un accès concret, `dcat:CatalogRecord` une ré-exposition après moissonnage, et PROV-O le lignage. Les réinventer aurait été une faute ; un export DCAT ou STAC reste possible sans rien reprendre.
+  **`DataSource` est supprimé** — question en suspens depuis le premier connecteur, désormais tranchée. Le vocabulaire (`Agent`, `Dataset`, `Distribution`, `Retrieval`) vit dans `x10-models` parce que ce sont des modèles de domaine ; le registre et la politique de résolution vivent dans `x10-catalog` parce qu'un registre est un comportement, pas un type.
+- **Une `Distribution` par origine**, et non une distribution à plusieurs URL. Chacune porte sa priorité et sa licence — un ré-exposant peut ajouter ses conditions —, ce sur quoi s'appuie la résolution. **STAC ne convient pas ici** : sa spécification pose qu'il ne doit y avoir qu'un seul `host`, ce qui exclut la redondance.
+- **Bascule d'origine, mais pas sur n'importe quelle erreur.** Un échec d'accès entraîne un repli sur l'origine suivante ; une erreur de notre fait ou de la requête — plafond de volume, chemin invalide, paramètre absurde — n'en entraîne aucun, puisqu'une autre origine servirait la même donnée et échouerait pareillement. Voir `NON_REESSAYABLE`.
+- **`Retrieval` porte l'origine effectivement retenue**, qui peut différer de celle demandée. `Provenance` subsiste avec un rôle distinct : attribution d'une **valeur**, là où `Retrieval` décrit l'acquisition d'un **artefact**.
 - **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Ordre de travail retenu
@@ -104,7 +114,7 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 1. ~~**Socle technique**~~ — fait : workspace `uv`, `uv.lock`, `LICENSE`, métadonnées PyPI, ruff, `mypy --strict`, pytest, hook `pre-commit`, CI 3.12 avec canari 3.13, commits signés.
 2. **Protéger `main`** puis reprendre le travail en pull request — voir « Reste à faire ».
 3. ~~**Connecteur ECMWF IFS**~~ — fait. Leçons consignées dans « Décisions arrêtées ».
-4. **Modèle de catalogue multi-origines** — une information logique peut avoir plusieurs sources, avec une politique de résolution. Le `CatalogEntry` actuel, qui porte une source unique, ne le permet pas.
+4. ~~**Modèle de catalogue multi-origines**~~ — fait, et éprouvé par la bascule d'origine du connecteur ECMWF.
 5. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
 
 ## Reste à faire
@@ -117,7 +127,6 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
 - Configuration de débogage (`launch.json`) et couverture de tests : à l'arrivée du premier code métier.
 - **Métriques de supervision** — les journaux permettent à une chaîne ELK de dériver taux de succès, latence et volume, mais la détection d'incident dépend alors du délai d'indexation. Un point d'entrée de métriques, ou un contrôle de santé par source, reste à prévoir si un besoin de supervision temps réel apparaît.
-- Trancher le domicile de `DataSource` : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`. À faire quand le catalogue sera peuplé.
 
 ## Procédures outillées (skills)
 

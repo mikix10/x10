@@ -76,9 +76,15 @@ def fetch_started_fields(
     source: str,
     run_id: str,
     origin: str | None,
+    attempt: int | None = None,
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Champs ECS du début d'une récupération."""
+    """Champs ECS du début d'une récupération.
+
+    `attempt` numérote la tentative quand plusieurs origines sont essayées ;
+    il passe par ici plutôt que d'être ajouté par l'appelant, afin que la
+    surface journalisée reste entièrement couverte par ses tests.
+    """
     champs: dict[str, Any] = {
         "event.kind": "event",
         "event.category": list(EVENT_CATEGORY),
@@ -89,6 +95,8 @@ def fetch_started_fields(
     }
     if origin is not None:
         champs["x10.origin"] = origin
+    if attempt is not None:
+        champs["x10.attempt"] = attempt
     if details:
         champs.update({f"x10.{cle}": valeur for cle, valeur in details.items()})
     return champs
@@ -107,12 +115,14 @@ def fetch_finished_fields(result: ConnectorResult) -> dict[str, Any]:
         "trace.id": result.run_id,
         "x10.source": result.source,
         "x10.bytes": result.bytes_downloaded,
-        "x10.artefacts": len(result.artefacts),
+        "x10.artefacts": len(result.retrieval.artefacts) if result.retrieval else 0,
     }
     if result.origin is not None:
         champs["x10.origin"] = result.origin
-    if result.provenance is not None and result.provenance.license is not None:
-        champs["x10.license"] = result.provenance.license
+    if result.retrieval is not None:
+        champs["x10.dataset"] = result.retrieval.dataset
+        if result.retrieval.license is not None:
+            champs["x10.license"] = result.retrieval.license
     return champs
 
 

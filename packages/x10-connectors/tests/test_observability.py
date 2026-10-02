@@ -17,7 +17,7 @@ from x10_connectors import (
     fetch_finished_fields,
     fetch_started_fields,
 )
-from x10_models import Provenance
+from x10_models import Retrieval
 
 
 class _ClientSimule:
@@ -43,6 +43,17 @@ def _fabrique(client: type) -> object:
     return fabrique
 
 
+def _lignage(*artefacts: Path) -> Retrieval:
+    return Retrieval(
+        artefacts=artefacts,
+        retrieved_at=datetime(2026, 1, 1, tzinfo=UTC),
+        dataset="source-de-test",
+        origin="aws",
+        agent="x10-connectors 0.1.0",
+        license="CC-BY-4.0",
+    )
+
+
 def _resultat() -> ConnectorResult:
     return ConnectorResult(
         source="source-de-test",
@@ -52,6 +63,7 @@ def _resultat() -> ConnectorResult:
         duration_ns=1_500_000,
         bytes_downloaded=2_795_916,
         origin="aws",
+        retrieval=_lignage(),
     )
 
 
@@ -62,7 +74,7 @@ def test_aucun_champ_emis_ne_heurte_un_attribut_reserve():
     """`extra=` leve une KeyError sur un nom reserve : la journalisation
     echouerait elle-meme, ce qui est la pire facon d'echouer."""
     champs = {
-        **fetch_started_fields(source="s", run_id="r", origin="o", details={"step": 0}),
+        **fetch_started_fields(source="s", run_id="r", origin="o", attempt=1, details={"step": 0}),
         **fetch_finished_fields(_resultat()),
         **failure_fields(ValueError("x")),
     }
@@ -153,7 +165,7 @@ def test_l_identifiant_d_execution_est_engendre_s_il_n_est_pas_fourni(tmp_path):
 
 def test_un_echec_est_journalise_avant_d_etre_propage(tmp_path, caplog):
     with (
-        caplog.at_level(logging.ERROR, logger="x10_connectors.ecmwf_ifs"),
+        caplog.at_level(logging.WARNING, logger="x10_connectors.ecmwf_ifs"),
         pytest.raises(ConnectionError),
     ):
         EcmwfIfsOpenDataConnector(
@@ -233,6 +245,7 @@ def test_le_formateur_resiste_a_un_flux_non_utf8():
 
 CHAMPS_DEBUT = {
     "event.action",
+    "x10.attempt",
     "event.category",
     "event.dataset",
     "event.kind",
@@ -254,6 +267,7 @@ CHAMPS_FIN = {
     "trace.id",
     "x10.artefacts",
     "x10.bytes",
+    "x10.dataset",
     "x10.license",
     "x10.origin",
     "x10.source",
@@ -264,15 +278,17 @@ CHAMPS_ECHEC = {"error.message", "error.type", "event.outcome"}
 
 def test_la_surface_emise_au_demarrage_est_exactement_celle_du_contrat():
     champs = fetch_started_fields(
-        source="s", run_id="r", origin="o", details={"parameters": ["2t"], "step": 0}
+        source="s",
+        run_id="r",
+        origin="o",
+        attempt=1,
+        details={"parameters": ["2t"], "step": 0},
     )
     assert set(champs) == CHAMPS_DEBUT
 
 
 def test_la_surface_emise_a_la_fin_est_exactement_celle_du_contrat():
-    resultat = _resultat()
-    resultat.provenance = Provenance(source_name="s", license="CC-BY-4.0")
-    assert set(fetch_finished_fields(resultat)) == CHAMPS_FIN
+    assert set(fetch_finished_fields(_resultat())) == CHAMPS_FIN
 
 
 def test_la_surface_emise_en_echec_est_exactement_celle_du_contrat():
@@ -286,7 +302,7 @@ def test_aucun_chemin_de_fichier_n_est_journalise():
     que dans le resultat, qui ne transite pas par la meme voie.
     """
     resultat = _resultat()
-    resultat.artefacts = (Path("repertoire-temoin/2t-0h.grib2"),)
+    resultat.retrieval = _lignage(Path("repertoire-temoin/2t-0h.grib2"))
 
     emis = json.dumps(fetch_finished_fields(resultat), default=str)
 

@@ -718,10 +718,14 @@ version = "0.1.0"
 source = { editable = "packages/x10-catalog" }
 dependencies = [
     { name = "pydantic" },
+    { name = "x10-models" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.7.0" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.7.0" },
+    { name = "x10-models", editable = "packages/x10-models" },
+]
 
 [[package]]
 name = "x10-connectors"
