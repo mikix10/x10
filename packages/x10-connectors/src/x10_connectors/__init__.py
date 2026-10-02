@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .base import BaseConnector, ConnectorResult
+from .base import BaseConnector, ConnectorResult, Outcome
 from .ecmwf_ifs import (
     DEFAULT_MAX_BYTES,
     DEFAULT_PARAMETERS,
@@ -16,11 +16,24 @@ from .ecmwf_ifs import (
     EcmwfIfsRequest,
     OpenDataClient,
 )
+from .observability import (
+    EVENT_CATEGORY,
+    EVENT_DATASET,
+    RESERVED_RECORD_ATTRIBUTES,
+    EcsJsonFormatter,
+    connector_logger,
+    failure_fields,
+    fetch_finished_fields,
+    fetch_started_fields,
+)
 
 __all__ = [
     "DEFAULT_MAX_BYTES",
     "DEFAULT_PARAMETERS",
+    "EVENT_CATEGORY",
+    "EVENT_DATASET",
     "ORIGINS",
+    "RESERVED_RECORD_ATTRIBUTES",
     "SOURCE_FORMAT",
     "SOURCE_KIND",
     "SOURCE_LICENSE",
@@ -32,5 +45,11 @@ __all__ = [
     "EcmwfIfsError",
     "EcmwfIfsOpenDataConnector",
     "EcmwfIfsRequest",
+    "EcsJsonFormatter",
     "OpenDataClient",
+    "Outcome",
+    "connector_logger",
+    "failure_fields",
+    "fetch_finished_fields",
+    "fetch_started_fields",
 ]
