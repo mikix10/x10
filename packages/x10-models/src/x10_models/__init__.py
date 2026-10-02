@@ -25,9 +25,53 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-#: Rôles d'un acteur, vocabulaire fermé repris de STAC. Fermé délibérément :
-#: un champ libre se dégrade en texte que personne ne peut plus agréger.
-AgentRole = Literal["producer", "publisher", "processor", "licensor", "harvester"]
+#: Rôles d'un acteur. Vocabulaire fermé, délibérément : un champ libre se
+#: dégrade en texte que personne ne peut plus agréger.
+#:
+#: Réunit les rôles de STAC et ceux d'INSPIRE, chacun conservant l'orthographe
+#: de sa source — camelCase pour INSPIRE, dont la codelist est gouvernée au
+#: niveau « Legal (EU) ». Voir `docs/vocabulaire.md` pour la correspondance.
+#:
+#: `producer` est notre terme canonique pour « a créé la ressource » ; il
+#: s'exporte vers `originator` (INSPIRE) et `dcterms:creator` (DCAT). Ne pas
+#: ajouter `originator` : deux termes pour un concept invitent l'incohérence.
+AgentRole = Literal[
+    # STAC
+    "producer",
+    "licensor",
+    "harvester",
+    # communs à STAC et INSPIRE
+    "publisher",
+    "processor",
+    # INSPIRE — https://inspire.ec.europa.eu/metadata-codelist/ResponsiblePartyRole
+    "distributor",
+    "custodian",
+    "owner",
+    "user",
+    "author",
+    "resourceProvider",
+    "pointOfContact",
+    "principalInvestigator",
+]
+
+#: Restrictions d'accès public, codelist INSPIRE renvoyant aux alinéas de
+#: l'article 13 de la directive.
+#: https://inspire.ec.europa.eu/metadata-codelist/LimitationsOnPublicAccess
+#:
+#: **À ne pas confondre avec la licence.** INSPIRE sépare les conditions
+#: d'usage — la licence — des motifs juridiques de restriction d'accès, et
+#: DCAT fait de même avec `dcterms:license` et `dcterms:accessRights`.
+AccessRights = Literal[
+    "noLimitations",
+    "INSPIRE_Directive_Article13_1a",
+    "INSPIRE_Directive_Article13_1b",
+    "INSPIRE_Directive_Article13_1c",
+    "INSPIRE_Directive_Article13_1d",
+    "INSPIRE_Directive_Article13_1e",
+    "INSPIRE_Directive_Article13_1f",
+    "INSPIRE_Directive_Article13_1g",
+    "INSPIRE_Directive_Article13_1h",
+]
 
 #: Les quatre domaines physiques du périmètre.
 PhysicalDomain = Literal["geo", "hydro", "oceano", "meteo"]
@@ -58,7 +102,11 @@ class Dataset(BaseModel):
 
     identifier: str = Field(min_length=1)
     title: str = Field(min_length=1)
+    #: `dcterms:creator` — qui a créé la ressource. `originator` sous INSPIRE.
     producer: Agent
+    #: `dcterms:publisher` — qui l'a publiée. DCAT porte cette propriété sur la
+    #: ressource, donc ici et non sur la distribution. Souvent le producteur.
+    publisher: Agent | None = None
     domain: PhysicalDomain
     variables: tuple[str, ...] = ()
 
@@ -79,10 +127,22 @@ class Distribution(BaseModel):
 
     dataset: str = Field(min_length=1)
     origin: str = Field(min_length=1)
-    publisher: Agent
+    #: **Extension X10.** DCAT ne porte aucun agent sur une `Distribution` —
+    #: `dcterms:publisher` appartient à la ressource. Or une distribution par
+    #: origine n'a de sens que si l'on sait qui la sert. Les rôles de l'agent
+    #: portent la précision : `distributor` pour un miroir, `resourceProvider`
+    #: pour un fournisseur, `publisher` quand c'est l'éditeur lui-même.
+    provider: Agent
+    #: `dcat:accessURL`
     access_url: str = Field(min_length=1)
+    #: `dcat:mediaType`
     media_type: str = Field(min_length=1)
+    #: `dcterms:license` — les conditions d'usage.
     license: str = Field(min_length=1)
+    #: `dcterms:accessRights` — les restrictions juridiques d'accès, distinctes
+    #: de la licence. Sans objet pour de l'open data, essentiel dès qu'une
+    #: source est à diffusion restreinte.
+    access_rights: AccessRights = "noLimitations"
     #: Plus la valeur est basse, plus l'origine est préférée.
     priority: int = Field(default=100, ge=0)
 
@@ -159,6 +219,7 @@ class Observation(BaseModel):
 
 
 __all__ = [
+    "AccessRights",
     "Agent",
     "AgentRole",
     "Dataset",

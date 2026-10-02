@@ -21,7 +21,7 @@ def _distribution(origin: str, priority: int, dataset: str = JEU.identifier) -> 
     return Distribution(
         dataset=dataset,
         origin=origin,
-        publisher=Agent(name=origin, roles=("publisher",)),
+        provider=Agent(name=origin, roles=("distributor",)),
         access_url=f"https://exemple.invalid/{origin}",
         media_type="application/x-grib2",
         license="CC-BY-4.0",
@@ -103,7 +103,7 @@ def test_la_licence_peut_differer_d_une_origine_a_l_autre():
     reexpose = Distribution(
         dataset=JEU.identifier,
         origin="aws",
-        publisher=Agent(name="un re-exposant", roles=("harvester", "publisher")),
+        provider=Agent(name="un re-exposant", roles=("harvester", "distributor")),
         access_url="https://exemple.invalid/aws",
         media_type="application/x-grib2",
         license="CC-BY-4.0 AND conditions-du-reexposant",
