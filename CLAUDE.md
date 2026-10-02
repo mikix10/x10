@@ -144,6 +144,21 @@ Trois points sont trop structurants pour n'exister que dans un skill :
 - **Les commits et les tags sont signés.** Un commit non signé n'entre pas dans `main`, le ruleset l'exige.
 - **Le dépôt est public** — voir ci-dessous.
 
+## Préciser la cible d'exploitation avant de trancher
+
+Beaucoup de décisions qui paraissent techniques sont en réalité déterminées par la manière dont le système sera exploité. Or ce contexte vit souvent **hors du dépôt**, dans des analyses amont que rien ici ne reflète.
+
+Avant d'arrêter un choix de conception, se demander si la réponse en dépend. Si oui, **poser la question plutôt que retenir un défaut raisonnable** : un défaut choisi dans l'ignorance du contexte produit une architecture qu'il faudra défaire, et le coût de la question est sans commune mesure.
+
+Déclencheurs typiques :
+
+- un composant est-il un démonstrateur ou un élément de production ;
+- qui décide d'un emplacement, d'un format, d'une rétention ;
+- une exigence de disponibilité, de volumétrie ou de conformité s'applique-t-elle ;
+- une fonction manquante revient-elle à X10 ou à un autre composant du système.
+
+Formuler la question par ses **conséquences** — ce que chaque réponse changerait concrètement — et non en termes abstraits. Le mainteneur peut alors trancher sans avoir à reconstituer le raisonnement.
+
 ## Confidentialité des tiers
 
 X10 peut être intégré par des projets, ou consommer des sources, dont les responsables ne souhaitent pas être cités publiquement : soit qu'ils ne communiquent pas sur leur usage, soit qu'ils préfèrent exposer leurs propres interfaces plutôt que la mécanique sous-jacente.
