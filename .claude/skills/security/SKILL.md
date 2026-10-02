@@ -62,6 +62,16 @@ X10 télécharge des fichiers décrits par un catalogue et les transforme. Les e
 - Toujours poser un `timeout` explicite. Jamais de requête sans délai maximal.
 - Ne jamais désactiver la vérification TLS, même « temporairement pour tester ».
 
+### Sources authentifiées — l'angle mort de `error.message`
+
+Aucune source intégrée n'exige d'authentification à ce jour. **Dès que ce sera le cas, vérifier que les identifiants ne peuvent pas remonter par les journaux.**
+
+Le champ `error.message` reprend le texte d'une exception tierce, dont nous ne maîtrisons pas le contenu. Une bibliothèque HTTP y place volontiers l'URL complète de la requête ayant échoué — avec son jeton si celui-ci voyage dans l'URL, ou son en-tête si la trace est verbeuse.
+
+C'est le seul champ de notre surface journalisée qui échappe à notre contrôle. Prévoir un filtrage avant émission, et un test qui l'atteste.
+
+Le contrat d'interface décrit cette limite aux intégrateurs : la tenir à jour si la surface change.
+
 ### Écriture des fichiers téléchargés
 
 - Le nom de fichier ne doit **jamais** provenir directement de la réponse distante (`Content-Disposition`, dernier segment d'URL). Traversée de chemin garantie à terme.
