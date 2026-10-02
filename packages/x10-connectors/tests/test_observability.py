@@ -17,6 +17,7 @@ from x10_connectors import (
     fetch_finished_fields,
     fetch_started_fields,
 )
+from x10_models import Provenance
 
 
 class _ClientSimule:
@@ -221,3 +222,74 @@ def test_le_formateur_resiste_a_un_flux_non_utf8():
 
     assert rendu.isascii(), "la sortie doit rester ASCII pour survivre a tout flux"
     assert json.loads(rendu)["message"] == "Récupération terminée"
+
+
+# --- Surface journalisée : fermée et opposable ---------------------------------
+#
+# Le contrat d'interface garantit que X10 n'emet ni identite, ni secret, ni
+# chemin. Ces tests rendent la garantie opposable : ajouter un champ devient un
+# acte delibere qui casse un test nomme, et non un effet de bord qui elargit la
+# surface journalisee en silence.
+
+CHAMPS_DEBUT = {
+    "event.action",
+    "event.category",
+    "event.dataset",
+    "event.kind",
+    "trace.id",
+    "x10.origin",
+    "x10.parameters",
+    "x10.source",
+    "x10.step",
+}
+
+CHAMPS_FIN = {
+    "event.action",
+    "event.category",
+    "event.dataset",
+    "event.duration",
+    "event.kind",
+    "event.outcome",
+    "event.start",
+    "trace.id",
+    "x10.artefacts",
+    "x10.bytes",
+    "x10.license",
+    "x10.origin",
+    "x10.source",
+}
+
+CHAMPS_ECHEC = {"error.message", "error.type", "event.outcome"}
+
+
+def test_la_surface_emise_au_demarrage_est_exactement_celle_du_contrat():
+    champs = fetch_started_fields(
+        source="s", run_id="r", origin="o", details={"parameters": ["2t"], "step": 0}
+    )
+    assert set(champs) == CHAMPS_DEBUT
+
+
+def test_la_surface_emise_a_la_fin_est_exactement_celle_du_contrat():
+    resultat = _resultat()
+    resultat.provenance = Provenance(source_name="s", license="CC-BY-4.0")
+    assert set(fetch_finished_fields(resultat)) == CHAMPS_FIN
+
+
+def test_la_surface_emise_en_echec_est_exactement_celle_du_contrat():
+    assert set(failure_fields(ValueError("x"))) == CHAMPS_ECHEC
+
+
+def test_aucun_chemin_de_fichier_n_est_journalise():
+    """Un chemin de destination porte souvent un nom d'utilisateur.
+
+    Les journaux n'en comptent que le nombre ; les chemins complets ne vivent
+    que dans le resultat, qui ne transite pas par la meme voie.
+    """
+    resultat = _resultat()
+    resultat.artefacts = (Path("repertoire-temoin/2t-0h.grib2"),)
+
+    emis = json.dumps(fetch_finished_fields(resultat), default=str)
+
+    assert "repertoire-temoin" not in emis
+    assert "grib2" not in emis
+    assert fetch_finished_fields(resultat)["x10.artefacts"] == 1
