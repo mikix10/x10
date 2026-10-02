@@ -20,6 +20,8 @@ Dépendance optionnelle : installer l'extra `ecmwf`.
 
 from __future__ import annotations
 
+import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,9 +30,17 @@ from typing import TYPE_CHECKING, Any, Protocol
 from x10_models import Provenance
 
 from .base import BaseConnector, ConnectorResult
+from .observability import (
+    connector_logger,
+    failure_fields,
+    fetch_finished_fields,
+    fetch_started_fields,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable
+
+_log = connector_logger(__name__)
 
 # --- Description de la source -------------------------------------------------
 # Une source intégrée se nomme explicitement, avec sa licence et sa provenance.
@@ -122,6 +132,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         max_bytes: int = DEFAULT_MAX_BYTES,
         max_retries: int = 3,
         retry_after: int = 10,
+        run_id: str | None = None,
         client_factory: Callable[..., OpenDataClient] | None = None,
     ) -> None:
         super().__init__(SOURCE_NAME)
@@ -130,6 +141,9 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         self.max_bytes = max_bytes
         self.max_retries = max_retries
         self.retry_after = retry_after
+        #: Fourni par l'appelant quand il en a un — l'identifiant d'exécution
+        #: d'un ordonnanceur corrèle alors nos journaux aux siens.
+        self.run_id = run_id or str(uuid.uuid4())
         self._client_factory = client_factory
 
     def _client(self) -> OpenDataClient:
@@ -167,11 +181,8 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             "param": parameter,
         }
 
-    def fetch(self) -> ConnectorResult:
-        root = self.destination.resolve()
-        root.mkdir(parents=True, exist_ok=True)
+    def _download(self, root: Path) -> tuple[list[Path], int]:
         client = self._client()
-
         artefacts: list[Path] = []
         downloaded = 0
         for parameter in self.request.parameters:
@@ -189,23 +200,64 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                     "le flux, il n'est donc pas interrompible en cours de transfert."
                 )
             artefacts.append(target)
+        return artefacts, downloaded
 
-        provenance = Provenance(
-            source_name=SOURCE_NAME,
-            source_url=SOURCE_URL,
-            retrieval_time=datetime.now(UTC),
-            license=SOURCE_LICENSE,
+    def fetch(self) -> ConnectorResult:
+        root = self.destination.resolve()
+        root.mkdir(parents=True, exist_ok=True)
+
+        started_at = datetime.now(UTC)
+        debut = time.perf_counter_ns()
+        _log.info(
+            "Récupération ECMWF IFS démarrée",
+            extra=fetch_started_fields(
+                source=SOURCE_NAME,
+                run_id=self.run_id,
+                origin=self.request.origin,
+                details={
+                    "parameters": list(self.request.parameters),
+                    "step": self.request.step,
+                },
+            ),
         )
-        return ConnectorResult(
+
+        try:
+            artefacts, downloaded = self._download(root)
+        except Exception as erreur:
+            _log.error(
+                "Récupération ECMWF IFS en échec",
+                extra={
+                    **fetch_started_fields(
+                        source=SOURCE_NAME, run_id=self.run_id, origin=self.request.origin
+                    ),
+                    **failure_fields(erreur),
+                    "event.duration": time.perf_counter_ns() - debut,
+                },
+            )
+            raise
+
+        resultat = ConnectorResult(
             source=SOURCE_NAME,
-            status="ok",
+            outcome="success",
             message=(
                 f"{len(artefacts)} message(s) GRIB2 récupéré(s) depuis l'origine "
                 f"{self.request.origin!r}, {downloaded} octets."
             ),
-            provenance=provenance,
+            run_id=self.run_id,
+            origin=self.request.origin,
+            started_at=started_at,
+            duration_ns=time.perf_counter_ns() - debut,
+            bytes_downloaded=downloaded,
+            provenance=Provenance(
+                source_name=SOURCE_NAME,
+                source_url=SOURCE_URL,
+                retrieval_time=datetime.now(UTC),
+                license=SOURCE_LICENSE,
+            ),
             artefacts=tuple(artefacts),
         )
+        _log.info("Récupération ECMWF IFS terminée", extra=fetch_finished_fields(resultat))
+        return resultat
 
 
 __all__ = [

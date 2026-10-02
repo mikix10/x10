@@ -26,7 +26,7 @@ Monorepo `uv` workspace (`[tool.uv.workspace]` dans [pyproject.toml](pyproject.t
 |---|---|---|
 | [packages/x10-models/](packages/x10-models/) | modèles de domaine partagés | `GeoPoint`, `Provenance`, `Observation` (Pydantic, frozen) |
 | [packages/x10-catalog/](packages/x10-catalog/) | registre des sources et métadonnées | `DataSource`, `CatalogEntry` (Pydantic, frozen) |
-| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector` |
+| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector`, journalisation ECS |
 | [packages/x10-storage/](packages/x10-storage/) | abstractions de persistance | `StorageAdapter`, `StorageRecord` |
 | [services/x10-api/](services/x10-api/) | démonstrateur API (FastAPI) | fonction `hello()` |
 
@@ -58,7 +58,8 @@ Python **3.12** (pin dans [.python-version](.python-version)). Le `.venv/` local
 
 - Python 3.12, `from __future__ import annotations` en tête de module, annotations de types systématiques.
 - Syntaxe de types moderne : `str | None`, `list[str]`, `dict[str, Any]`.
-- Modèles de domaine : Pydantic v2 avec `model_config = ConfigDict(frozen=True)`, contraintes exprimées via `Field` (`ge`/`le` sur les coordonnées, `min_length=1` sur les identifiants). Objets de résultat / transport internes : dataclasses mutables (`ConnectorResult`, `StorageRecord`).
+- Modèles de domaine : Pydantic v2 avec `model_config = ConfigDict(frozen=True)`, contraintes exprimées via `Field` (`ge`/`le` sur les coordonnées, `min_length=1` sur les identifiants).
+- **Le critère Pydantic ou dataclass est le franchissement de frontière, pas le rôle de l'objet.** Tout objet sérialisé — journaux, XCom d'un ordonnanceur, réponse d'API — est un modèle Pydantic : la conversion des chemins et des horodatages est alors gratuite et testée. `ConnectorResult` est dans ce cas. Un objet purement interne au processus reste une dataclass mutable, comme `StorageRecord`.
 - Sur un modèle `frozen`, préférer `tuple[str, ...]` à `list[str]` pour les collections : une `list` rend le modèle non hashable.
 - Classes de base abstraites : lever `NotImplementedError("Subclasses must implement X().")`.
 - Valeurs numériques mesurées : `Decimal`, pas `float` (voir `Observation.value`). Les coordonnées restent en `float`.
@@ -93,6 +94,9 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
   **Deux pièges vérifiés le 29/09/2026.** Le client n'expose **aucun délai maximal** de requête ; ses valeurs de reprise par défaut, 500 tentatives espacées de 120 s, autorisent une attente de plusieurs heures. Le connecteur les abaisse à 3 et 10 s, et un test le garantit.
 - **La sélection par plages d'octets ne porte jamais sur la géographie.** L'index adresse le message, et un message GRIB2 est un champ global dont la section de données est un bloc unique compressé en CCSDS — template 42, grille 1440 × 721. Un sous-domaine s'obtient après décodage, pas au téléchargement. Vrai pour tout client.
 - **`DataSource` vit dans `x10-catalog`, mais un connecteur doit décrire sa source.** Plutôt que d'inverser la règle de dépendance, le connecteur porte des constantes de module — nom, producteur, licence, URL. À trancher quand le catalogue sera peuplé : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`.
+- **Journalisation : `logging` standard, champs Elastic Common Schema, et la bibliothèque n'impose rien.** Aucun `basicConfig`, aucun handler, aucun format — seulement un `NullHandler`. C'est l'application qui choisit la destination et le rendu ; imposer du JSON casserait toute application nous intégrant. Un `EcsJsonFormatter` est fourni **pour les applications**, rien ne l'installe.
+  **Trois points du schéma à respecter.** `event.outcome` n'admet que `success`, `failure` ou `unknown` — le champ `outcome` de `ConnectorResult` reprend ce vocabulaire pour éviter une correspondance. `event.duration` se compte en **nanosecondes**. Et `event.category` a un vocabulaire fermé où aucune valeur ne désigne l'acquisition de données ; `network` et `file` sont retenues.
+  **Deux pièges vérifiés.** `extra=` lève une `KeyError` sur les attributs réservés de `LogRecord` — `message`, `name`, `levelname`, `asctime`, `args` — donc la journalisation échouerait elle-même ; un test vérifie qu'aucun champ émis n'y figure. Et le rendu JSON est en **ASCII pur** : une console `cp1252` corromprait sinon les accents de nos messages.
 - **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Ordre de travail retenu
@@ -112,7 +116,7 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - Monter les actions GitHub de majeure (`checkout` v4 → v7, `setup-uv` v5 → v10, `upload-artifact` v4 → v7) : changement fonctionnel à tester à part.
 - Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
 - Configuration de débogage (`launch.json`) et couverture de tests : à l'arrivée du premier code métier.
-- **Journalisation structurée des `ConnectorResult`** — un compte rendu de connecteur porte la provenance, la licence, le volume et l'origine retenue. Ces informations doivent être exploitables en aval, donc émises en journal structuré plutôt qu'en texte libre. À traiter avant le deuxième connecteur, sous peine d'avoir deux formats à réconcilier.
+- **Métriques de supervision** — les journaux permettent à une chaîne ELK de dériver taux de succès, latence et volume, mais la détection d'incident dépend alors du délai d'indexation. Un point d'entrée de métriques, ou un contrôle de santé par source, reste à prévoir si un besoin de supervision temps réel apparaît.
 - Trancher le domicile de `DataSource` : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`. À faire quand le catalogue sera peuplé.
 
 ## Procédures outillées (skills)

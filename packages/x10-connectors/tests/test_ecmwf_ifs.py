@@ -107,7 +107,7 @@ def test_l_origine_demandee_est_transmise(tmp_path):
 def test_le_resultat_porte_la_provenance_et_la_licence(tmp_path):
     resultat = EcmwfIfsOpenDataConnector(tmp_path, client_factory=_fabrique([])).fetch()
 
-    assert resultat.status == "ok"
+    assert resultat.outcome == "success"
     assert resultat.source == SOURCE_NAME
     assert resultat.provenance is not None
     assert resultat.provenance.license == SOURCE_LICENSE
@@ -157,7 +157,7 @@ def test_telechargement_reel_de_messages_grib2(tmp_path):
     """Atteint le service réel. Lancer par `uv run pytest -m network`."""
     resultat = EcmwfIfsOpenDataConnector(tmp_path, EcmwfIfsRequest(step=0)).fetch()
 
-    assert resultat.status == "ok"
+    assert resultat.outcome == "success"
     assert len(resultat.artefacts) == 4
     for chemin in resultat.artefacts:
         donnees = chemin.read_bytes()
