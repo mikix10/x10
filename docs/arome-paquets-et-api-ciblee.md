@@ -46,14 +46,46 @@ en **neuf tranches d'échéances** couvrant 0 à 51 heures. Huit réseaux par jo
 conteneur portait **118 réseaux, du 20 septembre au 5 octobre**. Au-delà, les
 données archivées s'obtiennent sur demande auprès du producteur.
 
-**Pas de fichier d'index.** Les paquets ne sont accompagnés d'aucun index
-donnant l'adresse de chaque message dans le fichier. La demande en a été faite
-publiquement en juin 2026 ; la réponse du producteur, en juillet 2026, indique
-que la suggestion est transmise sans engagement de délai ni de faisabilité.
+### Pas de fichier d'index : la pièce qui manque au téléchargement sélectif
 
-Conséquence pratique : un téléchargement sélectif reste possible, puisque les
-plages d'octets fonctionnent, mais il faut d'abord **construire soi-même
-l'index** en parcourant les en-têtes — voir la méthode en fin de note.
+Les plages d'octets fonctionnent, mais elles ne servent à rien sans savoir **où
+commence le message recherché**. Or les paquets ne sont accompagnés d'aucun
+index : les extensions habituelles `.idx`, `.index` et `.inv` renvoient toutes
+une absence.
+
+**La comparaison utile est celle des données ouvertes de l'ECMWF**, qui dépose à
+côté de chaque fichier GRIB2 un fichier d'index au format JSON Lines, portant la
+même racine de nom. Il contient une ligne par message, donnant son
+identification complète — date, réseau, échéance, type de niveau, paramètre —
+ainsi que son **décalage et sa longueur en octets** dans le fichier.
+
+Un consommateur lit alors cet index, y sélectionne les messages voulus, et les
+récupère par autant de requêtes de plage. Le transfert se limite exactement à ce
+qui est utile, sans rien télécharger d'inutile.
+
+**Rien n'empêche de reconstituer un tel index soi-même** : chaque message GRIB2
+déclare sa longueur dans ses seize premiers octets, ce qui permet de parcourir
+un fichier de proche en proche en ne lisant que les en-têtes. La méthode est
+décrite en fin de note et fonctionne.
+
+**Mais le calcul n'est pas en faveur du consommateur.** Un index n'est valable
+que pour le fichier qu'il décrit : il faut donc le reconstruire **à chaque
+publication**, soit huit fois par jour. Le relevé mesuré ici — 6 576 messages
+pour une seule tranche d'échéances — conduit à environ **59 000 lectures
+d'en-tête par réseau, et près de 473 000 par jour**, pour un résultat que le
+producteur obtiendrait en une seule passe, au moment même où il écrit les
+fichiers, et pour un coût négligeable.
+
+Autrement dit, chaque réutilisateur refait, en permanence et de façon redondante,
+un travail qui ne demanderait qu'une écriture de plus côté producteur. **C'est
+typiquement une fonction qui gagne à être demandée plutôt que contournée.**
+
+La demande a d'ailleurs déjà été formulée publiquement, en juin 2026, sur la page
+de discussion du jeu de données ; la réponse du producteur, en juillet 2026,
+indique que la suggestion est transmise, sans engagement de délai ni de
+faisabilité. Les lecteurs que la fonction intéresse peuvent l'appuyer par la même
+voie — c'est le canal prévu, et les échanges qui s'y tiennent reçoivent des
+réponses.
 
 ## 2. Voie de l'API ciblée : accessible avec un compte
 
@@ -371,6 +403,9 @@ eux-mêmes plutôt que de présumer.
 | Licence Ouverte 2.0 | <https://www.etalab.gouv.fr/licence-ouverte-open-licence/> |
 | Conventions CF | <https://cfconventions.org/> |
 | ecCodes | <https://confluence.ecmwf.int/display/ECC> |
+| Données ouvertes de l'ECMWF, où figurent les fichiers d'index | <https://data.ecmwf.int/forecasts/> |
+| Présentation des données ouvertes de l'ECMWF | <https://www.ecmwf.int/en/forecasts/datasets/open-data> |
+| Client de référence exploitant ces index | <https://github.com/ecmwf/ecmwf-opendata> |
 
 Le descriptif technique, le glossaire et l'archive de définitions sont attachés
 aux jeux de données eux-mêmes : les adresses ci-dessus désignent une version
