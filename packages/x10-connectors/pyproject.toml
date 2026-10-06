@@ -32,6 +32,13 @@ dependencies = [
 ecmwf = [
   "ecmwf-opendata>=0.3.34",
 ]
+# Decodage GRIB2 vers des tableaux maillees. Le connecteur Meteo-France
+# telecharge sans cette pile ; il ne decode qu'avec elle.
+grib = [
+  "cfgrib>=0.9.15",
+  "eccodes>=2.49",
+  "xarray>=2025.1",
+]
 
 [tool.uv.sources]
 x10-models = { workspace = true }

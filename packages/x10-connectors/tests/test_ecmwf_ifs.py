@@ -7,12 +7,18 @@ from typing import Any, ClassVar
 import pytest
 
 from x10_connectors import (
-    DEFAULT_PARAMETERS,
-    SOURCE_LICENSE,
-    SOURCE_NAME,
     EcmwfIfsError,
     EcmwfIfsOpenDataConnector,
     EcmwfIfsRequest,
+    UnsafeDestinationError,
+)
+
+# Les constantes propres a une source se prennent au module : deux sources ne
+# peuvent pas partager un meme nom dans l'espace plat du paquet.
+from x10_connectors.ecmwf_ifs import (
+    DEFAULT_PARAMETERS,
+    SOURCE_LICENSE,
+    SOURCE_NAME,
 )
 
 
@@ -60,7 +66,7 @@ def test_la_requete_refuse_une_selection_invalide(kwargs):
 
 
 def test_les_origines_couvrent_les_miroirs_infonuagiques():
-    from x10_connectors import ORIGINS
+    from x10_connectors.ecmwf_ifs import ORIGINS
 
     assert set(ORIGINS) == {"ecmwf", "aws", "azure", "google"}
 
@@ -133,7 +139,9 @@ def test_un_parametre_qui_remonte_l_arborescence_est_refuse(tmp_path):
         EcmwfIfsRequest(parameters=("../evade",)),
         client_factory=_fabrique([]),
     )
-    with pytest.raises(EcmwfIfsError, match="hors de la racine"):
+    # Depuis la mise en commun du garde-fou de chemin, l'erreur est celle de
+    # `base`. Elle derive de ValueError, donc reste non reessayable.
+    with pytest.raises(UnsafeDestinationError, match="hors de la racine"):
         connecteur.fetch()
 
 

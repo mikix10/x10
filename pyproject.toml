@@ -15,6 +15,13 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "pre-commit>=4.6.2",
+  # Pile de decodage GRIB2. Presente en groupe de developpement et non en
+  # dependance de paquet : le noyau publie reste installable sans elle, mais
+  # l'integration continue doit exercer le decodage, qui est du code metier.
+  # Les paquets qui en ont besoin la declarent en extra `grib`.
+  "cfgrib>=0.9.15",
+  "eccodes>=2.49",
+  "xarray>=2025.1",
 ]
 
 [tool.uv]
@@ -34,6 +41,12 @@ testpaths = ["packages", "services"]
 addopts = "-q -m 'not network'"
 markers = [
   "network: atteint un service distant reel, desactive par defaut",
+]
+# Avertissement emis par un appel interne de cfgrib a xarray, sur lequel nous
+# n'avons pas la main. Filtre nommement plutot que globalement : nos propres
+# avertissements doivent rester visibles.
+filterwarnings = [
+  "ignore:In a future version of xarray the default value for compat:FutureWarning:cfgrib.xarray_store",
 ]
 
 [tool.ruff]
@@ -64,4 +77,10 @@ files = ["packages/*/src", "services/*/src"]
 # Verifie le 29/09/2026 : aucune des deux distributions n'en fournit.
 [[tool.mypy.overrides]]
 module = ["ecmwf.opendata.*", "multiurl.*"]
+ignore_missing_imports = true
+
+# Liaisons GRIB. `strict` reste entier sur notre code : seule la resolution
+# d'import est relachee, module par module, comme le prevoit CLAUDE.md.
+[[tool.mypy.overrides]]
+module = ["cfgrib.*", "eccodes.*", "gribapi.*"]
 ignore_missing_imports = true

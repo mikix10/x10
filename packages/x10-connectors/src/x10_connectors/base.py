@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -48,6 +49,24 @@ class ConnectorResult(BaseModel):
     retrieval: Retrieval | None = None
 
 
+class UnsafeDestinationError(ValueError):
+    """Un nom de fichier conduirait hors de la racine de destination."""
+
+
+def safe_target(root: Path, name: str) -> Path:
+    """Compose un chemin de destination et refuse toute sortie de la racine.
+
+    Le nom vient de la requête ou d'un inventaire distant ; dans les deux cas
+    c'est une entrée comme une autre, et une traversée de chemin y est
+    possible. La vérification porte sur le chemin **résolu**, seul moyen de
+    neutraliser aussi bien `..` qu'un lien symbolique.
+    """
+    candidate = (root / name).resolve()
+    if not candidate.is_relative_to(root.resolve()):
+        raise UnsafeDestinationError(f"Chemin de destination hors de la racine prévue : {name!r}")
+    return candidate
+
+
 class BaseConnector:
     """Base commune aux connecteurs de sources externes."""
 
@@ -58,4 +77,10 @@ class BaseConnector:
         raise NotImplementedError("Subclasses must implement fetch().")
 
 
-__all__ = ["BaseConnector", "ConnectorResult", "Outcome"]
+__all__ = [
+    "BaseConnector",
+    "ConnectorResult",
+    "Outcome",
+    "UnsafeDestinationError",
+    "safe_target",
+]
