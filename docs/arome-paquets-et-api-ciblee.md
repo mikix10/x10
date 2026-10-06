@@ -21,9 +21,10 @@ décoder correctement les fichiers. Elle se termine par une comparaison des
 contenus, dont le résultat n'est pas celui qu'on attend.
 
 Le relevé porte sur **AROME métropole à 0,025°**, réseau du 5 octobre 2026 à
-03 UTC, et sur le service WCS de la même résolution. Les autres modèles —
-ARPEGE, AROME outre-mer, prévisions d'ensemble, vagues — n'ont pas été examinés
-et peuvent se comporter différemment.
+03 UTC, et sur le service WCS de la même résolution. Une note distincte traite
+d'ARPEGE, dont plusieurs caractéristiques diffèrent sensiblement. Les autres
+modèles — AROME outre-mer, prévisions d'ensemble, vagues — n'ont pas été
+examinés et peuvent se comporter différemment.
 
 ---
 
@@ -164,19 +165,47 @@ La chaîne complète est donc :
 Pour les paramètres concernés, l'unité doit être reprise à la main depuis un
 document destiné à la lecture humaine.
 
-### La couverture en noms standards CF est faible
+### Noms standards CF : le manque n'est pas là où on croit
 
 Sur les 51 codes relevés dans les onze paquets, **9 seulement** se voient
-attribuer un nom standard CF, soit **18 %**. Sont couverts la température, les
-humidités spécifique et relative, les composantes zonale et méridienne du vent,
-la vitesse verticale, le tourbillon relatif, la pression de surface et le
-géopotentiel.
+attribuer un nom standard CF par ecCodes, soit **18 %**. Sont couverts la
+température, les humidités spécifique et relative, les composantes zonale et
+méridienne du vent, la vitesse verticale, le tourbillon relatif, la pression de
+surface et le géopotentiel.
 
 Ne le sont pas, entre autres, la direction et la force du vent, les rafales,
 l'ensemble des précipitations, des variables nuageuses et des flux radiatifs, la
-CAPE, l'énergie cinétique turbulente et la hauteur de couche limite. Produire un
-NetCDF conforme aux conventions CF suppose donc de porter sa propre table de
-correspondance pour la majorité des champs.
+CAPE, l'énergie cinétique turbulente et la hauteur de couche limite.
+
+**Il faut cependant être précis sur la nature de ce manque.** Le tableau des
+noms standards CF, dans sa version 95, compte plus de cinq mille entrées, et
+contient bel et bien `wind_speed`, `wind_from_direction`, `wind_speed_of_gust`,
+`air_pressure`, `visibility_in_air`, `cloud_area_fraction`, `precipitation_flux`
+ou `atmosphere_boundary_layer_thickness`. **Ce n'est donc pas le vocabulaire CF
+qui est lacunaire : c'est la table de correspondance de GRIB vers CF que livre
+ecCodes.**
+
+La distinction change ce qu'il y a à faire : compléter une correspondance entre
+deux vocabulaires existants, et non créer des termes.
+
+### Vent : préférer les composantes
+
+Les paquets portent la direction et la force du vent en plus des composantes
+zonale et méridienne. **L'API ciblée, elle, n'expose aucune direction** :
+seulement les composantes, la vitesse et les rafales. Les données ouvertes de
+l'ECMWF font de même et ne diffusent que des composantes.
+
+La raison dépasse la commodité. La direction est une **grandeur circulaire** :
+la moyenne arithmétique de 350° et 10° vaut 180°, soit l'exact opposé de la
+réponse correcte. Interpolation, ré-échantillonnage, moyenne et écart-type sont
+faux sur une direction tant qu'on ne passe pas par un traitement circulaire
+explicite — lequel revient de toute façon à repasser par les composantes.
+
+Conserver les composantes et dériver direction et force au moment de l'usage
+évite une classe entière d'erreurs silencieuses. Le gain de volume n'est pas
+négligeable non plus : dans le paquet HP1, quatre des sept paramètres relèvent
+du vent, et n'en garder que les composantes retire deux champs sur sept sans
+aucune perte d'information.
 
 ### La grille n'est pas pleine
 
@@ -333,6 +362,29 @@ descriptif servant de garde-fou plutôt que de source**.
 
 ---
 
+## La chaîne de production, et ce qu'elle explique
+
+Le producteur ne documente pas publiquement l'articulation entre les deux voies,
+mais le service qui alimente le stockage objet est publié en logiciel libre, et
+son code la révèle.
+
+Ce service interroge, avec un identifiant d'application du portail, des points
+d'entrée dédiés aux paquets, **distincts de ceux des services OGC**. Il
+télécharge, dépose sur un stockage objet et publie les ressources, en conservant
+une quinzaine de jours.
+
+La chaîne est donc : **une même production de modèle en amont, puis deux
+familles de produits distinctes sur la même passerelle** — les paquets d'un
+côté, les couvertures ciblées de l'autre — dont seule la première est reprise
+sur le stockage objet.
+
+Cela éclaire les écarts relevés plus haut : **ils proviennent d'une décision de
+produit en amont, et non du mécanisme de republication**. La preuve en est que
+la republication ne perd rien : les listes de paquets déclarées dans la
+configuration du service correspondent exactement à ce que porte le stockage.
+
+---
+
 ## Reproduire ce relevé
 
 Aucun outil particulier n'est nécessaire.
@@ -377,9 +429,11 @@ témoignent d'un support attentif et constituent une source d'information à par
 entière.
 
 Merci à **data.gouv.fr** de référencer ces jeux de données, d'héberger la
-documentation technique aux côtés des données, d'accueillir ces discussions, et
+documentation technique aux côtés des données, d'accueillir ces discussions,
 d'opérer le service qui republie les paquets de modèle sur un stockage
-accessible sans authentification.
+accessible sans authentification, et d'en publier le code sous licence libre —
+c'est ce dernier point qui a permis d'établir l'articulation entre les deux
+voies d'accès.
 
 Les écarts relevés ici entre documentation et contenu ne sont pas des critiques :
 ils illustrent la difficulté réelle de tenir à jour la description d'une chaîne
@@ -401,7 +455,8 @@ eux-mêmes plutôt que de présumer.
 | Descriptif technique des paquets AROME | <https://static.data.gouv.fr/resources/paquets-arome-resolution-0-025deg/20250401-061917/descriptiontechnique-paquetsarome-donneespubliques-v4-20250401.pdf> |
 | Glossaire des paramètres ARPEGE/AROME | <https://static.data.gouv.fr/resources/paquets-arome-resolution-0-025deg/20241127-114612/description-parametres-modeles-arpege-arome-v2-185.pdf> |
 | Licence Ouverte 2.0 | <https://www.etalab.gouv.fr/licence-ouverte-open-licence/> |
-| Conventions CF | <https://cfconventions.org/> |
+| Conventions CF, tableau des noms standards | <https://cfconventions.org/Data/cf-standard-names/current/build/cf-standard-name-table.html> |
+| Service de republication, code source | <https://github.com/datagouv/mf-data-extract-service> |
 | ecCodes | <https://confluence.ecmwf.int/display/ECC> |
 | Données ouvertes de l'ECMWF, où figurent les fichiers d'index | <https://data.ecmwf.int/forecasts/> |
 | Présentation des données ouvertes de l'ECMWF | <https://www.ecmwf.int/en/forecasts/datasets/open-data> |
