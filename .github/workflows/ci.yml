@@ -69,6 +69,54 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+  portability:
+    # Windows et macOS ne sont pas la plateforme de reference, mais une
+    # bibliotheque publiee sur PyPI s'installe partout. Les pieges sont reels
+    # et silencieux : les noms de fichiers distants portent des deux-points,
+    # que Windows refuse, et la bibliotheque C d'ecCodes n'est embarquee dans
+    # la roue Python que sous Windows.
+    #
+    # 3.12 est bloquant une fois les contextes ajoutes au ruleset ; 3.13 reste
+    # un canari, comme sur la plateforme de reference.
+    name: Portabilite (Python ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Combinaisons explicites : avec `os` en cle de matrice et les
+        # versions en `include`, GitHub appliquerait chaque entree a toutes
+        # les combinaisons et la derniere l'emporterait — deux jobs au lieu
+        # de quatre, sans que rien ne le signale.
+        include:
+          - os: windows-latest
+            python-version: "3.12"
+            experimental: false
+          - os: macos-latest
+            python-version: "3.12"
+            experimental: false
+          - os: windows-latest
+            python-version: "3.13"
+            experimental: true
+          - os: macos-latest
+            python-version: "3.13"
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      - name: Run tests
+        run: uv run pytest
+
   build:
     name: Build des packages
     runs-on: ubuntu-latest
@@ -82,6 +130,11 @@ jobs:
 
       - name: Build
         run: uv build --all-packages
+
+      # Valide les metadonnees que PyPI refuserait a la publication. Les
+      # verifier ici evite de decouvrir le defaut au moment de publier.
+      - name: Check distribution metadata
+        run: uv run --with twine --no-project twine check dist/*
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

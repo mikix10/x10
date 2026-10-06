@@ -63,7 +63,32 @@ git push origin main
 | `required_linear_history` | pas de commit de fusion, cohérent avec le squash |
 | `required_signatures` | tout commit doit être signé |
 | `pull_request` | PR obligatoire, **0 approbation requise**, squash uniquement |
-| `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, branche à jour avant merge |
+| `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, `Portabilite (Python 3.12 / macos-latest)`, branche à jour avant merge |
+
+## Renommer ou ajouter un job de CI : l'ordre compte
+
+**Un contexte requis qui ne correspond à aucun job bloque toute fusion,
+définitivement** — la vérification n'arrive jamais, et rien ne signale
+pourquoi. C'est le piège le plus coûteux de ce ruleset.
+
+Il se déclenche dès qu'on renomme un job, qu'on introduit une matrice — le
+nom affiché change alors, `Tests (Python 3.12)` devenant par exemple
+`Tests (3.12, ubuntu-latest)` — ou qu'on inscrit un contexte avant que le job
+existe.
+
+Deux règles, dans cet ordre :
+
+1. **Ajouter un job** : fusionner d'abord le workflow, constater que le
+   nouveau contexte apparaît bien sur une demande de fusion, **puis**
+   seulement l'inscrire au ruleset. L'inscrire d'abord bloquerait la
+   demande de fusion qui apporte le job.
+2. **Renommer ou supprimer un job requis** : retirer d'abord le contexte du
+   ruleset, fusionner le workflow, réinscrire le nouveau nom. Sans cela, la
+   demande de fusion qui porte le renommage est bloquée par son propre
+   changement.
+
+Dans les deux cas, le fichier JSON peut être mis à jour en même temps que le
+workflow : c'est son **application** qui doit attendre.
 
 ## Dérive : GitHub complète les paramètres omis
 
@@ -128,7 +153,7 @@ gh api -X POST  repos/<owner>/<repo>/rulesets --input ruleset-main.json
 
 `ruleset-main.json` cible `~DEFAULT_BRANCH` et non un nom en dur, il s'applique donc quelle que soit la branche par défaut.
 
-**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
+**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Lint et typage`, `Tests (Python 3.12)`, `Build des packages` et les deux contextes de portabilité. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
 
 Deux réglages ne passent pas par ces fichiers et restent à faire dans l'interface : la *push protection* du secret scanning, et l'auto-fermeture des tickets liés à une PR fusionnée, qu'aucun champ de l'API REST n'expose à ce jour.
 
