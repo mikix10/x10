@@ -4,16 +4,26 @@
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": ["~DEFAULT_BRANCH"],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ],
       "exclude": []
     }
   },
   "bypass_actors": [],
   "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    { "type": "required_linear_history" },
-    { "type": "required_signatures" },
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_linear_history"
+    },
+    {
+      "type": "required_signatures"
+    },
     {
       "type": "pull_request",
       "parameters": {
@@ -24,7 +34,9 @@
         "require_last_push_approval": false,
         "required_review_thread_resolution": false,
         "require_extra_approval_for_unattributed_changes": false,
-        "allowed_merge_methods": ["squash"]
+        "allowed_merge_methods": [
+          "squash"
+        ]
       }
     },
     {
@@ -33,9 +45,21 @@
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          { "context": "Lint et typage" },
-          { "context": "Tests (Python 3.12)" },
-          { "context": "Build des packages" }
+          {
+            "context": "Lint et typage"
+          },
+          {
+            "context": "Tests (Python 3.12)"
+          },
+          {
+            "context": "Build des packages"
+          },
+          {
+            "context": "Portabilite (Python 3.12 / windows-latest)"
+          },
+          {
+            "context": "Portabilite (Python 3.12 / macos-latest)"
+          }
         ]
       }
     }
