@@ -16,7 +16,9 @@ Documents de cadrage à lire avant toute décision d'architecture :
 
 ## État réel du dépôt
 
-Le socle technique est en place, et **un premier connecteur réel existe** : `EcmwfIfsOpenDataConnector` télécharge des messages GRIB2 depuis ECMWF open data. Le reste demeure un ensemble d'ébauches — l'API n'expose aucun point d'entrée, le catalogue n'est pas peuplé, rien n'est décodé ni stocké.
+**Deux connecteurs réels existent**, et la donnée est décodée : `EcmwfIfsOpenDataConnector` télécharge des messages GRIB2 depuis ECMWF open data ; `MeteoFrancePntConnector` récupère les paquets AROME et ARPEGE republiés en open data, et le module `decoding` les ouvre en tableaux `xarray` avec les noms standards CF. Restent des ébauches : l'API n'expose aucun point d'entrée, le catalogue n'est pas peuplé, rien n'est stocké.
+
+Deux notes publiques établissent par la mesure ce que Météo-France expose réellement : [docs/arome-paquets-et-api-ciblee.md](docs/arome-paquets-et-api-ciblee.md) et [docs/arpege-paquets-et-api-ciblee.md](docs/arpege-paquets-et-api-ciblee.md).
 
 ## Structure
 
@@ -26,7 +28,7 @@ Monorepo `uv` workspace (`[tool.uv.workspace]` dans [pyproject.toml](pyproject.t
 |---|---|---|
 | [packages/x10-models/](packages/x10-models/) | **vocabulaire** de domaine partagé | `Agent`, `Dataset`, `Distribution`, `Retrieval`, `GeoPoint`, `Observation`, `Provenance` |
 | [packages/x10-catalog/](packages/x10-catalog/) | **registre** et politique de résolution | `CatalogEntry`, ordre de repli entre origines |
-| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / validation / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector`, journalisation ECS |
+| [packages/x10-connectors/](packages/x10-connectors/) | découverte / téléchargement / décodage / normalisation | `BaseConnector`, `ConnectorResult`, `EcmwfIfsOpenDataConnector`, `MeteoFrancePntConnector`, décodage GRIB2, journalisation ECS |
 | [packages/x10-storage/](packages/x10-storage/) | abstractions de persistance | `StorageAdapter`, `StorageRecord` |
 | [services/x10-api/](services/x10-api/) | démonstrateur API (FastAPI) | fonction `hello()` |
 
@@ -47,9 +49,10 @@ uv run mypy                    # typage strict sur les src/
 uv build --all-packages        # construire les distributions
 uv lock                        # après tout changement de dépendance (la CI exige --locked)
 
-# Tests atteignant un service reel : exclus par defaut, et exigent l'extra.
+# Tests atteignant un service reel : exclus par defaut.
+uv run pytest -m network            # Meteo-France : aucun extra requis
 UV_PROJECT_ENVIRONMENT=.venv-ecmwf uv sync --all-packages --dev --extra ecmwf
-UV_PROJECT_ENVIRONMENT=.venv-ecmwf uv run pytest -m network
+UV_PROJECT_ENVIRONMENT=.venv-ecmwf uv run pytest -m network   # ECMWF
 ```
 
 Sous VSCode, ces commandes sont aussi exposées en tâches — **Portes de qualité** enchaîne lint, typage et tests. Les extensions recommandées sont proposées à l'ouverture du dossier ; elles sont configurées pour utiliser le `ruff` et le `mypy` **du projet** et non leurs binaires embarqués, faute de quoi l'éditeur et la CI divergeraient en silence.
@@ -107,6 +110,18 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Une `Distribution` par origine**, et non une distribution à plusieurs URL. Chacune porte sa priorité et sa licence — un ré-exposant peut ajouter ses conditions —, ce sur quoi s'appuie la résolution. **STAC ne convient pas ici** : sa spécification pose qu'il ne doit y avoir qu'un seul `host`, ce qui exclut la redondance.
 - **Bascule d'origine, mais pas sur n'importe quelle erreur.** Un échec d'accès entraîne un repli sur l'origine suivante ; une erreur de notre fait ou de la requête — plafond de volume, chemin invalide, paramètre absurde — n'en entraîne aucun, puisqu'une autre origine servirait la même donnée et échouerait pareillement. Voir `NON_REESSAYABLE`.
 - **`Retrieval` porte l'origine effectivement retenue**, qui peut différer de celle demandée. `Provenance` subsiste avec un rôle distinct : attribution d'une **valeur**, là où `Retrieval` décrit l'acquisition d'un **artefact**.
+- **Deuxième source : les paquets Météo-France, par la voie sans authentification.** Le stockage objet republié par data.gouv.fr sert AROME et ARPEGE sous Licence Ouverte 2.0, sans compte ni jeton. Le connecteur reste donc symétrique de celui d'ECMWF, et **X10 ne porte aucun secret**.
+  **Ce que ce choix exclut, et qu'il faut savoir** : les paquets et l'API ciblée du producteur sont **deux produits distincts qui ne se recouvrent pas**. Renoncer à l'API ciblée, c'est renoncer au temps sensible — grêle, foudre, visibilité, type de précipitation —, aux niveaux isothermes et au sommet d'atmosphère. On y gagne l'absence de secret, une archive de 14 jours au lieu de 5, et le géopotentiel aux niveaux hauteur que l'API n'expose pas.
+  **Deux voies ne sont pas deux `Distribution` d'un même `Dataset`.** Le modèle suppose les distributions interchangeables ; des contenus différents relèvent de jeux différents.
+- **Pas de téléchargement sélectif par plage d'octets chez Météo-France.** Le producteur ne publie aucun index, contrairement à ECMWF. Le reconstruire coûte une requête par message, à refaire à chaque publication, et **se fige au-delà d'environ 3 500 requêtes successives sur un même objet** — reproduit trois fois. Le levier de sélection est le **choix du paquet** : quelques dizaines de mégaoctets en surface, plusieurs gigaoctets en niveaux. D'où un plafond de volume par défaut à 256 Mio, qui laisse passer la surface et arrête les niveaux.
+- **Les grandeurs vectorielles se stockent en composantes.** Direction et force du vent sont **écartées au décodage** et recalculées à la demande. La direction est une grandeur circulaire : la moyenne arithmétique de 350° et 10° vaut 180°, soit l'exact opposé de la réponse juste, et interpolation, ré-échantillonnage et écart-type sont faux de la même façon.
+  **Vérifié le 06/10/2026 sur 4,66 millions de points réels** d'un paquet AROME SP1 : la reconstitution depuis les composantes donne un écart maximal de **0,015 m/s sur la force** et de **0,25° sur la direction dès 3 m/s**. La seule dégradation est sous 0,5 m/s — jusqu'à 44° — là où la direction n'a pas de sens physique. Deux champs sur quatre disparaissent sans perte.
+  Corollaire : ce qui est intrinsèquement scalaire, une rafale maximale, reste scalaire. L'API ciblée du producteur et les données ouvertes de l'ECMWF n'exposent d'ailleurs aucune direction.
+- **La correspondance GRIB vers CF nous incombe, mais le vocabulaire CF ne manque pas.** Le tableau CF, version 95, compte plus de cinq mille noms et contient `wind_speed`, `wind_from_direction`, `visibility_in_air` et le reste ; c'est **la table de correspondance livrée par ecCodes** qui est incomplète — 9 codes sur 51 pour AROME, 9 sur 64 pour ARPEGE. `decoding.CF_STANDARD_NAMES` comble le manque, **chaque nom vérifié présent au tableau officiel**. Un nom inventé produirait un fichier qui se dit conforme sans l'être, et `SANS_NOM_CF` recense ce que CF ne couvre réellement pas.
+  Piège associé : la chaîne de décodage pose `standard_name = "unknown"`, valeur **pire qu'une absence**. Elle est retirée.
+- **Pas de dépendance à `MeteoFetch`.** Le paquet couvre un périmètre voisin, mais son dépôt porte un `LICENSE` en **GPL-2.0** tandis que son `pyproject.toml` déclare **MIT**. Sous GPL-2.0, la dépendance contaminerait notre publication BSD-3-Clause. Ni dépendance ni reprise de structure tant que l'ambiguïté n'est pas levée.
+- **Les constantes propres à une source ne sont pas réexportées par `x10_connectors`.** Deux sources ne peuvent pas partager `SOURCE_NAME` dans un espace plat ; elles se prennent au module. Seuls le commun et les points d'entrée sont réexportés.
+- **Les tests ne téléchargent rien et ne stockent rien.** Un message GRIB2 valide se construit en mémoire par ecCodes : quelques centaines d'octets suffisent à exercer géométrie, valeurs manquantes, cumuls et vent. Voir `tests/fixtures_grib.py`. **Aucune donnée réelle n'est commise au dépôt**, et la suite par défaut tourne hors ligne. Les tests atteignant le service réel portent le marqueur `network`.
 - **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Ordre de travail retenu
@@ -115,7 +130,10 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 2. **Protéger `main`** puis reprendre le travail en pull request — voir « Reste à faire ».
 3. ~~**Connecteur ECMWF IFS**~~ — fait. Leçons consignées dans « Décisions arrêtées ».
 4. ~~**Modèle de catalogue multi-origines**~~ — fait, et éprouvé par la bascule d'origine du connecteur ECMWF.
-5. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
+5. ~~**Deuxième source et premier décodage**~~ — fait : connecteur Météo-France sans secret, décodage GRIB2, normalisation CF, règle des composantes.
+6. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
+7. **Peupler le catalogue** — entrées réelles pour ECMWF, AROME et ARPEGE, dont l'inventaire des variables est **dérivé des fichiers**, jamais du descriptif technique du producteur.
+8. **Sortie NetCDF-CF et stockage** — écrire ce qui est décodé, décider de Zarr, puis exposer par l'API.
 
 ## Reste à faire
 
@@ -171,4 +189,6 @@ Les sources effectivement intégrées et documentées dans `x10-catalog` ne rel�
 
 ## Portée
 
-Ne pas introduire de dépendances lourdes du domaine (`xarray`, `cfgrib`, `eccodes`, `ecmwf-opendata`) hors de `x10-connectors`, et en extras optionnels par connecteur. Le noyau doit rester léger et installable sans stack scientifique.
+Ne pas introduire de dépendances lourdes du domaine (`xarray`, `cfgrib`, `eccodes`, `ecmwf-opendata`) hors de `x10-connectors`, et en extras optionnels par connecteur — `ecmwf` pour le client ECMWF, `grib` pour le décodage. Le noyau doit rester léger et installable sans stack scientifique.
+
+La pile GRIB figure en revanche dans le **groupe de développement** : le décodage est du code métier, et l'intégration continue doit l'exercer. Cela ne change rien aux paquets publiés.

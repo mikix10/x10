@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from x10_models import Retrieval
 
-from .base import BaseConnector, ConnectorResult
+from .base import BaseConnector, ConnectorResult, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -86,6 +86,8 @@ AGENT = "x10-connectors 0.1.0"
 #: viennent de la requête ou de nous, pas du diffuseur. Une autre origine
 #: servirait la même donnée et échouerait de la même manière. Tout le reste —
 #: réseau, HTTP, erreurs propres au client — déclenche une bascule.
+#:
+#: `UnsafeDestinationError` dérive de `ValueError` et y figure donc déjà.
 NON_REESSAYABLE = (EcmwfIfsError, ValueError, TypeError)
 
 
@@ -121,19 +123,6 @@ class EcmwfIfsRequest:
             raise ValueError("Une origine ne peut pas figurer deux fois dans l'ordre de repli.")
         if self.step < 0:
             raise ValueError("L'échéance ne peut pas être négative.")
-
-
-def _safe_target(root: Path, name: str) -> Path:
-    """Compose un chemin de destination et refuse toute sortie de la racine.
-
-    Le nom est construit à partir de la requête, jamais repris d'une réponse
-    distante ; la vérification reste nécessaire, une valeur de requête étant
-    une entrée comme une autre.
-    """
-    candidate = (root / name).resolve()
-    if not candidate.is_relative_to(root.resolve()):
-        raise EcmwfIfsError(f"Chemin de destination hors de la racine prévue : {name!r}")
-    return candidate
 
 
 class EcmwfIfsOpenDataConnector(BaseConnector):
@@ -207,7 +196,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         artefacts: list[Path] = []
         downloaded = 0
         for parameter in self.request.parameters:
-            target = _safe_target(root, f"{parameter}-{self.request.step}h.grib2")
+            target = safe_target(root, f"{parameter}-{self.request.step}h.grib2")
             client.retrieve(request=self._mars_request(parameter), target=str(target))
 
             if not target.exists():
