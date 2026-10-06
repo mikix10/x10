@@ -278,6 +278,39 @@ wheels = [
 ]
 
 [[package]]
+name = "eccodeslib"
+version = "2.49.0.30"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "eckitlib" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/98/88/324a4cc61f21c8edc1d51fcef7c12ce1dec2ef6c61b2fe95d9095cbb517c/eccodeslib-2.49.0.30-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:dcff25174c2107dbc0ad75f27340494e1c23e20be9d718daeda82c59e32025a2", size = 9130298, upload-time = "2026-09-22T15:30:00.934Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/d7/9fa89e3a0bc763d52358de95052193019fe5c4173c00b7f35d218a8d850c/eccodeslib-2.49.0.30-cp312-cp312-macosx_15_0_x86_64.whl", hash = "sha256:821363a8f9d24626b7c77aa62d6389ccfeb37395767160a7bd8b5d273bd58b89", size = 8919659, upload-time = "2026-09-22T15:10:16.4Z" },
+    { url = "https://files.pythonhosted.org/packages/22/0e/21192510763d35924e1eb326b6e0bef110d660c352a2217ad1bd66fff4d9/eccodeslib-2.49.0.30-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:6dbd6701fee98a9a7ff62ce7708f628ebc00c0910c67aebd2ef639ea2a10dfa8", size = 9313350, upload-time = "2026-09-22T14:55:39.731Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/0c/9a8b3c9e8ef2d9ff4527c5184f346db4626a14978e964a347561c651368e/eccodeslib-2.49.0.30-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:3af3dec6f4e5630dabc8cfa45346b38581ce5bd135944fc2b95d1040b75b5551", size = 9099266, upload-time = "2026-09-22T15:00:02.16Z" },
+    { url = "https://files.pythonhosted.org/packages/72/3d/0982121f828a78da8bafc86574090cc747907947173cda1212bea46577c5/eccodeslib-2.49.0.30-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:40d2a1d7233b3bbd6627a22317d1a23eb4e514deea648f591013cba8c440471c", size = 9130271, upload-time = "2026-09-22T14:48:24.124Z" },
+    { url = "https://files.pythonhosted.org/packages/81/15/8b77448f566bf99998f1c278a3f2ab3ea7444fd0e02aec600307e2c4f885/eccodeslib-2.49.0.30-cp313-cp313-macosx_15_0_x86_64.whl", hash = "sha256:5b5adc554233a8d5a3557ef981a1356abf1b55ab42392732555d30eae24eae80", size = 8919637, upload-time = "2026-09-22T14:54:36.807Z" },
+    { url = "https://files.pythonhosted.org/packages/93/02/2e3d5615241d2ac86f111b07159039644cd787ea69bee72e0f0c02d09a78/eccodeslib-2.49.0.30-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:a3fdef93b88c0321e5ae66f898fb1fb767ae5ee0d1053c8b4bc3bdab1d09bdbe", size = 9313349, upload-time = "2026-09-22T14:55:37.651Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/44/8fd5cf7f5745ea5d889cbb6aead59bdb954ef29506ab1694176e4a1d203d/eccodeslib-2.49.0.30-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:47d8933db788696fc10d6d32e2c09ce0d530b4797f1667b310f0ffa4793a6fa7", size = 9099265, upload-time = "2026-09-22T15:01:09.175Z" },
+]
+
+[[package]]
+name = "eckitlib"
+version = "2.3.0.30"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/b1/31217e96574d0dc00a7ad33c7e3ae1bb4b18e9c57e5921ddbe78a1dd52a5/eckitlib-2.3.0.30-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:5e42276f074a613a068813dda6cc9fe346957e9f4839c1437dc06861239bfb2f", size = 6538694, upload-time = "2026-09-22T15:30:06.029Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/9a/71f1cab65f851e6d83438fbb5fbc84edbcb7c01176b0473d1a3190ec3061/eckitlib-2.3.0.30-cp312-cp312-macosx_15_0_x86_64.whl", hash = "sha256:352045f65066369d539dcc4d8eb12ca6bc53edc09af4fbc6078409597efcf4f9", size = 6683917, upload-time = "2026-09-22T15:10:22.947Z" },
+    { url = "https://files.pythonhosted.org/packages/38/bd/4371a6f7b5be9a7f7fd7debae031c5e8203de172e1f9358f2d4e56651c4a/eckitlib-2.3.0.30-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:d0d9427957efabf90e89df854c027cafe741b9ce45985ab0fb19f675f4527aa7", size = 35166539, upload-time = "2026-09-22T14:55:45.436Z" },
+    { url = "https://files.pythonhosted.org/packages/20/08/bc24e84e0736751ba1b518496755f2f88c748af79bd6d7ad4e954a6dac1a/eckitlib-2.3.0.30-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:71b4059a56d8b35d682b05b0929e848e34750bb4c9e8d7198aa6d0049171c984", size = 35957853, upload-time = "2026-09-22T15:00:12.329Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/90/fbf496abd468ed10d2fb41d65be0447eeb8dc9f3c79df01e114da1989ee4/eckitlib-2.3.0.30-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:b08845e22dcddd5719df7c769418e72c3b28ee207ea9e17c0a3c679fe53ac0c8", size = 6538704, upload-time = "2026-09-22T14:48:29.662Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/28/4e8c03bd192a7a9544ffa2196a3175a687f0a9b9ec46d80276f2bd7f31dd/eckitlib-2.3.0.30-cp313-cp313-macosx_15_0_x86_64.whl", hash = "sha256:b21dc44e9de7ab0eacc8287858117507cfff0a21645f547e2badede14f2d0f2a", size = 6683916, upload-time = "2026-09-22T14:54:42.701Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/6a/fdb86a5790b867162255c0c97df1b715789b5d748a3e48630b9d45f49296/eckitlib-2.3.0.30-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:945e5f1a393e574c1355073ab6480c13c0a1d2556f55f7c0c252499e378a2a93", size = 35166546, upload-time = "2026-09-22T14:55:42.548Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/7f/82288b12ff20c75f983b1a3994f2415a7c794d8bf0b188de1cf97abee14d/eckitlib-2.3.0.30-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:08896a6218b4f23ad942c28cb2b8ccb70e7dec331cc1c04a8723572ca21bb342", size = 35957851, upload-time = "2026-09-22T15:01:16.944Z" },
+]
+
+[[package]]
 name = "ecmwf-opendata"
 version = "0.3.34"
 source = { registry = "https://pypi.org/simple" }
@@ -912,6 +945,7 @@ ecmwf = [
 grib = [
     { name = "cfgrib" },
     { name = "eccodes" },
+    { name = "eccodeslib", marker = "sys_platform != 'win32'" },
     { name = "xarray" },
 ]
 
@@ -919,6 +953,7 @@ grib = [
 requires-dist = [
     { name = "cfgrib", marker = "extra == 'grib'", specifier = ">=0.9.15" },
     { name = "eccodes", marker = "extra == 'grib'", specifier = ">=2.49" },
+    { name = "eccodeslib", marker = "sys_platform != 'win32' and extra == 'grib'", specifier = ">=2.49" },
     { name = "ecmwf-opendata", marker = "extra == 'ecmwf'", specifier = ">=0.3.34" },
     { name = "x10-models", editable = "packages/x10-models" },
     { name = "xarray", marker = "extra == 'grib'", specifier = ">=2025.1" },
@@ -950,6 +985,7 @@ source = { virtual = "." }
 dev = [
     { name = "cfgrib" },
     { name = "eccodes" },
+    { name = "eccodeslib", marker = "sys_platform != 'win32'" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -963,6 +999,7 @@ dev = [
 dev = [
     { name = "cfgrib", specifier = ">=0.9.15" },
     { name = "eccodes", specifier = ">=2.49" },
+    { name = "eccodeslib", marker = "sys_platform != 'win32'", specifier = ">=2.49" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=8.2" },
