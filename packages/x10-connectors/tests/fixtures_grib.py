@@ -72,6 +72,11 @@ class Champ:
     level: int = 10
     step: int = 0
     accumulation: int | None = None
+    #: Type de traitement statistique, table 4.10 du format GRIB2. N'a de sens
+    #: qu'avec `accumulation`, qui ouvre le gabarit `4.8`. Défaut : 1, le
+    #: cumul. ecCodes le traduit en `stepType` au décodage — 0 donne `avg`,
+    #: 2 `max`, 4 `diff`, et ainsi de suite.
+    traitement: int = 1
     #: Numéro de perturbation. Non nul, bascule le message sur le gabarit
     #: `4.1` — prévision d'ensemble — et fait apparaître un axe `number` au
     #: décodage. Non combinable avec `accumulation`, qui relèverait du
@@ -131,7 +136,7 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
 
         if champ.accumulation is not None:
             eccodes.codes_set(h, "productDefinitionTemplateNumber", 8)
-            eccodes.codes_set(h, "typeOfStatisticalProcessing", 1)
+            eccodes.codes_set(h, "typeOfStatisticalProcessing", champ.traitement)
             eccodes.codes_set(h, "indicatorOfUnitForTimeRange", 1)
             eccodes.codes_set(h, "lengthOfTimeRange", champ.accumulation)
 

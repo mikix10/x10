@@ -27,6 +27,7 @@ Dépendance optionnelle : installer l'extra `grib`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -173,6 +174,122 @@ def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
     return sortie
 
 
+# --- Méthodes de cellule : la nature du traitement statistique -----------------
+#
+# **Le manque que cette table comble est dangereux, pas cosmétique.** Un champ
+# cumulé et un champ instantané se ressemblent trait pour trait une fois
+# décodés : mêmes dimensions, même unité, mêmes coordonnées. Sans
+# `cell_methods`, rien ne les distingue, et un consommateur moyenne des
+# cumuls — exactement la faute que l'on a déjà écartée sur les directions de
+# vent, où la moyenne de 350° et 10° donne l'opposé de la réponse juste.
+#
+# ecCodes résout la table 4.10 du format GRIB2 et expose le résultat en
+# `stepType` ; la correspondance vers CF nous incombe.
+#
+# **Chaque méthode est vérifiée présente au tableau E.1 du standard**, lu le
+# 08/10/2026 dans les sources du dépôt des conventions. Une méthode inventée
+# produirait un fichier qui se dit conforme sans l'être.
+#
+# Le nom `time` désigne ici le **nom standard**, ce que CF autorise
+# explicitement à sa section 7.3 — et non la dimension `time`, qui porte chez
+# `cfgrib` la date de réseau. La coordonnée qui porte `standard_name = "time"`
+# est `valid_time`, et c'est bien d'elle qu'il s'agit.
+
+#: Axes sur lesquels une méthode peut être **déclarée par simple traduction**
+#: de ce que porte le GRIB. Un seul : le temps.
+#:
+#: **`area:` n'en fait pas partie, et c'est un choix motivé.** Une méthode
+#: spatiale — « ce point est la moyenne sur la maille » — cesse d'être vraie
+#: dès que le producteur rééchantillonne, ce que tous font : l'IFS diffuse en
+#: latitude-longitude régulière un champ calculé sur une grille gaussienne
+#: réduite octaédrique, AROME et ARPEGE de même depuis leurs grilles natives.
+#: L'ECMWF qualifie lui-même le rééchantillonnage de **procédure destructrice**
+#: (newsletter 169, « Advanced regridding in Metview »).
+#:
+#: La nuance porte sur « par défaut » : rien n'interdit de déclarer une
+#: méthode spatiale qu'on aurait **soi-même calculée** en connaissance de
+#: cause. Ce qui est proscrit, c'est de la **recopier** — hériter d'un
+#: attribut dont on ne sait pas s'il survit au traitement subi.
+AXES_DECLARABLES = ("time",)
+
+CELL_METHODS: dict[str, str] = {
+    "instant": "time: point",
+    "avg": "time: mean",
+    "accum": "time: sum",
+    "sum": "time: sum",
+    "max": "time: maximum",
+    "min": "time: minimum",
+    "rms": "time: root_mean_square",
+    "sd": "time: standard_deviation",
+}
+
+#: Traitements de la table 4.10 que **CF ne couvre pas**, recensés plutôt que
+#: rapprochés de force d'une méthode voisine :
+#:
+#: * `diff` — différence entre fin et début de période. `range` est la
+#:   différence entre maximum et minimum, ce n'est pas la même grandeur.
+#: * `cov` — la covariance ne figure pas au tableau E.1.
+#: * `ratio` — le rapport non plus.
+#: * `stdanom` — anomalie **normalisée**. Le tableau porte `anomaly_wrt`, qui
+#:   décrit un écart à une norme et non un écart réduit par l'écart-type ;
+#:   la méthode est d'ailleurs postérieure au CF-1.7 que nous déclarons.
+SANS_CELL_METHOD = frozenset({"diff", "cov", "ratio", "stdanom"})
+
+
+class TraitementStatistiqueInconnu(ValueError):
+    """Un `stepType` absent de la table et non recensé comme sans équivalent."""
+
+
+def cell_method(attrs: Mapping[str, object]) -> str | None:
+    """Méthode de cellule d'une variable, ou `None` s'il n'y a rien à déclarer.
+
+    **Lève sur un `stepType` inconnu.** Omettre serait tentant, mais un
+    traitement non reconnu est précisément celui dont on ignore s'il est
+    statistique : le passer sous silence produirait un cumul qui se présente
+    comme un instantané. Les traitements que CF ne couvre réellement pas sont
+    recensés dans `SANS_CELL_METHOD` et n'émettent rien, en connaissance de
+    cause.
+    """
+    brut = attrs.get("GRIB_stepType")
+    if brut is None:
+        return None
+    step_type = str(brut)
+    if step_type in SANS_CELL_METHOD:
+        _log.info(
+            "Traitement statistique sans équivalent CF, aucune méthode émise",
+            extra={"x10.step_type": step_type},
+        )
+        return None
+    if step_type not in CELL_METHODS:
+        raise TraitementStatistiqueInconnu(
+            f"`stepType` GRIB inconnu : {step_type!r}. L'ajouter à "
+            "`CELL_METHODS` après avoir vérifié la méthode au tableau E.1 de "
+            "CF, ou à `SANS_CELL_METHOD` si CF ne la couvre pas."
+        )
+    return CELL_METHODS[step_type]
+
+
+def cell_methods(jeu: xr.Dataset) -> dict[str, str]:
+    """Méthodes de cellule du jeu, par variable.
+
+    **La résolution est par variable, et non par jeu.** On pouvait croire
+    `cfgrib` capable de séparer les traitements statistiques, puisqu'il
+    éclate un paquet en plusieurs jeux. Il n'en est rien : il groupe par
+    **forme d'hypercube**, pas par traitement. Vérifié le 08/10/2026 sur un
+    paquet AROME de surface réel, où un même jeu réunit quatre champs cumulés
+    — rayonnement, précipitations, neige, grésil — et un champ instantané.
+    Une méthode unique par jeu y était tout simplement fausse.
+
+    Les fixtures ne le montraient pas : elles ne produisaient que des jeux
+    homogènes. Il a fallu un fichier du producteur pour le voir.
+    """
+    return {
+        str(nom): methode
+        for nom, var in jeu.data_vars.items()
+        if (methode := cell_method(var.attrs)) is not None
+    }
+
+
 # --- Référentiel géodésique ----------------------------------------------------
 
 
@@ -305,6 +422,17 @@ def write_netcdf(
             prepare, retrieval=retrieval, title=title, source=source, references=references
         ),
     }
+    methodes = cell_methods(prepare)
+    for nom in jeu.data_vars:
+        if nom in methodes:
+            prepare[nom].attrs["cell_methods"] = methodes[nom]
+        else:
+            # Rien à déclarer : on **retire** un éventuel attribut hérité
+            # plutôt que de le laisser passer. Un `cell_methods` recopié est
+            # une affirmation dont personne n'a vérifié qu'elle tient encore
+            # après le traitement subi — voir `AXES_DECLARABLES`.
+            prepare[nom].attrs.pop("cell_methods", None)
+
     if (mapping := grid_mapping(prepare)) is not None:
         import xarray
 
@@ -318,11 +446,17 @@ def write_netcdf(
 
 
 __all__ = [
+    "AXES_DECLARABLES",
+    "CELL_METHODS",
     "CONVENTIONS",
     "CRS_VARIABLE",
     "ECCODES_MANQUANT",
+    "SANS_CELL_METHOD",
     "UDUNITS",
+    "TraitementStatistiqueInconnu",
     "UniteNonConvertible",
+    "cell_method",
+    "cell_methods",
     "convert_units",
     "global_attributes",
     "grid_mapping",

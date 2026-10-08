@@ -15,11 +15,15 @@ from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
 
 from x10_connectors.decoding import normalise, open_package
 from x10_connectors.output import (
+    AXES_DECLARABLES,
+    CELL_METHODS,
     CONVENTIONS,
     CRS_VARIABLE,
     ECCODES_MANQUANT,
     UDUNITS,
+    TraitementStatistiqueInconnu,
     UniteNonConvertible,
+    cell_methods,
     convert_units,
     global_attributes,
     grid_mapping,
@@ -309,16 +313,184 @@ def test_ecriture_depuis_un_paquet_reel(tmp_path):
     assert resultat.retrieval is not None
 
     ecrits = 0
+    types_vus: set[str] = set()
     for n, jeu in enumerate(open_package(resultat.retrieval.artefacts[0])):
-        cible = write_netcdf(
-            normalise(jeu), tmp_path / f"sortie-{n}.nc", retrieval=resultat.retrieval
-        )
-        relu = xr.open_dataset(cible)
+        decode = normalise(jeu)
+        types_vus |= {
+            str(v.attrs["GRIB_stepType"])
+            for v in decode.data_vars.values()
+            if "GRIB_stepType" in v.attrs
+        }
+        # Resout par variable : un jeu reel mele les traitements, ce que les
+        # fixtures ne montraient pas.
+        cell_methods(decode)
+        assert grid_mapping(decode) is not None
+
+        cible = write_netcdf(decode, tmp_path / f"sortie-{n}.nc", retrieval=resultat.retrieval)
+        relu = xr.open_dataset(cible, decode_coords=False)
         try:
             assert relu.attrs["license"] == resultat.retrieval.license
+            assert relu[CRS_VARIABLE].attrs["grid_mapping_name"] == "latitude_longitude"
             for var in relu.data_vars.values():
                 assert "**" not in var.attrs.get("units", "")
+                assert var.attrs.get("cell_methods", "time: point").startswith("time: ")
         finally:
             relu.close()
         ecrits += 1
     assert ecrits >= 1
+    # Un paquet de surface reel porte instantanes, cumuls et maxima. Si l'un
+    # disparait, c'est le producteur qui a change.
+    assert {"instant", "accum", "max"} <= types_vus, types_vus
+
+
+# --- Methodes de cellule -------------------------------------------------------
+
+#: Table 4.10 du GRIB2, le `stepType` qu'ecCodes en tire, et la methode CF.
+TRAITEMENTS = [
+    (0, "avg", "time: mean"),
+    (1, "accum", "time: sum"),
+    (2, "max", "time: maximum"),
+    (3, "min", "time: minimum"),
+    (5, "rms", "time: root_mean_square"),
+    (6, "sd", "time: standard_deviation"),
+    (11, "sum", "time: sum"),
+]
+
+
+def _jeu_traite(tmp_path, code):
+    champs = [Champ(category=1, number=8, accumulation=3, traitement=code, step=s) for s in (3, 6)]
+    return normalise(open_package(paquet(tmp_path / f"t{code}.grib2", champs))[0])
+
+
+@pytest.mark.parametrize(("code", "step_type", "methode"), TRAITEMENTS)
+def test_chaque_traitement_statistique_donne_sa_methode_cf(tmp_path, code, step_type, methode):
+    jeu = _jeu_traite(tmp_path, code)
+    assert {str(v.attrs["GRIB_stepType"]) for v in jeu.data_vars.values()} == {step_type}
+    assert set(cell_methods(jeu).values()) == {methode}
+
+
+def test_un_instantane_est_declare_comme_tel(tmp_path):
+    """`time: point` n'est pas une formalité : c'est ce qui dit qu'il n'y a
+    eu aucune agrégation, là où l'absence d'attribut ne dit rien."""
+    assert set(cell_methods(_jeu(tmp_path)).values()) == {"time: point"}
+
+
+def test_un_cumul_ne_peut_plus_passer_pour_un_instantane(tmp_path):
+    """Le danger que cette table écarte.
+
+    Décodés, un cumul et un instantané ont mêmes dimensions, même unité,
+    mêmes coordonnées. Sans `cell_methods`, un consommateur moyenne des
+    cumuls — la faute déjà écartée sur les directions de vent.
+    """
+    cible = write_netcdf(_jeu_traite(tmp_path, 1), tmp_path / "cumul.nc")
+    relu = xr.open_dataset(cible, decode_coords=False)
+    try:
+        # Les vraies variables de données sont celles qui pointent vers le
+        # référentiel ; `valid_time` remonte ici en variable faute de
+        # décodage des coordonnées.
+        methodes = {
+            v.attrs.get("cell_methods")
+            for v in relu.data_vars.values()
+            if v.attrs.get("grid_mapping") == CRS_VARIABLE
+        }
+        assert methodes == {"time: sum"}
+    finally:
+        relu.close()
+
+
+@pytest.mark.parametrize(("code", "step_type"), [(4, "diff"), (7, "cov"), (9, "ratio")])
+def test_un_traitement_que_cf_ne_couvre_pas_n_emet_rien(tmp_path, code, step_type):
+    """Recensé plutôt que rapproché de force d'une méthode voisine : `range`
+    n'est pas une différence fin moins début, et CF n'a ni covariance ni
+    rapport."""
+    jeu = _jeu_traite(tmp_path, code)
+    assert {str(v.attrs["GRIB_stepType"]) for v in jeu.data_vars.values()} == {step_type}
+    assert cell_methods(jeu) == {}
+
+
+def test_un_traitement_inconnu_interrompt_plutot_que_de_se_taire(tmp_path):
+    """Se taire produirait un cumul qui se présente comme un instantané."""
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        var.attrs["GRIB_stepType"] = "sorcellerie"
+    with pytest.raises(TraitementStatistiqueInconnu, match="inconnu"):
+        cell_methods(jeu)
+
+
+def test_des_traitements_meles_dans_un_jeu_sont_resolus_un_a_un(tmp_path):
+    """Le cas que les fixtures ne montraient pas, et qu'un fichier réel a
+    révélé.
+
+    On pouvait croire `cfgrib` capable de séparer les traitements
+    statistiques, puisqu'il éclate un paquet en plusieurs jeux. Il groupe en
+    fait par **forme d'hypercube**. Mesuré le 08/10/2026 sur un paquet AROME
+    de surface : un même jeu réunit quatre champs cumulés et un instantané.
+    """
+    jeu = _jeu(tmp_path)
+    noms = sorted(jeu.data_vars)
+    jeu[noms[0]].attrs["GRIB_stepType"] = "accum"
+    jeu[noms[1]].attrs["GRIB_stepType"] = "instant"
+    assert cell_methods(jeu) == {noms[0]: "time: sum", noms[1]: "time: point"}
+
+
+def test_une_variable_sans_traitement_declare_n_emet_rien(tmp_path):
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        var.attrs.pop("GRIB_stepType", None)
+    assert cell_methods(jeu) == {}
+
+
+def test_toutes_les_methodes_emises_sont_au_tableau_de_cf():
+    """Ensemble fermé, vérifié dans son intégralité contre le tableau E.1
+    du standard, lu le 08/10/2026."""
+    tableau_e1 = {
+        "point",
+        "sum",
+        "anomaly_wrt",
+        "maximum",
+        "maximum_absolute_value",
+        "median",
+        "mid_range",
+        "minimum",
+        "minimum_absolute_value",
+        "mean",
+        "mean_absolute_value",
+        "mean_of_upper_decile",
+        "mode",
+        "range",
+        "root_mean_square",
+        "standard_deviation",
+        "sum_of_squares",
+        "variance",
+    }
+    for methode in CELL_METHODS.values():
+        axe, nom = methode.split(": ")
+        assert axe == "time"
+        assert nom in tableau_e1, f"{nom!r} absent du tableau E.1"
+
+
+def test_aucune_methode_n_est_declaree_hors_de_l_axe_temporel(tmp_path):
+    """Seul le temps se traduit depuis le GRIB. Une méthode spatiale cesse
+    d'être vraie dès que le producteur rééchantillonne — ce que tous font."""
+    assert AXES_DECLARABLES == ("time",)
+    for methode in CELL_METHODS.values():
+        assert methode.split(": ")[0] in AXES_DECLARABLES
+
+
+def test_une_methode_heritee_est_retiree_et_non_recopiee(tmp_path):
+    """Le vrai danger n'est pas d'émettre `area:`, c'est de le **recopier**.
+
+    Un attribut hérité est une affirmation dont personne n'a vérifié qu'elle
+    tient encore après le traitement subi.
+    """
+    jeu = _jeu_traite(tmp_path, 4)  # `diff`, sans équivalent CF : rien à émettre
+    for var in jeu.data_vars.values():
+        var.attrs["cell_methods"] = "area: mean"
+    cible = write_netcdf(jeu, tmp_path / "herite.nc")
+    relu = xr.open_dataset(cible, decode_coords=False)
+    try:
+        for v in relu.data_vars.values():
+            if v.attrs.get("grid_mapping") == CRS_VARIABLE:
+                assert "cell_methods" not in v.attrs
+    finally:
+        relu.close()

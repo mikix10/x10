@@ -50,7 +50,10 @@ d'ajouter un test.
 Une seconde note, **[docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md)**,
 établit par l'exécution ce que GRIB, CF et UDUNITS exigent et ce que les
 outils de la chaîne en font — à lire avant de toucher aux unités ou aux noms
-standards.
+standards. Une troisième,
+**[docs/agregation-et-reechantillonnage.md](docs/agregation-et-reechantillonnage.md)**,
+traite de ce que le rééchantillonnage des producteurs conserve ou détruit —
+à lire avant de déclarer une propriété statistique sur un champ.
 
 ## Conventions de code
 
