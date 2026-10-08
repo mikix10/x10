@@ -29,6 +29,16 @@ dev = [
   "xarray>=2025.1",
   # Ecriture NetCDF. Roues disponibles pour les trois systemes.
   "netCDF4>=1.7",
+  # Liaison Python vers UDUNITS-2, avec la bibliotheque C **embarquee** dans
+  # la roue. Permet de valider chaque unite emise contre UDUNITS lui-meme au
+  # lieu de la comparer a une liste tenue a la main -- verifier plutot
+  # qu'affirmer. Developpement seulement : aucun paquet publie n'en depend.
+  #
+  # BSD-3-Clause, roues pour les trois systemes en ABI stable (une seule roue
+  # de 3.11 a 3.13). N'ajoute que `jinja2` et `markupsafe` au graphe, tous
+  # deux en Python pur. Pas de roue Linux ARM, sans effet sur notre
+  # integration continue qui est en x86-64.
+  "cf-units>=3.3",
 ]
 
 [tool.uv]

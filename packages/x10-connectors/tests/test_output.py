@@ -91,6 +91,53 @@ def test_aucune_unite_emise_n_utilise_la_syntaxe_eccodes():
         assert "**" not in (udu or ""), f"{grib!r} traduit en {udu!r}"
 
 
+def test_udunits_valide_lui_meme_chaque_unite_emise():
+    """**Vérifier au lieu d'affirmer.**
+
+    Le test précédent compare nos cibles à une liste tenue à la main ; celui-ci
+    les soumet à UDUNITS-2, dont `cf-units` embarque la bibliothèque C.
+
+    **Piège écarté explicitement.** `cf-units` court-circuite les chaînes
+    `unknown` et `no_unit`, qu'il traite comme des sentinelles internes sans
+    les soumettre à UDUNITS. Elles passeraient donc cette validation alors
+    qu'UDUNITS les refuse. Nous n'émettons ni l'une ni l'autre — la table les
+    traduit par `None` —, mais le contrôle doit le dire plutôt que de le
+    supposer.
+    """
+    import cf_units
+
+    sentinelles = {cf_units._UNKNOWN_UNIT_STRING, cf_units._NO_UNIT_STRING}
+    emises = {u for u in UDUNITS.values() if u is not None}
+    assert not (emises & sentinelles), "une sentinelle de cf-units échapperait au contrôle"
+
+    for unite in sorted(emises):
+        # `UT_DEFINITION` force la réduction aux unités de base : une chaîne
+        # que la grammaire accepterait sans savoir l'interpréter échouerait ici.
+        cf_units.Unit(unite).format(cf_units.UT_DEFINITION)
+
+
+def test_la_conversion_preserve_la_grandeur():
+    """Une canonicalisation ne doit rien changer d'autre que l'écriture.
+
+    La définition réduite d'UDUNITS est comparée des deux côtés : si elle est
+    identique, la réécriture n'a pas altéré la grandeur. C'est une garantie
+    plus forte qu'une simple validité syntaxique.
+    """
+    import cf_units
+
+    for grib, udu in UDUNITS.items():
+        if udu is None:
+            continue
+        try:
+            avant = cf_units.Unit(grib).format(cf_units.UT_DEFINITION)
+        except ValueError:
+            # Les quatre cas nommés : `Degree true`, `(0 - 1)` et les codes de
+            # table ne sont pas des unités UDUNITS, il n'y a rien à comparer.
+            continue
+        apres = cf_units.Unit(udu).format(cf_units.UT_DEFINITION)
+        assert avant == apres, f"{grib!r} -> {udu!r} : {avant!r} devient {apres!r}"
+
+
 def test_la_conversion_remplace_les_unites_du_jeu(tmp_path):
     jeu = _jeu(tmp_path)
     assert jeu["u"].attrs["units"] == "m s**-1"
