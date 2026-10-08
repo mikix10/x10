@@ -49,6 +49,12 @@ class ConnectorResult(BaseModel):
     retrieval: Retrieval | None = None
 
 
+#: Agent responsable, pour le lignage et la trace `history` des sorties.
+#: Defini ici plutot que dans chaque connecteur : trois copies de la meme
+#: version divergent au premier oubli.
+AGENT = "x10-connectors 0.1.0"
+
+
 class UnsafeDestinationError(ValueError):
     """Un nom de fichier conduirait hors de la racine de destination."""
 
@@ -78,6 +84,7 @@ class BaseConnector:
 
 
 __all__ = [
+    "AGENT",
     "BaseConnector",
     "ConnectorResult",
     "Outcome",

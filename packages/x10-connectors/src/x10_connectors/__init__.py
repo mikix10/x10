@@ -12,7 +12,7 @@ connecteur, dont les noms sont déjà qualifiés par leur source.
 
 from __future__ import annotations
 
-from . import decoding, ecmwf_ifs, meteofrance_pnt
+from . import decoding, ecmwf_ifs, meteofrance_pnt, output
 from .base import (
     BaseConnector,
     ConnectorResult,
@@ -43,6 +43,7 @@ from .observability import (
     fetch_finished_fields,
     fetch_started_fields,
 )
+from .output import UniteNonConvertible, write_netcdf
 
 __all__ = [
     "EVENT_CATEGORY",
@@ -61,6 +62,7 @@ __all__ = [
     "OpenDataClient",
     "Outcome",
     "Transport",
+    "UniteNonConvertible",
     "UnsafeDestinationError",
     "connector_logger",
     "decoding",
@@ -69,5 +71,7 @@ __all__ = [
     "fetch_finished_fields",
     "fetch_started_fields",
     "meteofrance_pnt",
+    "output",
     "safe_target",
+    "write_netcdf",
 ]
