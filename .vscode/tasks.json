@@ -5,57 +5,160 @@
       "label": "Ruff : lint",
       "type": "process",
       "command": "uv",
-      "args": ["run", "ruff", "check", "."],
+      "args": [
+        "run",
+        "ruff",
+        "check",
+        "."
+      ],
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     },
     {
       "label": "Ruff : format",
       "type": "process",
       "command": "uv",
-      "args": ["run", "ruff", "format", "."],
+      "args": [
+        "run",
+        "ruff",
+        "format",
+        "."
+      ],
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     },
     {
       "label": "Mypy",
       "type": "process",
       "command": "uv",
-      "args": ["run", "mypy"],
+      "args": [
+        "run",
+        "mypy"
+      ],
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     },
     {
       "label": "Pytest",
       "type": "process",
       "command": "uv",
-      "args": ["run", "pytest"],
-      "group": { "kind": "test", "isDefault": true },
+      "args": [
+        "run",
+        "pytest"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     },
     {
       "label": "Pre-commit : tout l'arbre",
       "type": "process",
       "command": "uv",
-      "args": ["run", "pre-commit", "run", "--all-files"],
+      "args": [
+        "run",
+        "pre-commit",
+        "run",
+        "--all-files"
+      ],
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
     },
     {
       "label": "Build des paquets",
       "type": "process",
       "command": "uv",
-      "args": ["build", "--all-packages"],
+      "args": [
+        "build",
+        "--all-packages"
+      ],
       "problemMatcher": [],
-      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Couverture : mesure",
+      "type": "process",
+      "command": "uv",
+      "args": [
+        "run",
+        "pytest",
+        "--cov",
+        "--cov-report=term-missing:skip-covered",
+        "--cov-report=html"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "Couverture : barriere hors reseau",
+      "type": "process",
+      "command": "uv",
+      "args": [
+        "run",
+        "coverage",
+        "report",
+        "--rcfile=.coveragerc-offline"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Couverture",
+      "detail": "Taux reel, puis seuil sur le code atteignable hors ligne. Rapport dans htmlcov/.",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Couverture : mesure",
+        "Couverture : barriere hors reseau"
+      ],
+      "problemMatcher": []
     },
     {
       "label": "Portes de qualite",
       "detail": "Lint, typage et tests, dans l'ordre. Ce que verifie l'integration continue.",
       "dependsOrder": "sequence",
-      "dependsOn": ["Ruff : lint", "Mypy", "Pytest"],
-      "group": { "kind": "build", "isDefault": true },
+      "dependsOn": [
+        "Ruff : lint",
+        "Mypy",
+        "Pytest"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": []
     }
   ]

@@ -1,0 +1,12 @@
+# Vue « barriere » de la couverture : la part du code atteignable **hors
+# ligne**, c'est-a-dire ce que la suite par defaut doit couvrir.
+#
+# Le marqueur ne reprend volontairement pas `pragma: no cover` : les
+# exclusions par defaut de coverage.py le reconnaitraient, et le code serait
+# alors masque dans les **deux** vues — y compris la vue informative, qui doit
+# precisement continuer a montrer l'ecart.
+[report]
+exclude_also =
+    couvert par les tests reseau
+fail_under = 90
+skip_covered = True

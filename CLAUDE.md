@@ -47,6 +47,10 @@ uv run ruff check .            # lint
 uv run ruff format .           # format (la CI vérifie avec --check)
 uv run mypy                    # typage strict sur les src/
 uv build --all-packages        # construire les distributions
+
+# Couverture : taux reel affiche, puis seuil sur le code atteignable hors ligne.
+uv run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html
+uv run coverage report --rcfile=.coveragerc-offline
 uv lock                        # après tout changement de dépendance (la CI exige --locked)
 
 # Tests atteignant un service reel : exclus par defaut.
@@ -110,10 +114,8 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Une `Distribution` par origine**, et non une distribution à plusieurs URL. Chacune porte sa priorité et sa licence — un ré-exposant peut ajouter ses conditions —, ce sur quoi s'appuie la résolution. **STAC ne convient pas ici** : sa spécification pose qu'il ne doit y avoir qu'un seul `host`, ce qui exclut la redondance.
 - **Bascule d'origine, mais pas sur n'importe quelle erreur.** Un échec d'accès entraîne un repli sur l'origine suivante ; une erreur de notre fait ou de la requête — plafond de volume, chemin invalide, paramètre absurde — n'en entraîne aucun, puisqu'une autre origine servirait la même donnée et échouerait pareillement. Voir `NON_REESSAYABLE`.
 - **`Retrieval` porte l'origine effectivement retenue**, qui peut différer de celle demandée. `Provenance` subsiste avec un rôle distinct : attribution d'une **valeur**, là où `Retrieval` décrit l'acquisition d'un **artefact**.
-- **Deuxième source : les paquets Météo-France, par la voie sans authentification.** Le stockage objet republié par data.gouv.fr sert AROME et ARPEGE sous Licence Ouverte 2.0, sans compte ni jeton. Le connecteur reste donc symétrique de celui d'ECMWF, et **X10 ne porte aucun secret**.
-  **Ce que ce choix exclut, et qu'il faut savoir** : les paquets et l'API ciblée du producteur sont **deux produits distincts qui ne se recouvrent pas**. Renoncer à l'API ciblée, c'est renoncer au temps sensible — grêle, foudre, visibilité, type de précipitation —, aux niveaux isothermes et au sommet d'atmosphère. On y gagne l'absence de secret, une archive de 14 jours au lieu de 5, et le géopotentiel aux niveaux hauteur que l'API n'expose pas.
-  **Deux voies ne sont pas deux `Distribution` d'un même `Dataset`.** Le modèle suppose les distributions interchangeables ; des contenus différents relèvent de jeux différents.
-- **Pas de téléchargement sélectif par plage d'octets chez Météo-France.** Le producteur ne publie aucun index, contrairement à ECMWF. Le reconstruire coûte une requête par message, à refaire à chaque publication, et **se fige au-delà d'environ 3 500 requêtes successives sur un même objet** — reproduit trois fois. Le levier de sélection est le **choix du paquet** : quelques dizaines de mégaoctets en surface, plusieurs gigaoctets en niveaux. D'où un plafond de volume par défaut à 256 Mio, qui laisse passer la surface et arrête les niveaux.
+- **Deuxième source : les paquets Météo-France, par la voie sans authentification**, donc **X10 ne porte aucun secret**. Le choix exclut le temps sensible, les niveaux isothermes et le sommet d'atmosphère, réservés à l'API ciblée ; il gagne une archive plus profonde et le géopotentiel aux niveaux hauteur. Les deux voies **ne se recouvrent pas** : ce ne sont donc pas deux `Distribution` d'un même `Dataset`, que le modèle suppose interchangeables, mais deux jeux distincts. Mesures et détail dans les deux notes de `docs/`.
+- **Pas de téléchargement sélectif par plage d'octets chez Météo-France** : le producteur ne publie aucun index, et le reconstruire se fige au-delà d'environ 3 500 requêtes successives sur un même objet. Le levier de sélection est le **choix du paquet**, d'où un plafond de volume par défaut à 256 Mio — il laisse passer la surface et arrête les niveaux.
 - **Les grandeurs vectorielles se stockent en composantes.** Direction et force du vent sont **écartées au décodage** et recalculées à la demande. La direction est une grandeur circulaire : la moyenne arithmétique de 350° et 10° vaut 180°, soit l'exact opposé de la réponse juste, et interpolation, ré-échantillonnage et écart-type sont faux de la même façon.
   **Vérifié le 06/10/2026 sur 4,66 millions de points réels** d'un paquet AROME SP1 : la reconstitution depuis les composantes donne un écart maximal de **0,015 m/s sur la force** et de **0,25° sur la direction dès 3 m/s**. La seule dégradation est sous 0,5 m/s — jusqu'à 44° — là où la direction n'a pas de sens physique. Deux champs sur quatre disparaissent sans perte.
   Corollaire : ce qui est intrinsèquement scalaire, une rafale maximale, reste scalaire. L'API ciblée du producteur et les données ouvertes de l'ECMWF n'exposent d'ailleurs aucune direction.
@@ -122,18 +124,17 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Pas de dépendance à `MeteoFetch`.** Le paquet couvre un périmètre voisin, mais son dépôt porte un `LICENSE` en **GPL-2.0** tandis que son `pyproject.toml` déclare **MIT**. Sous GPL-2.0, la dépendance contaminerait notre publication BSD-3-Clause. Ni dépendance ni reprise de structure tant que l'ambiguïté n'est pas levée.
 - **Les constantes propres à une source ne sont pas réexportées par `x10_connectors`.** Deux sources ne peuvent pas partager `SOURCE_NAME` dans un espace plat ; elles se prennent au module. Seuls le commun et les points d'entrée sont réexportés.
 - **Les tests ne téléchargent rien et ne stockent rien.** Un message GRIB2 valide se construit en mémoire par ecCodes : quelques centaines d'octets suffisent à exercer géométrie, valeurs manquantes, cumuls et vent. Voir `tests/fixtures_grib.py`. **Aucune donnée réelle n'est commise au dépôt**, et la suite par défaut tourne hors ligne. Les tests atteignant le service réel portent le marqueur `network`.
+- **Couverture : deux vues depuis une seule mesure.** La vue **informative**, dans `pyproject.toml`, n'exclut rien et affiche le taux réel — 92 % en branches au 08/10/2026. La vue **barrière**, dans `.coveragerc-offline`, écarte le code que seuls les tests `network` exercent et porte le seuil de **90 %**, atteint à 96 %. Un seuil global serait mal posé dans les deux sens : trop haut il sanctionnerait une exclusion délibérée, trop bas il ne se déclencherait qu'après un effondrement.
+  **Piège à ne pas reproduire** : le marqueur est `# couvert par les tests reseau` et **ne contient pas `pragma: no cover`**, que les exclusions par défaut reconnaîtraient — le code serait alors masqué dans les **deux** vues, y compris celle qui doit montrer l'écart. Les exclusions s'appliquent au rapport et non à la mesure, donc un même fichier de données se relit des deux façons.
 - **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Ordre de travail retenu
 
-1. ~~**Socle technique**~~ — fait : workspace `uv`, `uv.lock`, `LICENSE`, métadonnées PyPI, ruff, `mypy --strict`, pytest, hook `pre-commit`, CI 3.12 avec canari 3.13, commits signés.
-2. **Protéger `main`** puis reprendre le travail en pull request — voir « Reste à faire ».
-3. ~~**Connecteur ECMWF IFS**~~ — fait. Leçons consignées dans « Décisions arrêtées ».
-4. ~~**Modèle de catalogue multi-origines**~~ — fait, et éprouvé par la bascule d'origine du connecteur ECMWF.
-5. ~~**Deuxième source et premier décodage**~~ — fait : connecteur Météo-France sans secret, décodage GRIB2, normalisation CF, règle des composantes.
-6. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
-7. **Peupler le catalogue** — entrées réelles pour ECMWF, AROME et ARPEGE, dont l'inventaire des variables est **dérivé des fichiers**, jamais du descriptif technique du producteur.
-8. **Sortie NetCDF-CF et stockage** — écrire ce qui est décodé, décider de Zarr, puis exposer par l'API.
+**Fait**, leçons consignées dans « Décisions arrêtées » : socle technique et outillage, protection de `main`, connecteur ECMWF IFS, catalogue multi-origines éprouvé par la bascule d'origine, puis deuxième source Météo-France avec décodage GRIB2 et normalisation.
+
+1. **Étoffer les modèles de domaine** — unités, emprises géographiques, séries temporelles, qualité.
+2. **Peupler le catalogue** — entrées réelles pour ECMWF, AROME et ARPEGE, dont l'inventaire des variables est **dérivé des fichiers**, jamais du descriptif technique du producteur.
+3. **Sortie NetCDF-CF et stockage** — écrire ce qui est décodé, décider de Zarr, puis exposer par l'API.
 
 ## Reste à faire
 
@@ -143,7 +144,11 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - Dependabot et CodeQL : différés tant que le code métier se résume à des stubs, à activer dès que `x10-connectors` contient du code réel.
 - Monter les actions GitHub de majeure (`checkout` v4 → v7, `setup-uv` v5 → v10, `upload-artifact` v4 → v7) : changement fonctionnel à tester à part.
 - Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
-- Configuration de débogage (`launch.json`) et couverture de tests : à l'arrivée du premier code métier.
+- Configuration de débogage (`launch.json`) : à l'arrivée d'un besoin réel.
+- **Réexaminer Codecov une fois, à la publication de la 1.0.0.** La barrière de
+  couverture est locale et sans service tiers ; les courbes de tendance et le
+  commentaire de couverture différentielle prennent leur sens quand le projet
+  a une histoire et des contributeurs.
 - **Métriques de supervision** — les journaux permettent à une chaîne ELK de dériver taux de succès, latence et volume, mais la détection d'incident dépend alors du délai d'indexation. Un point d'entrée de métriques, ou un contrôle de santé par source, reste à prévoir si un besoin de supervision temps réel apparaît.
 
 ## Procédures outillées (skills)
