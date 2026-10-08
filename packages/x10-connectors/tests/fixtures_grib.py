@@ -14,7 +14,8 @@ Les cinq pièges relevés sur les paquets réels se reproduisent ici :
 * **types de niveau mêlés** dans un même fichier ;
 * **longitudes en 0 a 360**, que le format impose ;
 * **empaquetage CCSDS**, celui des fichiers réels, et non l'empaquetage
-  simple que produirait un échantillon laissé tel quel.
+  simple que produirait un échantillon laissé tel quel ;
+* **prévision d'ensemble**, gabarit `4.1`, qui ajoute un axe de membre.
 
 Dépend de la pile GRIB, déclarée en groupe de développement.
 """
@@ -60,7 +61,8 @@ class Champ:
 
     `accumulation` bascule le message sur le gabarit `4.8` et lui donne une
     période de cumul en heures. `manquants` fixe le nombre de points marqués
-    absents, en tête de grille.
+    absents, en tête de grille. `membre` bascule sur le gabarit `4.1`, celui
+    d'une prévision d'ensemble.
     """
 
     category: int
@@ -70,6 +72,13 @@ class Champ:
     level: int = 10
     step: int = 0
     accumulation: int | None = None
+    #: Numéro de perturbation. Non nul, bascule le message sur le gabarit
+    #: `4.1` — prévision d'ensemble — et fait apparaître un axe `number` au
+    #: décodage. Non combinable avec `accumulation`, qui relèverait du
+    #: gabarit `4.11`.
+    membre: int | None = None
+    #: Taille de l'ensemble annoncée par le message.
+    membres: int = 0
     manquants: int = 0
     #: Précision de quantification. Les paquets réels encodent sur 12 bits ;
     #: la reproduire permet de mesurer la perte réelle plutôt qu'une perte
@@ -107,6 +116,18 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
         eccodes.codes_set(h, "typeOfFirstFixedSurface", champ.level_type)
         eccodes.codes_set(h, "scaledValueOfFirstFixedSurface", champ.level)
         eccodes.codes_set(h, "step", champ.step)
+
+        if champ.membre is not None and champ.accumulation is not None:
+            raise ValueError(
+                "Cumul et ensemble relèveraient du gabarit 4.11, que cette "
+                "fabrique ne construit pas encore."
+            )
+
+        if champ.membre is not None:
+            eccodes.codes_set(h, "productDefinitionTemplateNumber", 1)
+            eccodes.codes_set(h, "typeOfEnsembleForecast", 3)
+            eccodes.codes_set(h, "perturbationNumber", champ.membre)
+            eccodes.codes_set(h, "numberOfForecastsInEnsemble", champ.membres or 1)
 
         if champ.accumulation is not None:
             eccodes.codes_set(h, "productDefinitionTemplateNumber", 8)

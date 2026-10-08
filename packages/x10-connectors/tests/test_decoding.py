@@ -285,3 +285,33 @@ def test_les_options_qui_decident_de_la_forme_sont_ecrites():
     assert OPTIONS_CFGRIB["indexpath"] == ""
     assert OPTIONS_CFGRIB["encode_cf"] == ("parameter", "time", "geography", "vertical")
     assert OPTIONS_CFGRIB["time_dims"] == ("time", "step")
+
+
+def test_un_ensemble_garde_son_axe_de_membre_meme_a_un_seul_membre(tmp_path):
+    """Le cas que `squeeze=True` rendait indétectable.
+
+    Mesuré le 08/10/2026 : sous le défaut de cfgrib, un ensemble réduit à un
+    membre rendait `(latitude, longitude)` — **exactement ce que rend un
+    déterministe**. L'appartenance à un ensemble disparaissait du fichier, et
+    rien ne permettait plus de la retrouver.
+    """
+    attendu = ("number", "time", "step", "heightAboveGround", "latitude", "longitude")
+    for total in (1, 3):
+        champs = [Champ(category=0, number=0, membre=m, membres=total) for m in range(total)]
+        jeu = normalise(open_package(paquet(tmp_path / f"ens{total}.grib2", champs))[0])
+        assert jeu["t"].dims == attendu
+        assert jeu["t"].sizes["number"] == total
+
+
+def test_un_deterministe_n_a_pas_d_axe_de_membre(tmp_path):
+    """La distinction doit rester lisible dans l'autre sens aussi : un champ
+    déterministe ne porte pas de clé d'ensemble, donc pas d'axe."""
+    jeu = normalise(open_package(paquet(tmp_path / "det.grib2", [Champ(category=0, number=0)]))[0])
+    assert "number" not in jeu["t"].dims
+
+
+def test_cumul_et_ensemble_ne_se_combinent_pas_en_silence(tmp_path):
+    """Relèverait du gabarit 4.11 ; mieux vaut refuser que produire un
+    message dont la sémantique ne serait pas celle qu'on croit."""
+    with pytest.raises(ValueError, match=r"4.11"):
+        paquet(tmp_path / "x.grib2", [Champ(category=0, number=0, membre=0, accumulation=1)])
