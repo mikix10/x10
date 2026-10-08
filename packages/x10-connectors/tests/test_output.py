@@ -16,10 +16,13 @@ from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
 from x10_connectors.decoding import normalise, open_package
 from x10_connectors.output import (
     CONVENTIONS,
+    CRS_VARIABLE,
+    ECCODES_MANQUANT,
     UDUNITS,
     UniteNonConvertible,
     convert_units,
     global_attributes,
+    grid_mapping,
     udunits,
     write_netcdf,
 )
@@ -164,7 +167,7 @@ def test_le_fichier_s_ecrit_et_se_relit(tmp_path):
 
     relu = xr.open_dataset(cible)
     try:
-        assert set(relu.data_vars) == {"u", "v"}
+        assert set(relu.data_vars) == {"u", "v", "crs"}
         np.testing.assert_allclose(relu["u"].values, jeu["u"].values, atol=1e-5)
         assert relu["u"].attrs["units"] == "m s-1"
         assert relu["u"].attrs["standard_name"] == "eastward_wind"
@@ -219,6 +222,73 @@ def test_une_source_explicite_suffit_sans_lignage(tmp_path):
     attrs = global_attributes(_jeu(tmp_path), source="essai")
     assert attrs["source"] == "essai"
     assert "license" not in attrs
+
+
+# --- Referentiel geodesique ----------------------------------------------------
+
+
+def test_le_referentiel_est_decrit_et_non_suppose(tmp_path):
+    """Le GRIB déclare une sphère de 6 371 229 m ; sans `grid_mapping`, le
+    consommateur doit supposer, et rien ne l'avertit qu'il suppose."""
+    mapping = grid_mapping(_jeu(tmp_path))
+    assert mapping is not None
+    assert mapping["grid_mapping_name"] == "latitude_longitude"
+    assert mapping["earth_radius"] == 6371229.0
+    assert "semi_major_axis" not in mapping
+
+
+def test_la_variable_de_referentiel_voyage_avec_le_fichier(tmp_path):
+    cible = write_netcdf(_jeu(tmp_path), tmp_path / "crs.nc")
+    relu = xr.open_dataset(cible, decode_coords=False)
+    try:
+        assert relu[CRS_VARIABLE].attrs["earth_radius"] == 6371229.0
+        for nom in ("u", "v"):
+            assert relu[nom].attrs["grid_mapping"] == CRS_VARIABLE
+    finally:
+        relu.close()
+
+
+def test_un_ellipsoide_est_decrit_par_ses_deux_axes(tmp_path):
+    """WGS84 et les autres sphéroïdes n'ont pas de rayon unique : CF attend
+    alors le couple d'axes, et non un `earth_radius` inventé."""
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        var.attrs.update(
+            GRIB_shapeOfTheEarth=5,
+            GRIB_earthIsOblate=1,
+            GRIB_earthMajorAxis=6378137.0,
+            GRIB_earthMinorAxis=6356752.314,
+        )
+        var.attrs.pop("GRIB_radius", None)
+    mapping = grid_mapping(jeu)
+    assert mapping is not None
+    assert mapping["semi_major_axis"] == 6378137.0
+    assert mapping["semi_minor_axis"] == 6356752.314
+    assert "earth_radius" not in mapping
+
+
+def test_le_marqueur_d_absence_d_eccodes_n_est_pas_pris_pour_un_rayon(tmp_path):
+    """`INT32_MAX` signale une clé absente. Lu sans précaution il donnerait
+    une Terre de 2 147 483 647 mètres, qu'aucun contrôle ne rattraperait."""
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        var.attrs["GRIB_radius"] = ECCODES_MANQUANT
+    assert grid_mapping(jeu) is None
+
+
+def test_sans_information_aucun_referentiel_n_est_invente(tmp_path):
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        for cle in list(var.attrs):
+            if cle.startswith("GRIB_shapeOfTheEarth"):
+                del var.attrs[cle]
+    assert grid_mapping(jeu) is None
+    cible = write_netcdf(jeu, tmp_path / "sans.nc")
+    relu = xr.open_dataset(cible, decode_coords=False)
+    try:
+        assert CRS_VARIABLE not in relu.variables
+    finally:
+        relu.close()
 
 
 # --- Service reel --------------------------------------------------------------

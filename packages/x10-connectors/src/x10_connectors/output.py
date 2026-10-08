@@ -49,6 +49,16 @@ _log = connector_logger(__name__)
 CONVENTIONS = "CF-1.7"
 
 
+#: Nom de la variable conteneur portant le référentiel. CF n'en impose aucun ;
+#: `crs` est celui que pratiquent la plupart des producteurs.
+CRS_VARIABLE = "crs"
+
+#: Marqueur d'absence d'ecCodes sur une clé entière, `INT32_MAX`. Lu sans
+#: précaution, il produirait un rayon terrestre de 2 147 483 647 mètres —
+#: une valeur absurde qu'aucun contrôle de conformité ne rattraperait.
+ECCODES_MANQUANT = 2147483647
+
+
 class UniteNonConvertible(ValueError):
     """Une unité GRIB n'a pas de correspondance UDUNITS connue."""
 
@@ -163,6 +173,57 @@ def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
     return sortie
 
 
+# --- Référentiel géodésique ----------------------------------------------------
+
+
+def _valeur(attrs: dict[str, object], cle: str) -> float | None:
+    """Lit une clé GRIB numérique, en écartant le marqueur d'absence."""
+    brut = attrs.get(f"GRIB_{cle}")
+    if not isinstance(brut, (int, float)) or isinstance(brut, bool):
+        return None
+    valeur = float(brut)
+    return None if valeur == ECCODES_MANQUANT else valeur
+
+
+def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
+    """Décrit le référentiel géodésique, au sens de l'annexe F de CF.
+
+    **Pourquoi ce n'est pas un détail.** Les modèles de prévision travaillent
+    sur une sphère — 6 371 229 m pour AROME, ARPEGE et l'IFS — et non sur
+    l'ellipsoïde WGS84. Le GRIB le déclare, et un NetCDF sans `grid_mapping`
+    le perd : le consommateur doit alors supposer, sans rien pour l'avertir
+    qu'il suppose.
+
+    Renvoie `None` si le jeu ne porte pas l'information, plutôt que de poser
+    un référentiel par défaut — supposer à la place du producteur serait la
+    faute même que cette fonction corrige.
+    """
+    for var in jeu.data_vars.values():
+        attrs = dict(var.attrs)
+        if "GRIB_shapeOfTheEarth" not in attrs:
+            continue
+        mapping: dict[str, object] = {
+            "grid_mapping_name": "latitude_longitude",
+            "longitude_of_prime_meridian": 0.0,
+            #: Trace de la correspondance, pour qui veut remonter au GRIB.
+            "GRIB_shapeOfTheEarth": attrs["GRIB_shapeOfTheEarth"],
+        }
+        if _valeur(attrs, "earthIsOblate"):
+            demi_grand = _valeur(attrs, "earthMajorAxis")
+            demi_petit = _valeur(attrs, "earthMinorAxis")
+            if demi_grand is None or demi_petit is None:
+                return None
+            mapping["semi_major_axis"] = demi_grand
+            mapping["semi_minor_axis"] = demi_petit
+        else:
+            rayon = _valeur(attrs, "radius")
+            if rayon is None:
+                return None
+            mapping["earth_radius"] = rayon
+        return mapping
+    return None
+
+
 # --- Attributs globaux --------------------------------------------------------
 
 
@@ -244,6 +305,13 @@ def write_netcdf(
             prepare, retrieval=retrieval, title=title, source=source, references=references
         ),
     }
+    if (mapping := grid_mapping(prepare)) is not None:
+        import xarray
+
+        prepare[CRS_VARIABLE] = xarray.DataArray(0, attrs=mapping)
+        for nom in jeu.data_vars:
+            prepare[nom].attrs["grid_mapping"] = CRS_VARIABLE
+
     cible.parent.mkdir(parents=True, exist_ok=True)
     prepare.to_netcdf(cible, engine="netcdf4")
     return cible
@@ -251,10 +319,13 @@ def write_netcdf(
 
 __all__ = [
     "CONVENTIONS",
+    "CRS_VARIABLE",
+    "ECCODES_MANQUANT",
     "UDUNITS",
     "UniteNonConvertible",
     "convert_units",
     "global_attributes",
+    "grid_mapping",
     "udunits",
     "write_netcdf",
 ]
