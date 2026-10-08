@@ -75,8 +75,11 @@ def test_une_unite_inconnue_fait_echouer_plutot_que_deviner():
 
 
 def test_aucune_unite_emise_n_utilise_la_syntaxe_eccodes():
-    """L'ensemble fermé, vérifié dans son intégralité : `**` est la syntaxe
-    d'ecCodes, qu'UDUNITS ne sait pas lire."""
+    """L'ensemble fermé, vérifié dans son intégralité.
+
+    UDUNITS sait lire `**` — sa grammaire en fait un opérateur d'exposant —,
+    mais la forme à tiret est la forme canonique, celle de sa propre suite de
+    tests et celle qu'émettent les producteurs."""
     for grib, udu in UDUNITS.items():
         assert "**" not in (udu or ""), f"{grib!r} traduit en {udu!r}"
 

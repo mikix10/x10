@@ -10,6 +10,10 @@ poignée d'attributs globaux que **CF recommande lui-même** à sa section
 2.6.2 — `title`, `institution`, `source`, `history`, `references`, `comment`.
 Aucun n'emploie de convention de découverte, et aucun ne porte de licence.
 
+**Les unités sont ramenées à la forme canonique d'UDUNITS**, celle que la
+suite de tests d'UDUNITS et tous les producteurs emploient — `m s-1` plutôt
+que le `m s**-1` d'ecCodes. Voir le détail près de la table.
+
 **Ce que l'on ajoute, et pourquoi.** CF ne définit aucun attribut de licence,
 or une donnée qui quitte le système sans la sienne n'est pas exploitable.
 L'attribut `license` est donc émis — son nom vient d'ACDD et se comprend
@@ -52,8 +56,20 @@ class UniteNonConvertible(ValueError):
 # --- Unités : d'ecCodes vers UDUNITS ------------------------------------------
 #
 # CF impose des unités analysables par UDUNITS. ecCodes écrit les exposants
-# avec `**` — `m s**-1` —, syntaxe qu'UDUNITS ne reconnaît pas. Un fichier qui
-# déclare CF en portant ces unités se dit conforme sans l'être.
+# avec `**` — `m s**-1`.
+#
+# **Nuance vérifiée dans la grammaire d'UDUNITS-2, le 08/10/2026.** Son lexeur
+# porte la règle `("^"|"**")[+-]?{int} -> EXPONENT` : `m s**-1` **est** donc
+# analysable, et un contrôleur CF ne le rejetterait pas. La conversion n'est
+# pas une affaire de conformité.
+#
+# Elle reste justifiée pour deux raisons. La forme à tiret est la **forme
+# canonique** : la suite de tests d'UDUNITS n'emploie que `s-1`, `m.s-1`,
+# `m2.s-2`, jamais `**`, et c'est ce que tous les producteurs émettent. Et la
+# forme `**` n'est lisible qu'au prix de la correspondance la plus longue —
+# un `*` seul vaut multiplication dans cette même grammaire —, donc un
+# consommateur qui n'embarque pas un analyseur UDUNITS complet peut lire
+# `m s**-1` comme un produit.
 #
 # La table est **fermée** : une unité absente ne produit pas de conversion
 # devinée. Le relevé des sources intégrées donne dix-neuf chaînes distinctes,
@@ -85,9 +101,12 @@ UDUNITS: dict[str, str | None] = {
     "degree": "degree",
     "m s-1": "m s-1",
     # Cas nommés
-    #: Convention GRIB pour un azimut ; `degree` suffit en UDUNITS.
+    #: Convention GRIB pour un azimut. `degree` est défini par UDUNITS comme
+    #: alias d'`arc_degree`, soit (pi/180) rad — vérifié dans sa base.
     "Degree true": "degree",
-    #: Fraction sans dimension. UDUNITS écrit l'absence de dimension « 1 ».
+    #: Fraction sans dimension. La grammaire admet un nombre nu comme unité
+    #: (`basic_exp: number`), et « 1 » est la façon d'écrire l'absence de
+    #: dimension.
     "(0 - 1)": "1",
     #: Pas une unité : un code de table, qui relève d'une variable de drapeau
     #: avec `flag_values` et `flag_meanings`. Aucune unité ne doit être émise.
