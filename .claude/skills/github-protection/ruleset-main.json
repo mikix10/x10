@@ -56,9 +56,6 @@
           },
           {
             "context": "Portabilite (Python 3.12 / windows-latest)"
-          },
-          {
-            "context": "Portabilite (Python 3.12 / macos-latest)"
           }
         ]
       }
