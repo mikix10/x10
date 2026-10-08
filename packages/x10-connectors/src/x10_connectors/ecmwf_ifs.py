@@ -156,7 +156,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         self.run_id = run_id or str(uuid.uuid4())
         self._client_factory = client_factory
 
-    def _client(self, origin: str) -> OpenDataClient:
+    def _client(self, origin: str) -> OpenDataClient:  # couvert par les tests reseau
         if self._client_factory is not None:
             return self._client_factory(
                 source=origin,

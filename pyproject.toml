@@ -15,6 +15,7 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "pre-commit>=4.6.2",
+  "pytest-cov>=5",
   # Pile de decodage GRIB2. Presente en groupe de developpement et non en
   # dependance de paquet : le noyau publie reste installable sans elle, mais
   # l'integration continue doit exercer le decodage, qui est du code metier.
@@ -52,6 +53,28 @@ markers = [
 filterwarnings = [
   "ignore:In a future version of xarray the default value for compat:FutureWarning:cfgrib.xarray_store",
 ]
+
+# ---------------------------------------------------------------------------
+# Couverture : deux vues depuis une seule mesure.
+#
+# Celle-ci est la vue **informative** : elle n'exclut rien et affiche le taux
+# reel, code reseau compris. Elle ne porte deliberement **aucun** `fail_under`,
+# sinon elle deviendrait bloquante et le chiffre honnete serait perdu.
+#
+# La vue **barriere** vit dans `.coveragerc-offline` : elle ecarte le code que
+# seuls les tests `network` exercent, et c'est elle qui porte le seuil. Les
+# exclusions de coverage.py s'appliquent au rapport et non a la mesure, donc
+# les deux vues se lisent dans le meme fichier de donnees.
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+# `source_pkgs` et non `source` : vise le paquet installe, qui retrouve seul
+# ses sources sous `src/`.
+source_pkgs = ["x10_models", "x10_catalog", "x10_connectors", "x10_storage", "x10_api"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 line-length = 100

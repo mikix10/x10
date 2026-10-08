@@ -138,7 +138,7 @@ class Transport(Protocol):
     def telecharger(self, url: str, cible: Path, plafond: int) -> int: ...
 
 
-class TransportHttp:
+class TransportHttp:  # couvert par les tests reseau
     """Accès HTTP par la bibliothèque standard.
 
     Aucune dépendance ajoutée : le noyau doit rester installable sans pile

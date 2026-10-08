@@ -66,8 +66,22 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-packages --dev --frozen
 
-      - name: Run tests
-        run: uv run pytest
+      - name: Run tests with coverage
+        run: uv run pytest --cov --cov-report=term-missing:skip-covered --cov-report=html
+
+      # Vue « barriere » : le seuil ne porte que sur le code atteignable hors
+      # ligne, le code reseau etant exerce par les tests marques `network` que
+      # la suite par defaut exclut. Le rapport ci-dessus reste le taux reel,
+      # non filtre — l'ecart doit se voir.
+      - name: Coverage gate, offline-reachable code
+        run: uv run coverage report --rcfile=.coveragerc-offline
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-html
+          path: htmlcov/
 
   portability:
     # Windows et macOS ne sont pas la plateforme de reference, mais une

@@ -67,25 +67,34 @@ uv run mypy                    # typage strict
 uv build --all-packages        # construire les distributions
 ```
 
+Pour aller plus loin : [CONTRIBUTING.md](CONTRIBUTING.md) décrit la mise en
+route complète, les portes de qualité et ce qui est attendu d'une
+modification. L'organisation de la suite de tests et la politique de
+couverture sont dans [docs/tests-et-couverture.md](docs/tests-et-couverture.md).
+
 ## Plan retenu
 
-1. Initialiser le monorepo et le packaging Python
-2. Créer le socle commun des packages techniques
-3. Définir les packages métier / domaine
-4. Mettre en place les workflows GitHub Actions
-5. Préparer la publication PyPI et la release management
-6. Écrire la documentation ReadTheDocs
-7. Préparer le démonstrateur API / FastAPI
-8. Poser les bases pour le déploiement Docker/Kubernetes
+Sept phases, dont l'état détaillé est dans [PLAN.md](PLAN.md).
 
-## Prochaines étapes recommandées
+1. Initialiser le monorepo et le packaging Python — **faite**
+2. Créer le socle commun des paquets techniques — **faite**
+3. Définir les paquets métier et données — **en cours**
+4. Préparer le démonstrateur API / FastAPI
+5. Intégration continue, publication PyPI et gestion des versions — **partiellement faite**
+6. Documentation ReadTheDocs — **en cours**
+7. Déploiement Docker / Kubernetes
 
-- créer la structure du dépôt
-- mettre en place les fichiers `pyproject.toml` / workspace
-- initialiser les packages de base
-- définir les conventions de nommage, versioning et quality gates
-- rédiger le plan technique détaillé version par version
+## Où en est le projet
 
-## État
+**Deux sources open data sont intégrées de bout en bout** : les prévisions
+IFS d'ECMWF, et les paquets AROME et ARPEGE de Météo-France. La donnée est
+téléchargée avec sa provenance et sa licence, décodée en tableaux maillés, et
+normalisée vers les noms standards des conventions CF.
 
-Ce document correspond au contexte qui a été capturé lors de la discussion précédente avec l’assistant. Il sert de base de travail pour la suite du projet X10.
+Restent des ébauches : l'API n'expose aucun point d'entrée, le catalogue
+n'est pas peuplé, rien n'est stocké durablement.
+
+Deux relevés publiés établissent **par la mesure** ce que les sources
+exposent réellement, là où les descriptifs des producteurs s'en écartent :
+[AROME](docs/arome-paquets-et-api-ciblee.md) et
+[ARPEGE](docs/arpege-paquets-et-api-ciblee.md).
