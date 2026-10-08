@@ -28,6 +28,39 @@ if TYPE_CHECKING:  # pragma: no cover
 #: absent, et `cfName` vaut souvent `unknown`.
 READ_KEYS = ("discipline", "parameterCategory", "parameterNumber", "name")
 
+#: Options d'ouverture **fixées explicitement**, relevées le 08/10/2026.
+#:
+#: `cfgrib.open_datasets` expose dix-huit paramètres, et ses défauts décident
+#: de la **forme du résultat**. S'en remettre à eux revient à laisser une
+#: version mineure de la bibliothèque changer nos sorties sans que rien ne le
+#: signale. Chaque valeur ci-dessous est donc écrite, avec sa raison.
+OPTIONS_CFGRIB: dict[str, object] = {
+    #: Défaut : `'{path}.{short_hash}.idx'`, qui **écrit à côté de la donnée**.
+    #: Effet de bord indésirable sur un fichier en lecture seule ou déposé
+    #: dans un stockage partagé.
+    "indexpath": "",
+    #: Défaut : `True`, qui **écrase les dimensions de longueur 1**. Mesuré :
+    #: un paquet à une échéance rend `(latitude, longitude)` quand un paquet à
+    #: deux rend `(step, latitude, longitude)`. La même donnée et le même code
+    #: produisent alors deux structures différentes selon le contenu du
+    #: fichier — un consommateur qui marche casse sans avoir rien changé, et
+    #: aucune référence de structure n'est tenable. On garde les axes.
+    "squeeze": False,
+    #: Défaut : `('parameter', 'time', 'geography', 'vertical')`. Repris tel
+    #: quel, mais écrit : ces quatre couches posent les noms CF, les axes
+    #: temporels, les coordonnées et les niveaux.
+    "encode_cf": ("parameter", "time", "geography", "vertical"),
+    #: Défaut : `('time', 'step')`. Repris tel quel, et écrit pour la même
+    #: raison — il décide de ce qui devient dimension plutôt que coordonnée.
+    "time_dims": ("time", "step"),
+}
+
+#: Précision de restitution des valeurs. Défaut de `cfgrib`, repris
+#: délibérément : les producteurs quantifient sur 12 bits, et la mantisse d'un
+#: `float32` en porte 24. Passer en `float64` doublerait l'empreinte mémoire
+#: sans ajouter la moindre information.
+VALUES_DTYPE = "float32"
+
 
 class GribIndisponible(RuntimeError):
     """La pile de décodage GRIB n'est pas installée."""
@@ -127,7 +160,7 @@ def triplet(variable: xr.DataArray) -> tuple[int, int, int] | None:
         return None
 
 
-def open_package(source: Path) -> tuple[xr.Dataset, ...]:
+def open_package(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ...]:
     """Ouvre un paquet GRIB2 multi-messages.
 
     Renvoie **plusieurs** jeux : un fichier réel mêle des types de niveau et des
@@ -135,13 +168,24 @@ def open_package(source: Path) -> tuple[xr.Dataset, ...]:
     dans une seule structure. Les paquets de surface du producteur sont dans ce
     cas ; prétendre le contraire masquerait des champs.
 
-    `indexpath` est vidé délibérément : par défaut `cfgrib` écrit un fichier
-    d'index à côté de la donnée, effet de bord indésirable sur un fichier lu en
-    lecture seule ou déposé dans un stockage partagé.
+    Toutes les options qui décident de la forme du résultat sont écrites dans
+    `OPTIONS_CFGRIB`, et non héritées des défauts de la bibliothèque.
+
+    **`errors` vaut `"raise"`, là où `cfgrib` retient `"warn"`.** Sur un
+    message illisible, le défaut journalise puis **poursuit** : l'appelant
+    reçoit un tuple d'apparence normale, amputé de champs, sans exception ni
+    avertissement — un compte rendu `success` sur une donnée incomplète. Un
+    échec visible se corrige ; une sortie fausse se propage. `"warn"` ou
+    `"ignore"` restent accessibles à qui préfère la tolérance, et l'assument.
     """
     jeux: list[xr.Dataset] = _cfgrib().open_datasets(
         str(source),
-        backend_kwargs={"indexpath": "", "read_keys": list(READ_KEYS)},
+        backend_kwargs={
+            **OPTIONS_CFGRIB,
+            "read_keys": list(READ_KEYS),
+            "errors": errors,
+            "values_dtype": _numpy().dtype(VALUES_DTYPE),
+        },
     )
     return tuple(jeux)
 
@@ -218,9 +262,11 @@ def normalise(jeu: xr.Dataset) -> xr.Dataset:
 
 __all__ = [
     "CF_STANDARD_NAMES",
+    "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
     "READ_KEYS",
     "SANS_NOM_CF",
+    "VALUES_DTYPE",
     "VENT_DERIVE",
     "GribIndisponible",
     "apply_cf_names",

@@ -13,6 +13,7 @@ from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
 
 from x10_connectors.decoding import (
     CF_STANDARD_NAMES,
+    OPTIONS_CFGRIB,
     SANS_NOM_CF,
     VENT_DERIVE,
     apply_cf_names,
@@ -216,3 +217,71 @@ def test_ecarter_le_vent_derive_allege_sans_rien_perdre(tmp_path):
 
     reconstitue = wind_speed(allege["u"], allege["v"]).values
     np.testing.assert_allclose(reconstitue, complet["ws"].values, atol=0.05)
+
+
+# --- Options d'ouverture, fixées plutôt qu'héritées -----------------------------
+
+
+def test_la_structure_ne_depend_pas_du_nombre_d_echeances(tmp_path):
+    """`squeeze=False`, et c'est le réglage le plus insidieux de cfgrib.
+
+    Son défaut `True` écrase les dimensions de longueur 1 : un paquet à une
+    échéance rendait `(latitude, longitude)` quand un paquet à deux rendait
+    `(step, latitude, longitude)`. La même donnée et le même code produisaient
+    deux structures selon le contenu du fichier.
+    """
+    dims = []
+    for n, steps in ((1, (0,)), (2, (0, 1))):
+        champs = [Champ(category=0, number=0, step=s) for s in steps]
+        jeu = normalise(open_package(paquet(tmp_path / f"e{n}.grib2", champs))[0])
+        dims.append(jeu["t"].dims)
+    # Cinq axes, toujours les mêmes : temps, échéance et niveau vertical
+    # subsistent même de longueur 1. C'est exactement la stabilité recherchée,
+    # et elle rend une référence de structure tenable.
+    assert dims[0] == dims[1] == ("time", "step", "heightAboveGround", "latitude", "longitude")
+
+
+def test_les_valeurs_sont_restituees_en_float32(tmp_path):
+    """La donnée est quantifiée sur 12 bits ; un `float64` doublerait
+    l'empreinte sans porter la moindre information de plus."""
+    jeu = normalise(open_package(paquet(tmp_path / "d.grib2", [Champ(category=0, number=0)]))[0])
+    assert jeu["t"].dtype == "float32"
+
+
+def test_aucun_fichier_d_index_n_est_depose(tmp_path):
+    """`indexpath=""` : par défaut cfgrib écrit un `.idx` à côté de la donnée."""
+    source = paquet(tmp_path / "i.grib2", [Champ(category=0, number=0)])
+    open_package(source)
+    assert [p.name for p in tmp_path.iterdir()] == [source.name]
+
+
+def _paquet_corrompu(tmp_path):
+    sain = paquet(tmp_path / "sain.grib2", [Champ(category=0, number=0)])
+    cible = tmp_path / "corrompu.grib2"
+    cible.write_bytes(sain.read_bytes() + b"GRIB" + b"\x00" * 40)
+    return cible
+
+
+def test_un_message_illisible_interrompt_par_defaut(tmp_path):
+    """`errors="raise"`, là où cfgrib retient `"warn"`.
+
+    Le défaut journalise puis poursuit : l'appelant reçoit un tuple
+    d'apparence normale, amputé de champs, sans exception ni avertissement.
+    Le compte rendu dirait `success` sur une donnée incomplète.
+    """
+    with pytest.raises(Exception, match=r"(?i)edition|grib|support"):
+        open_package(_paquet_corrompu(tmp_path))
+
+
+def test_la_tolerance_reste_accessible_a_qui_l_assume(tmp_path):
+    jeux = open_package(_paquet_corrompu(tmp_path), errors="warn")
+    assert len(jeux) == 1
+
+
+def test_les_options_qui_decident_de_la_forme_sont_ecrites():
+    """Garde-fou de refactorisation : ces quatre clés ne doivent pas
+    retomber silencieusement sur les défauts de la bibliothèque."""
+    assert OPTIONS_CFGRIB["squeeze"] is False
+    assert OPTIONS_CFGRIB["indexpath"] == ""
+    assert OPTIONS_CFGRIB["encode_cf"] == ("parameter", "time", "geography", "vertical")
+    assert OPTIONS_CFGRIB["time_dims"] == ("time", "step")
