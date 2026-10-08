@@ -67,6 +67,11 @@ uv run mypy                    # typage strict
 uv build --all-packages        # construire les distributions
 ```
 
+Pour aller plus loin : [CONTRIBUTING.md](CONTRIBUTING.md) décrit la mise en
+route complète, les portes de qualité et ce qui est attendu d'une
+modification. L'organisation de la suite de tests et la politique de
+couverture sont dans [docs/tests-et-couverture.md](docs/tests-et-couverture.md).
+
 ## Plan retenu
 
 1. Initialiser le monorepo et le packaging Python
