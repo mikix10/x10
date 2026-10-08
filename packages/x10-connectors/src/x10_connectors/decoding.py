@@ -28,6 +28,21 @@ if TYPE_CHECKING:  # pragma: no cover
 #: absent, et `cfName` vaut souvent `unknown`.
 READ_KEYS = ("discipline", "parameterCategory", "parameterNumber", "name")
 
+#: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
+#: sortie le perdait : un consommateur devait alors supposer, et les modèles
+#: travaillent sur une sphère qui n'est pas WGS84.
+#:
+#: Inutile de recoder la table 3.2 du format : ecCodes la résout et expose le
+#: résultat. `earthIsOblate` tranche entre sphère et ellipsoïde, puis `radius`
+#: ou le couple d'axes porte la valeur.
+GEO_KEYS = (
+    "shapeOfTheEarth",
+    "earthIsOblate",
+    "radius",
+    "earthMajorAxis",
+    "earthMinorAxis",
+)
+
 #: Options d'ouverture **fixées explicitement**, relevées le 08/10/2026.
 #:
 #: `cfgrib.open_datasets` expose dix-huit paramètres, et ses défauts décident
@@ -182,7 +197,7 @@ def open_package(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
         str(source),
         backend_kwargs={
             **OPTIONS_CFGRIB,
-            "read_keys": list(READ_KEYS),
+            "read_keys": [*READ_KEYS, *GEO_KEYS],
             "errors": errors,
             "values_dtype": _numpy().dtype(VALUES_DTYPE),
         },
@@ -262,6 +277,7 @@ def normalise(jeu: xr.Dataset) -> xr.Dataset:
 
 __all__ = [
     "CF_STANDARD_NAMES",
+    "GEO_KEYS",
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
     "READ_KEYS",
