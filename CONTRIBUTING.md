@@ -47,6 +47,11 @@ Ces choix et ce qu'ils impliquent pour une contribution sont détaillés dans
 **[docs/tests-et-couverture.md](docs/tests-et-couverture.md)** — à lire avant
 d'ajouter un test.
 
+Une seconde note, **[docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md)**,
+établit par l'exécution ce que GRIB, CF et UDUNITS exigent et ce que les
+outils de la chaîne en font — à lire avant de toucher aux unités ou aux noms
+standards.
+
 ## Conventions de code
 
 Elles vivent dans **[CLAUDE.md](CLAUDE.md)**, à la racine. Ce fichier est

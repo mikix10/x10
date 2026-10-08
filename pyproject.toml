@@ -27,6 +27,8 @@ dev = [
   # fournit en roue manylinux et macOS, a la meme version.
   "eccodeslib>=2.49; sys_platform != 'win32'",
   "xarray>=2025.1",
+  # Ecriture NetCDF. Roues disponibles pour les trois systemes.
+  "netCDF4>=1.7",
 ]
 
 [tool.uv]
@@ -52,6 +54,12 @@ markers = [
 # avertissements doivent rester visibles.
 filterwarnings = [
   "ignore:In a future version of xarray the default value for compat:FutureWarning:cfgrib.xarray_store",
+  # Emis par le moteur netCDF4 de xarray, hors de notre portee.
+  "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning:xarray.backends.netCDF4_",
+  # netCDF4 1.7.4 est compile contre un en-tete numpy anterieur a 2.5. Verifie
+  # le 08/10/2026 : un aller-retour numerique reste exact au bit pres, c'est
+  # donc le faux positif classique de compatibilite ascendante de numpy.
+  "ignore:numpy.ndarray size changed:RuntimeWarning",
 ]
 
 # ---------------------------------------------------------------------------

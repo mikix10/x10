@@ -4,7 +4,7 @@ Vue **macroscopique** : les phases et leur état. Le *pourquoi* des choix est
 dans la section « Décisions arrêtées » de [CLAUDE.md](CLAUDE.md) ; le *comment
 contribuer* dans [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**État au 08/10/2026.**
+**État au 8 octobre 2026.**
 
 ## Objectif
 
@@ -43,7 +43,8 @@ Quatre paquets autonomes, versionnés, typés et publiables :
       temporelles, qualité
 - [ ] Catalogue à peupler, l'inventaire des variables étant **dérivé des
       fichiers** et non des descriptifs des producteurs
-- [ ] Écriture des sorties normalisées, et décision sur Zarr
+- [x] Écriture des sorties normalisées en NetCDF-CF, avec licence et provenance
+- [ ] Décision sur Zarr
 
 ## Phase 4 — API et démonstrateur — **non commencée**
 

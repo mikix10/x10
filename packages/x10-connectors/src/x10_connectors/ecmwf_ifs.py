@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from x10_models import Retrieval
 
-from .base import BaseConnector, ConnectorResult, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -78,9 +78,6 @@ class OpenDataClient(Protocol):
 class EcmwfIfsError(RuntimeError):
     """Échec d'une récupération ECMWF IFS."""
 
-
-#: Agent responsable, pour le lignage.
-AGENT = "x10-connectors 0.1.0"
 
 #: Erreurs qui **n'entraînent pas** de repli sur une autre origine : elles
 #: viennent de la requête ou de nous, pas du diffuseur. Une autre origine

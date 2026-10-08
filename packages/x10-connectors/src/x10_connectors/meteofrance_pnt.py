@@ -39,7 +39,7 @@ from urllib.request import Request, urlopen
 
 from x10_models import Retrieval
 
-from .base import BaseConnector, ConnectorResult, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -96,10 +96,6 @@ _PREFIXE_XML = re.compile(r"<CommonPrefixes><Prefix>(.+?)</Prefix></CommonPrefix
 
 class MeteoFrancePntError(RuntimeError):
     """Échec d'une récupération de paquets Météo-France."""
-
-
-#: Agent responsable, pour le lignage.
-AGENT = "x10-connectors 0.1.0"
 
 
 @dataclass(frozen=True)
