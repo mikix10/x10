@@ -50,7 +50,7 @@ Ils ne sont pas des maquettes : ce sont de vrais GRIB2, que la chaîne de
 décodage lit comme les autres, avec leur sémantique complète — nom court,
 unité, type de niveau, échéance.
 
-Les quatre difficultés rencontrées sur les fichiers réels s'y reproduisent à
+Les cinq difficultés rencontrées sur les fichiers réels s'y reproduisent à
 la demande :
 
 | Difficulté | Comment la fabriquer |
@@ -59,6 +59,26 @@ la demande :
 | Cumul, gabarit de produit distinct de l'instantané | `Champ(accumulation=1)` |
 | Types de niveau mêlés dans un même fichier | plusieurs `Champ(level_type=...)` |
 | Longitudes en 0 à 360, que le format impose | la grille par défaut est à cheval sur Greenwich |
+| Empaquetage CCSDS, celui de la production | c'est le **défaut**, `Champ(packing=...)` pour en changer |
+
+### L'empaquetage, et pourquoi il est le défaut
+
+Relevé le 08/10/2026 : un paquet AROME réel encode sa section de données en
+**CCSDS, gabarit 5.42**, comme les données ouvertes de l'ECMWF. L'échantillon
+d'ecCodes produit du `grid_simple`, gabarit 5.0 — que la production n'emploie
+pas. Les fixtures n'exerçaient donc pas le chemin que le décodage rencontre
+vraiment.
+
+CCSDS est désormais le défaut : un message complet pèse 244 octets, 254 avec
+sept valeurs manquantes, et toute la suite s'en trouve exercée contre
+l'empaquetage réel sans qu'aucun fichier ne soit commis.
+
+**Deux pièges, tous deux couverts par `test_packing.py`.** `grid_second_order`
+est accepté par ecCodes **sans être appliqué** : le message produit un
+`grid_simple`, et une fixture qui ne relit pas se croirait en train de tester
+autre chose — la fabrique relit donc et refuse. Et les empaquetages complexes
+**recalculent** `bitsPerValue` par groupe au lieu de l'honorer : 11 et 6 bits
+là où 12 étaient demandés, ce qui en fait une sortie et non une consigne.
 
 La précision de quantification est réglable — `Champ(bits=12)`, la valeur des
 fichiers réels — ce qui permet de mesurer une perte réelle plutôt
@@ -89,7 +109,7 @@ relit.
 | Informative | `pyproject.toml` | non | affiche le taux réel, sans rien masquer |
 | Barrière | `.coveragerc-offline` | oui | porte le seuil de **90 %** |
 
-Au 08/10/2026 : **92 %** en vue informative, **96 %** en vue barrière. La
+Au 08/10/2026 : **93 %** en vue informative, **96 %** en vue barrière. La
 couverture est mesurée **par branches**, plus stricte que par lignes, parce
 que ce sont les conditionnelles non éprouvées qui comptent — bascule
 d'origine, repli de réseau.

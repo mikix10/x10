@@ -5,14 +5,17 @@ grille est petite : neuf points sur cinq suffisent à exercer le décodage, la
 géométrie, les valeurs manquantes et les cumuls. Les tests construisent donc
 leurs propres paquets, et **aucune donnée réelle n'est commise au dépôt**.
 
-Les quatre pièges relevés sur les paquets réels se reproduisent ici :
+Les cinq pièges relevés sur les paquets réels se reproduisent ici :
 
 * **valeurs manquantes** par masque binaire, dont la proportion varie d'un
   champ à l'autre — c'est le cas d'AROME et de son domaine trapézoïdal ;
 * **gabarit statistique** `4.8`, qui porte une période de cumul, mêlé à des
   champs instantanés dans un même fichier ;
 * **types de niveau mêlés** dans un même fichier ;
-* **longitudes en 0 a 360**, que le format impose.
+* **longitudes en 0 a 360**, que le format impose ;
+* **empaquetage CCSDS**, celui des fichiers réels, et non l'empaquetage
+  simple que produirait un échantillon laissé tel quel ;
+* **prévision d'ensemble**, gabarit `4.1`, qui ajoute un axe de membre.
 
 Dépend de la pile GRIB, déclarée en groupe de développement.
 """
@@ -28,6 +31,18 @@ import numpy as np
 #: Grille d'essai par défaut : neuf points sur cinq autour du nord de la
 #: France, bornée à cheval sur le méridien de Greenwich pour que la conversion
 #: des longitudes soit réellement exercée.
+#: Empaquetage de la section de données. **CCSDS, gabarit 5.42**, parce que
+#: c'est celui des fichiers réels : mesuré le 08/10/2026 sur un paquet AROME
+#: comme sur les données ouvertes de l'ECMWF. L'échantillon d'ecCodes
+#: produirait sinon du `grid_simple`, que la production n'emploie pas, et le
+#: décodage ne serait jamais exercé contre ce qu'il rencontre vraiment.
+PACKING_PAR_DEFAUT = "grid_ccsds"
+
+
+class EmpaquetageNonApplique(RuntimeError):
+    """ecCodes a accepté l'empaquetage demandé sans l'appliquer."""
+
+
 GRILLE_PAR_DEFAUT = {
     "ni": 9,
     "nj": 5,
@@ -46,7 +61,8 @@ class Champ:
 
     `accumulation` bascule le message sur le gabarit `4.8` et lui donne une
     période de cumul en heures. `manquants` fixe le nombre de points marqués
-    absents, en tête de grille.
+    absents, en tête de grille. `membre` bascule sur le gabarit `4.1`, celui
+    d'une prévision d'ensemble.
     """
 
     category: int
@@ -56,11 +72,20 @@ class Champ:
     level: int = 10
     step: int = 0
     accumulation: int | None = None
+    #: Numéro de perturbation. Non nul, bascule le message sur le gabarit
+    #: `4.1` — prévision d'ensemble — et fait apparaître un axe `number` au
+    #: décodage. Non combinable avec `accumulation`, qui relèverait du
+    #: gabarit `4.11`.
+    membre: int | None = None
+    #: Taille de l'ensemble annoncée par le message.
+    membres: int = 0
     manquants: int = 0
     #: Précision de quantification. Les paquets réels encodent sur 12 bits ;
     #: la reproduire permet de mesurer la perte réelle plutôt qu'une perte
     #: idéalisée.
     bits: int = 12
+    #: Empaquetage de la section de données, voir `PACKING_PAR_DEFAUT`.
+    packing: str = PACKING_PAR_DEFAUT
     valeurs: np.ndarray | None = field(default=None, repr=False)
 
 
@@ -92,6 +117,18 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
         eccodes.codes_set(h, "scaledValueOfFirstFixedSurface", champ.level)
         eccodes.codes_set(h, "step", champ.step)
 
+        if champ.membre is not None and champ.accumulation is not None:
+            raise ValueError(
+                "Cumul et ensemble relèveraient du gabarit 4.11, que cette "
+                "fabrique ne construit pas encore."
+            )
+
+        if champ.membre is not None:
+            eccodes.codes_set(h, "productDefinitionTemplateNumber", 1)
+            eccodes.codes_set(h, "typeOfEnsembleForecast", 3)
+            eccodes.codes_set(h, "perturbationNumber", champ.membre)
+            eccodes.codes_set(h, "numberOfForecastsInEnsemble", champ.membres or 1)
+
         if champ.accumulation is not None:
             eccodes.codes_set(h, "productDefinitionTemplateNumber", 8)
             eccodes.codes_set(h, "typeOfStatisticalProcessing", 1)
@@ -108,11 +145,37 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
             eccodes.codes_set(h, "missingValue", VALEUR_MANQUANTE)
             valeurs[: champ.manquants] = VALEUR_MANQUANTE
 
+        eccodes.codes_set(h, "packingType", champ.packing)
         eccodes.codes_set(h, "bitsPerValue", champ.bits)
         eccodes.codes_set_values(h, valeurs)
-        return bytes(eccodes.codes_get_message(h))
+        brut = bytes(eccodes.codes_get_message(h))
     finally:
         eccodes.codes_release(h)
+
+    _exiger_empaquetage(brut, champ.packing)
+    return brut
+
+
+def _exiger_empaquetage(brut: bytes, attendu: str) -> None:
+    """Relit le message et refuse un empaquetage qui n'a pas pris.
+
+    **ecCodes accepte certains réglages sans les appliquer** : demander
+    `grid_second_order` ne lève rien et produit un `grid_simple`. Une fixture
+    qui ne relit pas se croirait alors en train d'exercer un empaquetage
+    qu'elle n'a jamais écrit — un test vert sur une hypothèse fausse, ce qui
+    est pire que pas de test.
+    """
+    h = eccodes.codes_new_from_message(brut)
+    try:
+        obtenu = eccodes.codes_get(h, "packingType")
+    finally:
+        eccodes.codes_release(h)
+    if obtenu != attendu:
+        raise EmpaquetageNonApplique(
+            f"Empaquetage demandé {attendu!r}, mais le message porte {obtenu!r}. "
+            "ecCodes l'a accepté sans l'appliquer ; cette installation ne le "
+            "prend pas en charge."
+        )
 
 
 def paquet(cible: Path, champs: list[Champ], grille: dict[str, float] | None = None) -> Path:
@@ -148,8 +211,10 @@ def champs_vent(steps: tuple[int, ...] = (0, 1), *, graine: int = 0) -> list[Cha
 
 __all__ = [
     "GRILLE_PAR_DEFAUT",
+    "PACKING_PAR_DEFAUT",
     "VALEUR_MANQUANTE",
     "Champ",
+    "EmpaquetageNonApplique",
     "champs_vent",
     "message",
     "paquet",
