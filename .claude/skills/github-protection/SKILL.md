@@ -63,7 +63,7 @@ git push origin main
 | `required_linear_history` | pas de commit de fusion, cohérent avec le squash |
 | `required_signatures` | tout commit doit être signé |
 | `pull_request` | PR obligatoire, **0 approbation requise**, squash uniquement |
-| `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, `Portabilite (Python 3.12 / macos-latest)`, branche à jour avant merge |
+| `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, branche à jour avant merge |
 
 ## Renommer ou ajouter un job de CI : l'ordre compte
 
@@ -109,6 +109,21 @@ C'est ainsi qu'est apparu `require_extra_approval_for_unattributed_changes`, ajo
 **Les approbations.** `required_approving_review_count` est à **0** et doit le rester tant que le projet a un seul mainteneur : GitHub interdit d'approuver sa propre PR, donc exiger une approbation bloquerait tout merge. La PR reste obligatoire — c'est elle qui déclenche la CI avant fusion.
 
 **Le canari 3.13.** Le job `Tests (Python 3.13)` est **délibérément absent** des vérifications obligatoires. Avec `continue-on-error: true` dans le workflow, il remonte toujours `success`, même quand les tests échouent. L'exiger donnerait une garantie illusoire.
+
+**macOS n'est pas un contexte requis, et ce n'est pas un oubli.** Les jobs
+macOS tournent et rapportent, mais ne bloquent pas la fusion. Constaté le
+08/10/2026 : deux exécutions de suite ont été **annulées après 15 min 02 s
+faute de runner alloué**, sans qu'aucun test ait démarré ; à la relance, le
+même job passait en **14 secondes**. Un contexte requis qui dépend de la
+disponibilité d'un parc de runners bloque alors une fusion pour une raison
+qui ne dit rien du code — et la seule issue serait de désactiver le ruleset,
+c'est-à-dire de lever toutes les protections pour contourner une file
+d'attente.
+
+Le signal reste lisible : le job échoue visiblement, il n'est simplement plus
+bloquant. **À réinscrire au moment des publications**, où la garantie compte
+réellement et où l'attente d'un runner est acceptable — même raisonnement que
+la matrice Windows exigée avant toute publication PyPI.
 
 **Les changements non attribués.** `require_extra_approval_for_unattributed_changes` est à **`false`**, et doit le rester tant que le projet a un seul mainteneur. À `true`, un commit dont l'auteur n'est rattaché à aucun compte GitHub exige une approbation supplémentaire — impossible à fournir seul, donc blocage dur sans autre issue que de désactiver le ruleset. C'est la même trappe que les approbations obligatoires, par une autre porte. À repasser à `true` le jour où un second contributeur peut approuver.
 
