@@ -73,7 +73,10 @@ modification. L'organisation de la suite de tests et la politique de
 couverture sont dans [docs/tests-et-couverture.md](docs/tests-et-couverture.md).
 Les pièges d'interopérabilité entre GRIB, CF et UDUNITS, et ce que les outils
 de la chaîne en font réellement, sont relevés dans
-[docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md).
+[docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md). Une
+seconde note, [docs/agregation-et-reechantillonnage.md](docs/agregation-et-reechantillonnage.md),
+établit ce que l'interpolation des producteurs conserve et détruit, et ce
+qu'il est donc légitime de déclarer sur un champ.
 
 ## Plan retenu
 

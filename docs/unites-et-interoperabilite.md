@@ -258,6 +258,6 @@ grandeur, au lieu de supposer qu'elle le fait.
 | cf-units, liaison Python vers UDUNITS-2 | <https://github.com/SciTools/cf-units> |
 | cf-checker | <https://github.com/cedadev/cf-checker> |
 
-Les mainteneurs d'UDUNITS-2, d'ecCodes, de cfgrib et de cf-units publient
-leurs sources sous licence libre : c'est ce qui rend ces vérifications
-possibles, et elles leur sont redevables.
+Rien de ce qui précède n'aurait pu être vérifié si les mainteneurs
+d'UDUNITS-2, d'ecCodes, de cfgrib et de cf-units ne publiaient pas leurs
+sources sous licence libre. Qu'ils en soient ici remerciés.
