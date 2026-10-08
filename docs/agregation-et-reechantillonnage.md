@@ -389,5 +389,6 @@ C'est l'occasion naturelle de reprendre le sujet, et de compléter le gabarit
 | earthkit-regrid | <https://github.com/ecmwf/earthkit-regrid> |
 | cfgrib | <https://github.com/ecmwf/cfgrib> |
 
-Les équipes qui publient ces documentations et ces codes sous licence libre
-rendent ces vérifications possibles ; elles leur sont redevables.
+Rien de ce qui précède n'aurait pu être vérifié sans les documentations
+publiques et les codes sous licence libre que ces équipes maintiennent.
+Qu'elles en soient ici remerciées.
