@@ -102,7 +102,6 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 - **Accès ECMWF : le client officiel `ecmwf-opendata`**, en extra optionnel `ecmwf` de `x10-connectors`. Il implémente déjà l'index et les plages d'octets que nos décisions visaient, et expose quatre origines — ECMWF, AWS, Azure, Google — ce qui sert la redondance. Ne pas réimplémenter.
   **Deux pièges vérifiés le 29/09/2026.** Le client n'expose **aucun délai maximal** de requête ; ses valeurs de reprise par défaut, 500 tentatives espacées de 120 s, autorisent une attente de plusieurs heures. Le connecteur les abaisse à 3 et 10 s, et un test le garantit.
 - **La sélection par plages d'octets ne porte jamais sur la géographie.** L'index adresse le message, et un message GRIB2 est un champ global dont la section de données est un bloc unique compressé en CCSDS — template 42, grille 1440 × 721. Un sous-domaine s'obtient après décodage, pas au téléchargement. Vrai pour tout client.
-- **`DataSource` vit dans `x10-catalog`, mais un connecteur doit décrire sa source.** Plutôt que d'inverser la règle de dépendance, le connecteur porte des constantes de module — nom, producteur, licence, URL. À trancher quand le catalogue sera peuplé : soit `x10-connectors` dépend de `x10-catalog`, soit `DataSource` rejoint `x10-models`.
 - **Journalisation : `logging` standard, champs Elastic Common Schema, et la bibliothèque n'impose rien.** Aucun `basicConfig`, aucun handler, aucun format — seulement un `NullHandler`. C'est l'application qui choisit la destination et le rendu ; imposer du JSON casserait toute application nous intégrant. Un `EcsJsonFormatter` est fourni **pour les applications**, rien ne l'installe.
   **Trois points du schéma à respecter.** `event.outcome` n'admet que `success`, `failure` ou `unknown` — le champ `outcome` de `ConnectorResult` reprend ce vocabulaire pour éviter une correspondance. `event.duration` se compte en **nanosecondes**. Et `event.category` a un vocabulaire fermé où aucune valeur ne désigne l'acquisition de données ; `network` et `file` sont retenues.
   **Deux pièges vérifiés.** `extra=` lève une `KeyError` sur les attributs réservés de `LogRecord` — `message`, `name`, `levelname`, `asctime`, `args` — donc la journalisation échouerait elle-même ; un test vérifie qu'aucun champ émis n'y figure. Et le rendu JSON est en **ASCII pur** : une console `cp1252` corromprait sinon les accents de nos messages.
@@ -138,18 +137,14 @@ Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont s
 
 ## Reste à faire
 
-- `docs/` et configuration ReadTheDocs (phase 6).
-- Workflow GitHub Actions de release / publication PyPI (phase 5), avec Trusted Publishing plutôt qu'un token.
-- Dockerfiles et manifestes Kubernetes (phase 7).
-- Dependabot et CodeQL : différés tant que le code métier se résume à des stubs, à activer dès que `x10-connectors` contient du code réel.
-- Monter les actions GitHub de majeure (`checkout` v4 → v7, `setup-uv` v5 → v10, `upload-artifact` v4 → v7) : changement fonctionnel à tester à part.
-- Matrice de test Windows, déclenchée à la demande, à exiger avant toute publication sur PyPI.
-- Configuration de débogage (`launch.json`) : à l'arrivée d'un besoin réel.
-- **Réexaminer Codecov une fois, à la publication de la 1.0.0.** La barrière de
-  couverture est locale et sans service tiers ; les courbes de tendance et le
-  commentaire de couverture différentielle prennent leur sens quand le projet
-  a une histoire et des contributeurs.
+Ne figurent ici que les points qui **contraignent une décision de
+conception** : il faut les avoir en tête au moment de trancher, pas au moment
+d'ouvrir un chantier. Le cap est dans [PLAN.md](PLAN.md).
+
+- **Réexaminer Codecov une fois, à la publication de la 1.0.0.** La barrière de couverture est locale et sans service tiers ; les courbes de tendance et le commentaire de couverture différentielle prennent leur sens quand le projet a une histoire et des contributeurs. Raisonnement complet dans [docs/tests-et-couverture.md](docs/tests-et-couverture.md).
 - **Métriques de supervision** — les journaux permettent à une chaîne ELK de dériver taux de succès, latence et volume, mais la détection d'incident dépend alors du délai d'indexation. Un point d'entrée de métriques, ou un contrôle de santé par source, reste à prévoir si un besoin de supervision temps réel apparaît.
+- **Montée de majeure des actions GitHub** — changement fonctionnel, à tester isolément, et sans jamais abandonner l'épinglage par empreinte. Si un nom de job change au passage, suivre la règle d'ordre du skill `github-protection` : un contexte requis sans job correspondant bloque toute fusion définitivement.
+- **Publication PyPI** — par Trusted Publishing plutôt qu'un jeton. Le jour venu, la matrice trois systèmes est la garantie que le paquet s'installe ailleurs que sur la machine du mainteneur.
 
 ## Procédures outillées (skills)
 
