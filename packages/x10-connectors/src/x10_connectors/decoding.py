@@ -175,8 +175,13 @@ def triplet(variable: xr.DataArray) -> tuple[int, int, int] | None:
         return None
 
 
-def open_package(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ...]:
-    """Ouvre un paquet GRIB2 multi-messages.
+def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ...]:
+    """Ouvre un granule GRIB2 multi-messages.
+
+    Un **granule** est l'unité téléchargeable d'une collection — un fichier
+    porteur de plusieurs messages. Le terme vient de STAC, d'OGC API et de
+    WIS 2.0 ; il évite les deux collisions de « paquet », avec le paquet
+    Python et avec le format GeoPackage. Voir [docs/vocabulaire.md].
 
     Renvoie **plusieurs** jeux : un fichier réel mêle des types de niveau et des
     gabarits de produit — instantané et cumul — que `xarray` ne peut pas réunir
@@ -288,7 +293,7 @@ __all__ = [
     "apply_cf_names",
     "drop_derived_wind",
     "normalise",
-    "open_package",
+    "open_granule",
     "triplet",
     "wind_from_direction",
     "wind_speed",

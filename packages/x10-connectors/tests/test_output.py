@@ -13,7 +13,7 @@ import pytest
 import xarray as xr
 from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
 
-from x10_connectors.decoding import normalise, open_package
+from x10_connectors.decoding import normalise, open_granule
 from x10_connectors.output import (
     AXES_DECLARABLES,
     CELL_METHODS,
@@ -48,7 +48,7 @@ def _lignage(licence: str | None = "etalab-2.0") -> Retrieval:
 
 def _jeu(tmp_path, champs=None):
     champs = champs or champs_vent(steps=(0,))
-    return normalise(open_package(paquet(tmp_path / "p.grib2", champs))[0])
+    return normalise(open_granule(paquet(tmp_path / "p.grib2", champs))[0])
 
 
 # --- Unités --------------------------------------------------------------------
@@ -242,7 +242,7 @@ def test_les_coordonnees_survivent_a_l_aller_retour(tmp_path):
 
 def test_les_valeurs_manquantes_restent_manquantes(tmp_path):
     champs = [Champ(category=0, number=0, manquants=7, valeurs=np.full(N, 280.0))]
-    jeu = normalise(open_package(paquet(tmp_path / "trous.grib2", champs))[0])
+    jeu = normalise(open_granule(paquet(tmp_path / "trous.grib2", champs))[0])
     cible = write_netcdf(jeu, tmp_path / "trous.nc")
     relu = xr.open_dataset(cible)
     try:
@@ -361,7 +361,7 @@ def test_ecriture_depuis_un_paquet_reel(tmp_path):
 
     ecrits = 0
     types_vus: set[str] = set()
-    for n, jeu in enumerate(open_package(resultat.retrieval.artefacts[0])):
+    for n, jeu in enumerate(open_granule(resultat.retrieval.artefacts[0])):
         decode = normalise(jeu)
         types_vus |= {
             str(v.attrs["GRIB_stepType"])
@@ -406,7 +406,7 @@ TRAITEMENTS = [
 
 def _jeu_traite(tmp_path, code):
     champs = [Champ(category=1, number=8, accumulation=3, traitement=code, step=s) for s in (3, 6)]
-    return normalise(open_package(paquet(tmp_path / f"t{code}.grib2", champs))[0])
+    return normalise(open_granule(paquet(tmp_path / f"t{code}.grib2", champs))[0])
 
 
 @pytest.mark.parametrize(("code", "step_type", "methode"), TRAITEMENTS)

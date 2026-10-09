@@ -1,0 +1,476 @@
+{
+  "geometry": {
+    "grille": {
+      "latitude": {
+        "dernier": 37.5,
+        "empreinte": "6ccbf169aada648d",
+        "pas": -0.025,
+        "premier": 55.4,
+        "taille": 717
+      },
+      "longitude": {
+        "dernier": 16.0,
+        "empreinte": "c0d3642939d66171",
+        "pas": 0.025,
+        "premier": -12.0,
+        "taille": 1121
+      }
+    },
+    "jeux": 5,
+    "referentiel": {
+      "GRIB_shapeOfTheEarth": "6",
+      "earth_radius": "6371229.0",
+      "grid_mapping_name": "latitude_longitude",
+      "longitude_of_prime_meridian": "0.0"
+    }
+  },
+  "variables": {
+    "efg10": {
+      "cell_methods": "time: maximum",
+      "coords": {
+        "heightAboveGround": [
+          10.0
+        ],
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "2",
+        "parameterNumber": "23",
+        "stepType": "max",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "Time-maximum 10 metre eastward wind gust",
+      "standard_name": null,
+      "units": "m s-1"
+    },
+    "fg10": {
+      "cell_methods": "time: maximum",
+      "coords": {
+        "heightAboveGround": [
+          10.0
+        ],
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "2",
+        "parameterNumber": "22",
+        "stepType": "max",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "Time-maximum 10 metre wind gust",
+      "standard_name": "wind_speed_of_gust",
+      "units": "m s-1"
+    },
+    "nfg10": {
+      "cell_methods": "time: maximum",
+      "coords": {
+        "heightAboveGround": [
+          10.0
+        ],
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "2",
+        "parameterNumber": "24",
+        "stepType": "max",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "Time-maximum 10 metre northward wind gust",
+      "standard_name": null,
+      "units": "m s-1"
+    },
+    "prmsl": {
+      "cell_methods": "time: point",
+      "coords": {
+        "meanSea": [
+          0.0
+        ],
+        "step": [
+          0.0,
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "meanSea",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "3",
+        "parameterNumber": "1",
+        "stepType": "instant",
+        "typeOfLevel": "meanSea"
+      },
+      "long_name": "Pressure reduced to MSL",
+      "standard_name": "air_pressure_at_mean_sea_level",
+      "units": "Pa"
+    },
+    "r2": {
+      "cell_methods": "time: point",
+      "coords": {
+        "heightAboveGround": [
+          2.0
+        ],
+        "step": [
+          0.0,
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "1",
+        "parameterNumber": "1",
+        "stepType": "instant",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "2 metre relative humidity",
+      "standard_name": "relative_humidity",
+      "units": "%"
+    },
+    "ssrd": {
+      "cell_methods": "time: sum",
+      "coords": {
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ],
+        "surface": [
+          0.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "surface",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "4",
+        "parameterNumber": "7",
+        "stepType": "accum",
+        "typeOfLevel": "surface"
+      },
+      "long_name": "Surface short-wave (solar) radiation downwards",
+      "standard_name": "surface_downwelling_shortwave_flux_in_air",
+      "units": "J m-2"
+    },
+    "t2m": {
+      "cell_methods": "time: point",
+      "coords": {
+        "heightAboveGround": [
+          2.0
+        ],
+        "step": [
+          0.0,
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "0",
+        "parameterNumber": "0",
+        "stepType": "instant",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "2 metre temperature",
+      "standard_name": "air_temperature",
+      "units": "K"
+    },
+    "tgrp": {
+      "cell_methods": "time: sum",
+      "coords": {
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ],
+        "surface": [
+          0.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "surface",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "1",
+        "parameterNumber": "75",
+        "stepType": "accum",
+        "typeOfLevel": "surface"
+      },
+      "long_name": "Graupel (snow pellets) precipitation",
+      "standard_name": null,
+      "units": "kg m-2"
+    },
+    "tp": {
+      "cell_methods": "time: sum",
+      "coords": {
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ],
+        "surface": [
+          0.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "surface",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "1",
+        "parameterNumber": "52",
+        "stepType": "accum",
+        "typeOfLevel": "surface"
+      },
+      "long_name": "Total Precipitation",
+      "standard_name": "precipitation_flux",
+      "units": "kg m-2"
+    },
+    "tsnowp": {
+      "cell_methods": "time: sum",
+      "coords": {
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ],
+        "surface": [
+          0.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "surface",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "1",
+        "parameterNumber": "66",
+        "stepType": "accum",
+        "typeOfLevel": "surface"
+      },
+      "long_name": "Total snow precipitation",
+      "standard_name": null,
+      "units": "kg m-2"
+    },
+    "u10": {
+      "cell_methods": "time: point",
+      "coords": {
+        "heightAboveGround": [
+          10.0
+        ],
+        "step": [
+          0.0,
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "2",
+        "parameterNumber": "2",
+        "stepType": "instant",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "10 metre U wind component",
+      "standard_name": "eastward_wind",
+      "units": "m s-1"
+    },
+    "unknown": {
+      "cell_methods": "time: point",
+      "coords": {
+        "step": [
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ],
+        "surface": [
+          0.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "surface",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "6",
+        "parameterNumber": "1",
+        "stepType": "instant",
+        "typeOfLevel": "surface"
+      },
+      "long_name": "unknown",
+      "standard_name": "cloud_area_fraction",
+      "units": null
+    },
+    "v10": {
+      "cell_methods": "time: point",
+      "coords": {
+        "heightAboveGround": [
+          10.0
+        ],
+        "step": [
+          0.0,
+          3600.0,
+          7200.0,
+          10800.0,
+          14400.0,
+          18000.0,
+          21600.0
+        ]
+      },
+      "dims": [
+        "time",
+        "step",
+        "heightAboveGround",
+        "latitude",
+        "longitude"
+      ],
+      "dtype": "float32",
+      "grib": {
+        "discipline": "0",
+        "parameterCategory": "2",
+        "parameterNumber": "3",
+        "stepType": "instant",
+        "typeOfLevel": "heightAboveGround"
+      },
+      "long_name": "10 metre V wind component",
+      "standard_name": "northward_wind",
+      "units": "m s-1"
+    }
+  }
+}

@@ -24,7 +24,7 @@ from fixtures_grib import (
     paquet,
 )
 
-from x10_connectors.decoding import normalise, open_package
+from x10_connectors.decoding import normalise, open_granule
 
 N = int(GRILLE_PAR_DEFAUT["ni"] * GRILLE_PAR_DEFAUT["nj"])
 
@@ -83,7 +83,7 @@ def test_le_decodage_restitue_les_valeurs_quel_que_soit_l_empaquetage(
 ):
     valeurs = np.linspace(250.0, 300.0, N)
     champ = Champ(category=0, number=0, packing=packing, valeurs=valeurs)
-    jeu = normalise(open_package(paquet(tmp_path / f"{packing}.grib2", [champ]))[0])
+    jeu = normalise(open_granule(paquet(tmp_path / f"{packing}.grib2", [champ]))[0])
     # 12 bits sur une plage de 50 K donnent un pas de quantification de
     # l'ordre du centième de kelvin. Les empaquetages complexes descendent
     # plus bas, d'où une tolérance distincte : le but est de vérifier que le
@@ -98,7 +98,7 @@ def test_les_valeurs_manquantes_survivent_a_chaque_empaquetage(tmp_path, packing
     """Le masque binaire et l'empaquetage sont deux mécanismes distincts, et
     leur combinaison est précisément ce qu'un paquet réel porte."""
     champ = Champ(category=0, number=0, packing=packing, manquants=7, valeurs=np.full(N, 280.0))
-    jeu = normalise(open_package(paquet(tmp_path / f"{packing}-trous.grib2", [champ]))[0])
+    jeu = normalise(open_granule(paquet(tmp_path / f"{packing}-trous.grib2", [champ]))[0])
     valeurs = jeu["t"].values.reshape(-1)
     assert int(np.isnan(valeurs).sum()) == 7
     assert VALEUR_MANQUANTE not in valeurs
@@ -122,7 +122,7 @@ def test_un_paquet_peut_meler_les_empaquetages(tmp_path):
         Champ(category=0, number=0, packing="grid_simple"),
         Champ(category=0, number=0, packing="grid_ccsds", step=1),
     ]
-    jeux = open_package(paquet(tmp_path / "mele.grib2", champs))
+    jeux = open_granule(paquet(tmp_path / "mele.grib2", champs))
     assert sum(jeu["t"].size for jeu in jeux) == 2 * N
 
 
