@@ -17,10 +17,14 @@ from __future__ import annotations
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from .observability import connector_logger
+
 if TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
 
     import xarray as xr
+
+_log = connector_logger(__name__)
 
 #: Clés GRIB à faire remonter dans les attributs. `cfgrib` n'expose par défaut
 #: ni la discipline ni les numéros de catégorie et de paramètre, or c'est le
@@ -43,7 +47,17 @@ READ_KEYS = (
     "typeOfGeneratingProcess",
     "productionStatusOfProcessedData",
     "generatingProcessIdentifier",
+    # Version des tables maîtresses de l'OMM **déclarée par le message**, et
+    # version la plus récente que notre ecCodes sache résoudre. Les comparer
+    # est le seul moyen de voir venir une évolution du référentiel ; voir
+    # `check_tables_version`.
+    "tablesVersion",
+    "tablesVersionLatest",
 )
+
+#: Attributs portant les deux versions de tables, une fois décodés.
+CLE_TABLES_DECLAREE = "GRIB_tablesVersion"
+CLE_TABLES_CONNUE = "GRIB_tablesVersionLatest"
 
 #: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
 #: sortie le perdait : un consommateur devait alors supposer, et les modèles
@@ -247,7 +261,87 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
             "values_dtype": _numpy().dtype(VALUES_DTYPE),
         },
     )
-    return tuple(jeux)
+    granule = tuple(jeux)
+
+    # Le référentiel de tables vit hors de notre code et change sans nous.
+    # Une seule fois par granule : la version est une propriété du fichier,
+    # pas de chacun de ses hypercubes.
+    if (ecart := check_tables_version(granule)) is not None:
+        versions = tables_version(granule)
+        _log.warning(
+            ecart,
+            extra={
+                "x10.granule": str(source),
+                "x10.tables_version_declaree": versions[0] if versions else None,
+                "x10.tables_version_connue": versions[1] if versions else None,
+            },
+        )
+
+    return granule
+
+
+def tables_version(jeux: tuple[xr.Dataset, ...]) -> tuple[int, int] | None:
+    """Version de tables **déclarée** par le producteur, et version **connue**.
+
+    La seconde n'est pas un réglage : les définitions d'ecCodes sont
+    **compilées dans la roue** — `codes_definition_path()` rend
+    `/MEMFS/definitions` —, de sorte que la version des tables maîtresses est
+    une propriété de la version du paquet installé.
+
+    Renvoie `None` si le granule ne porte pas les deux clés. On retient la
+    version déclarée **la plus haute** et la version connue **la plus basse**,
+    ce qui est le choix prudent quand un granule n'est pas homogène.
+    """
+    declarees = {
+        int(valeur)
+        for jeu in jeux
+        for var in jeu.data_vars.values()
+        if isinstance(valeur := var.attrs.get(CLE_TABLES_DECLAREE), (int, float))
+    }
+    connues = {
+        int(valeur)
+        for jeu in jeux
+        for var in jeu.data_vars.values()
+        if isinstance(valeur := var.attrs.get(CLE_TABLES_CONNUE), (int, float))
+    }
+    if not declarees or not connues:
+        return None
+    return max(declarees), min(connues)
+
+
+def check_tables_version(jeux: tuple[xr.Dataset, ...]) -> str | None:
+    """Signale que le producteur emploie des tables que nous ne connaissons pas.
+
+    **Le second silence de la chaîne.** Mesuré le 09/10/2026 : demander à
+    ecCodes une version de tables supérieure à celle qu'il connaît **ne lève
+    rien**. La valeur est acceptée, relue telle quelle, et les paramètres non
+    résolus sortent en `unknown` — sans avertissement.
+
+    Ce qui nous protège aujourd'hui est accidentel : une unité `unknown`
+    heurte la table UDUNITS fermée de `output`, qui lève. Le garde-fou est à
+    trois étapes de là et n'a pas été conçu pour cela. **Et il ne couvre pas
+    le cas dangereux** — un paramètre qui existe déjà dans la version connue
+    mais dont une version ultérieure change la définition se résoudrait
+    silencieusement, avec une unité valide et un sens faux. Le contrat de
+    sortie ne le verrait pas davantage : la forme n'aurait pas bougé.
+
+    Renvoie le message d'écart, ou `None` quand il n'y a rien à signaler.
+    **Ne lève pas** : une table plus récente n'est pas une panne, la plupart
+    des paramètres continuent de se résoudre. C'est un signal pour
+    l'exploitant, pas un refus de servir.
+    """
+    versions = tables_version(jeux)
+    if versions is None:
+        return None
+    declaree, connue = versions
+    if declaree <= connue:
+        return None
+    return (
+        f"Le producteur déclare la version de tables {declaree}, au-delà de la "
+        f"version {connue} que connaît notre ecCodes. Les paramètres introduits "
+        "depuis sortiront en 'unknown' ; ceux dont la définition a changé seront "
+        "résolus contre l'ancienne, sans que rien ne le signale."
+    )
 
 
 def wind_speed(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
@@ -322,6 +416,8 @@ def normalise(jeu: xr.Dataset) -> xr.Dataset:
 
 __all__ = [
     "CF_STANDARD_NAMES",
+    "CLE_TABLES_CONNUE",
+    "CLE_TABLES_DECLAREE",
     "COORD_INDEFINIE",
     "GEO_KEYS",
     "OPTIONS_CFGRIB",
@@ -332,9 +428,11 @@ __all__ = [
     "VENT_DERIVE",
     "GribIndisponible",
     "apply_cf_names",
+    "check_tables_version",
     "drop_derived_wind",
     "normalise",
     "open_granule",
+    "tables_version",
     "triplet",
     "wind_from_direction",
     "wind_speed",

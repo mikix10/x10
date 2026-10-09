@@ -39,7 +39,7 @@ from urllib.request import Request, urlopen
 
 from x10_models import Retrieval
 
-from .base import AGENT, BaseConnector, ConnectorResult, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, ecriture_atomique, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -315,7 +315,11 @@ class MeteoFrancePntConnector(BaseConnector):
         try:
             for objet in objets:
                 cible = safe_target(racine, objet.nom_local)
-                recu += self.transport.telecharger(objet.url, cible, self.max_bytes - recu)
+                # L'atomicité est posée ici et non dans le transport : un
+                # transport injecté en bénéficie sans rien savoir, et c'est
+                # l'appelant qui connaît le nom définitif.
+                with ecriture_atomique(cible) as provisoire:
+                    recu += self.transport.telecharger(objet.url, provisoire, self.max_bytes - recu)
                 artefacts.append(cible)
         except Exception as erreur:
             for fait in artefacts:

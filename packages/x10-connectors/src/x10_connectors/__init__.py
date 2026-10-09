@@ -14,10 +14,12 @@ from __future__ import annotations
 
 from . import contract, decoding, ecmwf_ifs, meteofrance_pnt, output
 from .base import (
+    AucunFichierProduit,
     BaseConnector,
     ConnectorResult,
     Outcome,
     UnsafeDestinationError,
+    ecriture_atomique,
     safe_target,
 )
 from .contract import Contract, Divergences, compare_contracts, output_contract
@@ -50,6 +52,7 @@ __all__ = [
     "EVENT_CATEGORY",
     "EVENT_DATASET",
     "RESERVED_RECORD_ATTRIBUTES",
+    "AucunFichierProduit",
     "BaseConnector",
     "ConnectorResult",
     "Contract",
@@ -72,6 +75,7 @@ __all__ = [
     "contract",
     "decoding",
     "ecmwf_ifs",
+    "ecriture_atomique",
     "failure_fields",
     "fetch_finished_fields",
     "fetch_started_fields",

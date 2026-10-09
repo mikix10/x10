@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -73,6 +77,65 @@ def safe_target(root: Path, name: str) -> Path:
     return candidate
 
 
+#: Suffixe des fichiers en cours d'ecriture. Le point initial les masque sur
+#: les systemes POSIX, et le suffixe les designe comme des dechets quand un
+#: processus a ete tue sans pouvoir faire son menage.
+SUFFIXE_PARTIEL = ".partiel"
+
+
+class AucunFichierProduit(OSError):
+    """Le bloc d'écriture s'est achevé sans produire de fichier."""
+
+
+@contextmanager
+def ecriture_atomique(cible: Path) -> Iterator[Path]:
+    """Écrit sous un nom provisoire, et ne publie qu'une fois l'écriture finie.
+
+    **Rien n'apparaît sous son nom définitif avant d'être complet.** Sans cela,
+    un processus interrompu en cours de transfert — dépassement de délai d'un
+    ordonnanceur, conteneur évincé — laisse un fichier partiel que *rien ne
+    distingue d'un fichier entier*. La reprise le trouve, le croit bon, et
+    l'erreur ressort trois étapes plus loin, voire jamais : sur une donnée
+    tronquée qui se décode.
+
+    C'est le défaut le plus grave que la projection des contrats ait relevé,
+    précisément parce qu'il se produit sous le régime pour lequel X10 est
+    conçu — la reprise par un ordonnanceur — et qu'il ne se signale pas.
+
+    Trois propriétés, chacune nécessaire :
+
+    **Le renommage est atomique.** `os.replace` l'est sur les systèmes POSIX
+    comme sous Windows. Un lecteur concurrent voit l'ancien fichier ou le
+    nouveau, jamais un état intermédiaire.
+
+    **Le provisoire est un voisin de la cible**, donc sur le même système de
+    fichiers. Un renommage entre systèmes de fichiers n'est pas atomique — il
+    copie puis supprime —, et `os.replace` échouerait de toute façon.
+
+    **Le nom provisoire est unique par processus.** Deux instances écrivant la
+    même cible ne se marchent pas dessus, ce qui conditionne l'exécution en
+    plusieurs exemplaires.
+
+    En cas d'échec, le provisoire est retiré et **la cible précédente reste
+    intacte** : une acquisition ratée ne détruit pas la précédente.
+
+    Limite assumée : un processus tué sans remontée d'exception laisse le
+    provisoire en place. C'est un déchet, non un faux fichier complet, et son
+    nom le désigne comme tel.
+    """
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    marque = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    provisoire = cible.with_name(f".{cible.name}.{marque}{SUFFIXE_PARTIEL}")
+    try:
+        yield provisoire
+    except BaseException:
+        provisoire.unlink(missing_ok=True)
+        raise
+    if not provisoire.exists():
+        raise AucunFichierProduit(f"Aucun fichier produit pour {cible.name!r}.")
+    os.replace(provisoire, cible)
+
+
 class BaseConnector:
     """Base commune aux connecteurs de sources externes."""
 
@@ -85,9 +148,12 @@ class BaseConnector:
 
 __all__ = [
     "AGENT",
+    "SUFFIXE_PARTIEL",
+    "AucunFichierProduit",
     "BaseConnector",
     "ConnectorResult",
     "Outcome",
     "UnsafeDestinationError",
+    "ecriture_atomique",
     "safe_target",
 ]

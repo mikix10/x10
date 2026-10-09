@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from x10_models import Retrieval
 
-from .base import AGENT, BaseConnector, ConnectorResult, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, ecriture_atomique, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -194,18 +194,23 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         downloaded = 0
         for parameter in self.request.parameters:
             target = safe_target(root, f"{parameter}-{self.request.step}h.grib2")
-            client.retrieve(request=self._mars_request(parameter), target=str(target))
+            # Le client officiel écrit lui-même, à l'emplacement qu'on lui
+            # désigne : on lui désigne donc le provisoire. Le plafond est
+            # vérifié **avant** publication, de sorte qu'un dépassement ne
+            # laisse rien sous le nom définitif.
+            with ecriture_atomique(target) as provisoire:
+                client.retrieve(request=self._mars_request(parameter), target=str(provisoire))
 
-            if not target.exists():
-                raise EcmwfIfsError(f"Aucun fichier produit pour le paramètre {parameter!r}.")
-            downloaded += target.stat().st_size
-            if downloaded > self.max_bytes:
-                target.unlink(missing_ok=True)
-                raise EcmwfIfsError(
-                    f"Volume téléchargé au-delà du plafond de {self.max_bytes} octets. "
-                    "Le contrôle est effectué après écriture : le client n'expose pas "
-                    "le flux, il n'est donc pas interrompible en cours de transfert."
-                )
+                if not provisoire.exists():
+                    raise EcmwfIfsError(f"Aucun fichier produit pour le paramètre {parameter!r}.")
+                taille = provisoire.stat().st_size
+                if downloaded + taille > self.max_bytes:
+                    raise EcmwfIfsError(
+                        f"Volume téléchargé au-delà du plafond de {self.max_bytes} octets. "
+                        "Le contrôle est effectué après écriture : le client n'expose pas "
+                        "le flux, il n'est donc pas interrompible en cours de transfert."
+                    )
+            downloaded += taille
             artefacts.append(target)
         return artefacts, downloaded
 
