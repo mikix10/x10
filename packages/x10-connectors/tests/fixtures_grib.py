@@ -71,6 +71,11 @@ class Champ:
     level_type: int = 103
     level: int = 10
     step: int = 0
+    #: Version des tables maîtresses de l'OMM déclarée par le message. Sert à
+    #: simuler un producteur qui a pris de l'avance sur notre ecCodes — cas
+    #: qu'aucune donnée réelle ne nous offre aujourd'hui, et qui ne lève
+    #: pourtant rien.
+    tables: int | None = None
     accumulation: int | None = None
     #: Type de traitement statistique, table 4.10 du format GRIB2. N'a de sens
     #: qu'avec `accumulation`, qui ouvre le gabarit `4.8`. Défaut : 1, le
@@ -106,6 +111,10 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
     h = eccodes.codes_grib_new_from_samples("regular_ll_sfc_grib2")
     try:
         eccodes.codes_set(h, "centre", 85)
+        # Avant les paramètres : c'est la version de tables qui décide de la
+        # façon dont ecCodes les résout.
+        if champ.tables is not None:
+            eccodes.codes_set(h, "tablesVersion", champ.tables)
         eccodes.codes_set(h, "Ni", ni)
         eccodes.codes_set(h, "Nj", nj)
         eccodes.codes_set(h, "latitudeOfFirstGridPointInDegrees", g["lat1"])
