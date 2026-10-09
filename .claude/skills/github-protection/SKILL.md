@@ -170,7 +170,37 @@ gh api -X POST  repos/<owner>/<repo>/rulesets --input ruleset-main.json
 
 **Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Lint et typage`, `Tests (Python 3.12)`, `Build des packages` et les deux contextes de portabilité. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
 
-Deux réglages ne passent pas par ces fichiers et restent à faire dans l'interface : la *push protection* du secret scanning, et l'auto-fermeture des tickets liés à une PR fusionnée, qu'aucun champ de l'API REST n'expose à ce jour.
+### Réglages de sécurité
+
+**Correction du 09/10/2026 : la *push protection* du secret scanning **est** exposée en REST**, contrairement à ce qui était écrit ici. Elle s'active avec les autres réglages de sécurité, par le même `PATCH` que les réglages généraux :
+
+```bash
+gh api -X PATCH repos/mikix10/x10 --input - <<'JSON'
+{"security_and_analysis":{"dependabot_security_updates":{"status":"enabled"},"secret_scanning_push_protection":{"status":"enabled"}}}
+JSON
+```
+
+Les **alertes** Dependabot relèvent d'un point d'entrée distinct, et conditionnent les correctifs de sécurité — les activer d'abord :
+
+```bash
+gh api -X PUT repos/mikix10/x10/vulnerability-alerts
+```
+
+Vérifier :
+
+```bash
+gh api repos/mikix10/x10 --jq '.security_and_analysis | to_entries[] | "\(.key) : \(.value.status)"'
+```
+
+État retenu au 09/10/2026 : alertes, correctifs de sécurité, analyse de secrets et protection au push **actifs**.
+
+`secret_scanning_non_provider_patterns` et `secret_scanning_validity_checks` restent désactivés, et **ce n'est pas un choix** : ils relèvent de GitHub Secret Protection, indisponible sur un dépôt public gratuit.
+
+**Piège vérifié le 09/10/2026, et le plus sournois de cette page** : l'API répond **`HTTP 200 OK`** à la demande d'activation, puis laisse le champ à `disabled`. Aucune erreur, aucun avertissement. Qui se fie au code de retour se croit protégé par un dispositif qui n'existe pas. **Toujours relire l'état après un `PATCH`**, jamais se contenter du 200.
+
+**Un piège de dépendance** : activer `dependabot_security_updates` sans les alertes ne sert à rien, les correctifs découlant des alertes. L'ordre compte.
+
+Un seul réglage reste hors API : l'auto-fermeture des tickets liés à une PR fusionnée, qu'aucun champ REST n'expose à ce jour.
 
 ## Escape hatch
 
