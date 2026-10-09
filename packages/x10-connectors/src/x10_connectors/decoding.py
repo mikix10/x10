@@ -26,7 +26,16 @@ if TYPE_CHECKING:  # pragma: no cover
 #: ni la discipline ni les numéros de catégorie et de paramètre, or c'est le
 #: **triplet** qui identifie un champ sans ambiguïté — un nom court peut être
 #: absent, et `cfName` vaut souvent `unknown`.
-READ_KEYS = ("discipline", "parameterCategory", "parameterNumber", "name")
+READ_KEYS = (
+    "discipline",
+    "parameterCategory",
+    "parameterNumber",
+    "name",
+    # Unité de la fenêtre d'agrégation, table 4.4 du format. Elle reste un
+    # **attribut** et non une coordonnée : contrairement à la longueur, elle
+    # ne varie pas d'une échéance à l'autre.
+    "indicatorOfUnitForTimeRange",
+)
 
 #: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
 #: sortie le perdait : un consommateur devait alors supposer, et les modèles
@@ -68,7 +77,30 @@ OPTIONS_CFGRIB: dict[str, object] = {
     #: Défaut : `('time', 'step')`. Repris tel quel, et écrit pour la même
     #: raison — il décide de ce qui devient dimension plutôt que coordonnée.
     "time_dims": ("time", "step"),
+    #: Défaut : `{}`. **Remonte la longueur de la fenêtre d'agrégation en
+    #: coordonnée**, le long de l'axe des échéances.
+    #:
+    #: Indispensable, et l'attribut ne suffit pas : `cfgrib` le prend au
+    #: **premier message**. Mesuré le 09/10/2026 sur des fenêtres variables
+    #: — (0→1), (0→2), (0→3) — l'attribut rend `1`, un seul chiffre pour
+    #: trois fenêtres. Des bornes bâties dessus seraient fausses partout sauf
+    #: à la première échéance. En coordonnée, on obtient `[1, 2, 3]`.
+    #:
+    #: **Effet de bord bienvenu** : la coordonnée distingue les hypercubes,
+    #: donc `cfgrib` sépare désormais cumuls et instantanés qu'il réunissait.
+    #: Sur un granule AROME de surface, cinq jeux deviennent six, et **chacun
+    #: est homogène en structure d'intervalle** — ce qu'il fallait pour que
+    #: chaque fichier écrit ne porte qu'un seul axe temporel.
+    #:
+    #: Sur un champ sans intervalle, la valeur vaut la chaîne `'undef'` et non
+    #: une absence : le lire sans précaution donnerait une fenêtre absurde.
+    "extra_coords": {"lengthOfTimeRange": "step"},
 }
+
+#: Valeur que `cfgrib` pose sur une coordonnée issue d'une clé GRIB absente.
+#: C'est une **chaîne**, pas un manquant : la confondre avec un nombre
+#: produirait une fenêtre d'agrégation sur un champ qui n'en a pas.
+COORD_INDEFINIE = "undef"
 
 #: Précision de restitution des valeurs. Défaut de `cfgrib`, repris
 #: délibérément : les producteurs quantifient sur 12 bits, et la mantisse d'un
@@ -282,6 +314,7 @@ def normalise(jeu: xr.Dataset) -> xr.Dataset:
 
 __all__ = [
     "CF_STANDARD_NAMES",
+    "COORD_INDEFINIE",
     "GEO_KEYS",
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",

@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from .base import AGENT
-from .decoding import GribIndisponible
+from .decoding import COORD_INDEFINIE, GribIndisponible, _numpy
 from .observability import connector_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -49,6 +49,21 @@ _log = connector_logger(__name__)
 #: pas d'un attribut hérité.
 CONVENTIONS = "CF-1.7"
 
+
+#: Niveau de compression `zlib` appliqué aux variables de données.
+#:
+#: Mesuré le 09/10/2026 sur un granule AROME réel : **42,97 Mio sans
+#: compression, 12,80 Mio au niveau 4**, soit un facteur 3,4. Monter au
+#: niveau 6 ne gagne que 2 % de plus, pour un temps d'écriture supérieur.
+#:
+#: **La compression impose le découpage** — HDF5 ne sait comprimer que des
+#: blocs —, mais la forme de ces blocs ne décide pas de la taille : sur
+#: données réelles, le découpage automatique fait aussi bien qu'un bloc par
+#: échéance. Elle décide de la **quantité lue** par requête, ce qui relève de
+#: l'usage et non de l'écriture. On laisse donc `netCDF4` la choisir.
+#:
+#: `0` désactive la compression. Détail dans `docs/formats-de-sortie.md`.
+COMPRESSION = 4
 
 #: Nom de la variable conteneur portant le référentiel. CF n'en impose aucun ;
 #: `crs` est celui que pratiquent la plupart des producteurs.
@@ -172,6 +187,159 @@ def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
         else:
             sortie[nom].attrs["units"] = traduite
     return sortie
+
+
+# --- Période d'agrégation : bornes de coordonnée -------------------------------
+#
+# `cell_methods` dit **la nature** du traitement, jamais sa **durée**. Un
+# cumul sur six heures et un maximum sur une heure portent la même date de
+# validité ; sans bornes, rien ne les sépare, et lire le cumul de l'échéance
+# 6 h comme « la pluie de la sixième heure » se trompe d'un facteur six.
+#
+# CF exprime l'étendue d'une cellule par des **bornes**, et sa section 7.1
+# n'admet deux sommets que sur une coordonnée **unidimensionnelle**. D'où la
+# remise en forme préalable, voir `cf_shape`.
+#
+# Raisonnement complet et mesures dans `docs/intervalles-de-temps.md`.
+
+#: Suffixe des variables de bornes. Celui qu'emploie netCDF-Java, donc celui
+#: qu'un consommateur habitué aux fichiers d'Unidata reconnaîtra.
+SUFFIXE_BORNES = "_bnds"
+
+#: Table 4.4 du format GRIB2, restreinte aux unités **représentables par une
+#: durée fixe**. Mois, année et décennie en sont absents à dessein : leur
+#: durée dépend de la date, et `timedelta64` ne sait pas les porter.
+UNITES_INTERVALLE: dict[int, tuple[int, str]] = {
+    0: (1, "m"),
+    1: (1, "h"),
+    2: (1, "D"),
+    10: (3, "h"),
+    11: (6, "h"),
+    12: (12, "h"),
+    13: (1, "s"),
+}
+
+
+class IntervalleNonRepresentable(ValueError):
+    """Une unité de fenêtre d'agrégation que l'on ne sait pas convertir."""
+
+
+def _duree(longueur: int, code_unite: int) -> object:
+    """Convertit une longueur de fenêtre en durée."""
+    np = _numpy()
+    if code_unite not in UNITES_INTERVALLE:
+        raise IntervalleNonRepresentable(
+            f"Unité d'intervalle GRIB inconnue ou de durée variable : {code_unite}. "
+            "Voir la table 4.4 du format et `UNITES_INTERVALLE` ; les mois et "
+            "les années n'ont pas de durée fixe et ne peuvent pas devenir des "
+            "bornes."
+        )
+    facteur, unite = UNITES_INTERVALLE[code_unite]
+    return np.timedelta64(longueur * facteur, unite)
+
+
+def time_bounds(jeu: xr.Dataset) -> object | None:
+    """Bornes de la fenêtre d'agrégation, ou `None` s'il n'y en a pas.
+
+    Renvoie un tableau `(n, 2)` — début puis fin — aligné sur la coordonnée
+    de validité. La **fin** est la date de validité ; le **début** s'en
+    déduit par la longueur de fenêtre, que `cfgrib` remonte en coordonnée.
+
+    **Pourquoi la coordonnée et non l'attribut.** `cfgrib` prend l'attribut
+    au premier message : sur les cumuls d'AROME, dont la fenêtre croît de une
+    à six heures, il rendrait `1` partout. Les bornes seraient fausses à
+    cinq échéances sur six.
+    """
+    np = _numpy()
+    if "lengthOfTimeRange" not in jeu.coords or "valid_time" not in jeu.coords:
+        return None
+
+    longueurs = np.atleast_1d(jeu["lengthOfTimeRange"].values)
+    if any(str(x) == COORD_INDEFINIE for x in longueurs):
+        # Champ sans agrégation : il n'a pas d'étendue, et `time: point` le
+        # dit déjà. Poser des bornes y serait une affirmation de trop.
+        return None
+
+    unites = {
+        int(var.attrs["GRIB_indicatorOfUnitForTimeRange"])
+        for var in jeu.data_vars.values()
+        if "GRIB_indicatorOfUnitForTimeRange" in var.attrs
+    }
+    if len(unites) != 1:
+        raise IntervalleNonRepresentable(
+            f"Unités d'intervalle mêlées dans un même jeu : {sorted(unites)}. "
+            "Une coordonnée de bornes unique ne peut pas les décrire."
+        )
+    (code,) = unites
+
+    fin = np.atleast_1d(jeu["valid_time"].values).reshape(-1)
+    debut = np.array([f - _duree(int(n), code) for f, n in zip(fin, longueurs, strict=True)])
+    # `numpy` entre par import paresseux, donc sans types : la variable
+    # annotée rend la frontière explicite plutôt que de laisser `Any`
+    # remonter dans la signature. Même motif que `_cfgrib` dans `decoding`.
+    bornes: object = np.stack([debut, fin], axis=-1)
+    return bornes
+
+
+#: Libellés posés sur la coordonnée de longueur de fenêtre. `cfgrib` la
+#: remonte en nombre nu : un consommateur qui ne lirait pas les bornes y
+#: verrait un entier sans unité ni sens. Les bornes restent la forme
+#: normalisée ; ceci est le filet pour qui ne les exploite pas.
+#: Clés d'encodage reprises telles quelles d'une variable à l'écriture.
+#: Restreintes à l'échelle de temps : le reste de l'encodage hérité du
+#: décodage appartient à `cfgrib` et ferait échouer le moteur netCDF4.
+ENCODAGE_TEMPS = ("units", "calendar", "dtype")
+
+ATTRS_LONGUEUR = {
+    "long_name": "length of the aggregation window",
+    "comment": (
+        "Derived from GRIB lengthOfTimeRange. The normative form of this "
+        "information is the bounds attached to the time coordinate."
+    ),
+}
+
+
+def _etiqueter_longueur(jeu: xr.Dataset) -> None:
+    """Donne un libellé et une unité à la longueur de fenêtre, en place."""
+    if "lengthOfTimeRange" not in jeu.coords:
+        return
+    unites = {
+        int(var.attrs["GRIB_indicatorOfUnitForTimeRange"])
+        for var in jeu.data_vars.values()
+        if "GRIB_indicatorOfUnitForTimeRange" in var.attrs
+    }
+    attrs: dict[str, str] = dict(ATTRS_LONGUEUR)
+    if len(unites) == 1:
+        (code,) = unites
+        if code in UNITES_INTERVALLE:
+            facteur, unite = UNITES_INTERVALLE[code]
+            attrs["units"] = {"m": "minutes", "h": "hours", "D": "days", "s": "seconds"}[unite]
+            if facteur != 1:
+                attrs["units"] = f"{facteur} {attrs['units']}"
+    jeu["lengthOfTimeRange"].attrs.update(attrs)
+
+
+def cf_shape(jeu: xr.Dataset) -> xr.Dataset:
+    """Ramène l'axe temporel à une seule dimension, la date de validité.
+
+    La chaîne de décodage rend `(time, step, …)` : la date de réseau et
+    l'échéance sont deux axes, et `valid_time` en dérive, donc
+    **bidimensionnelle**. Or CF n'admet des bornes à deux sommets que sur une
+    coordonnée unidimensionnelle.
+
+    Pour un granule — qui appartient à **un** réseau —, l'axe de réseau est de
+    longueur 1. Le réduire en **coordonnée scalaire** conserve la date sans
+    coûter une dimension, et l'axe porte alors la validité. Mesuré : cinq
+    dimensions deviennent quatre, et rien n'est perdu.
+
+    Un jeu couvrant plusieurs réseaux est rendu **inchangé** : la réduction
+    serait une perte, et c'est un cas que nos granules ne produisent pas.
+    """
+    if "time" not in jeu.dims or jeu.sizes.get("time", 0) != 1:
+        return jeu
+    if "step" not in jeu.dims or "valid_time" not in jeu.coords:
+        return jeu
+    return jeu.squeeze("time", drop=False).swap_dims({"step": "valid_time"})
 
 
 # --- Méthodes de cellule : la nature du traitement statistique -----------------
@@ -392,6 +560,49 @@ def global_attributes(
     return attrs
 
 
+def _encodage(jeu: xr.Dataset, compress: int) -> dict[str, dict[str, object]]:
+    """Encodage d'écriture : compression des données, et coordonnées sans
+    valeur de remplissage.
+
+    **`xarray` pose un `_FillValue` sur toute variable flottante**, y compris
+    les coordonnées. CF l'y déconseille — une coordonnée n'admet pas de
+    valeur manquante —, et un contrôleur de conformité le relève. On le
+    retire explicitement plutôt que de le laisser passer.
+    """
+    # **Un dictionnaire d'encodage remplace celui que porte la variable, il
+    # ne le complète pas.** Omettre la reprise a produit une coordonnée en
+    # « hours since 13:00 » et ses bornes en « hours since 12:00 » : deux
+    # époques, que seuls leurs attributs propres rendaient lisibles.
+    #
+    # La reprise est **sélective** : l'encodage hérité du décodage porte des
+    # clés propres à `cfgrib` — `filter_by_keys`, `encode_cf` — que le
+    # moteur netCDF4 refuse. On ne garde que l'échelle de temps.
+    repris: dict[str, dict[str, object]] = {
+        str(nom): {
+            cle: valeur for cle, valeur in jeu[nom].encoding.items() if cle in ENCODAGE_TEMPS
+        }
+        for nom in (*jeu.coords, *jeu.data_vars)
+    }
+
+    encodage: dict[str, dict[str, object]] = {
+        str(nom): {**repris[str(nom)], "_FillValue": None} for nom in jeu.coords
+    }
+    # Les bornes ne sont pas une donnée : leur encodage est **conservé**, ce
+    # qui les aligne sur leur coordonnée, et elles ne sont pas comprimées —
+    # quelques dizaines d'octets n'y gagneraient rien.
+    bornes = [nom for nom in jeu.data_vars if str(nom).endswith(SUFFIXE_BORNES)]
+    encodage.update({str(nom): {**repris[str(nom)], "_FillValue": None} for nom in bornes})
+    if compress:
+        encodage.update(
+            {
+                str(nom): {"zlib": True, "complevel": compress}
+                for nom in jeu.data_vars
+                if nom not in bornes
+            }
+        )
+    return encodage
+
+
 def write_netcdf(
     jeu: xr.Dataset,
     cible: Path,
@@ -401,6 +612,7 @@ def write_netcdf(
     source: str | None = None,
     references: str | None = None,
     strict_units: bool = True,
+    compress: int = COMPRESSION,
 ) -> Path:
     """Écrit un jeu décodé en NetCDF, avec ses attributs CF et sa licence.
 
@@ -440,26 +652,50 @@ def write_netcdf(
         for nom in jeu.data_vars:
             prepare[nom].attrs["grid_mapping"] = CRS_VARIABLE
 
+    prepare = cf_shape(prepare)
+    _etiqueter_longueur(prepare)
+    if (bornes := time_bounds(prepare)) is not None:
+        import xarray
+
+        nom_bornes = f"valid_time{SUFFIXE_BORNES}"
+        prepare[nom_bornes] = xarray.DataArray(bornes, dims=("valid_time", "bnds"))
+        # **Les bornes reprennent l'encodage de leur coordonnée** — même
+        # époque, même calendrier. Sans cela `xarray` en choisit une autre,
+        # et les deux ne se lisent plus sur la même échelle : mesuré une
+        # fois à une heure d'écart.
+        prepare[nom_bornes].encoding = dict(prepare["valid_time"].encoding)
+        # CF : la variable de bornes **n'hérite pas** d'attributs propres ;
+        # c'est la coordonnée qui la désigne.
+        prepare["valid_time"].attrs["bounds"] = nom_bornes
+
     cible.parent.mkdir(parents=True, exist_ok=True)
-    prepare.to_netcdf(cible, engine="netcdf4")
+    prepare.to_netcdf(cible, engine="netcdf4", encoding=_encodage(prepare, compress))
     return cible
 
 
 __all__ = [
+    "ATTRS_LONGUEUR",
     "AXES_DECLARABLES",
     "CELL_METHODS",
+    "COMPRESSION",
     "CONVENTIONS",
     "CRS_VARIABLE",
     "ECCODES_MANQUANT",
+    "ENCODAGE_TEMPS",
     "SANS_CELL_METHOD",
+    "SUFFIXE_BORNES",
     "UDUNITS",
+    "UNITES_INTERVALLE",
+    "IntervalleNonRepresentable",
     "TraitementStatistiqueInconnu",
     "UniteNonConvertible",
     "cell_method",
     "cell_methods",
+    "cf_shape",
     "convert_units",
     "global_attributes",
     "grid_mapping",
+    "time_bounds",
     "udunits",
     "write_netcdf",
 ]
