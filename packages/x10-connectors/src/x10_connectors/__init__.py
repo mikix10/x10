@@ -12,7 +12,7 @@ connecteur, dont les noms sont déjà qualifiés par leur source.
 
 from __future__ import annotations
 
-from . import decoding, ecmwf_ifs, meteofrance_pnt, output
+from . import contract, decoding, ecmwf_ifs, meteofrance_pnt, output
 from .base import (
     BaseConnector,
     ConnectorResult,
@@ -20,6 +20,7 @@ from .base import (
     UnsafeDestinationError,
     safe_target,
 )
+from .contract import Contract, Divergences, compare_contracts, output_contract
 from .decoding import GribIndisponible
 from .ecmwf_ifs import (
     EcmwfIfsError,
@@ -51,6 +52,8 @@ __all__ = [
     "RESERVED_RECORD_ATTRIBUTES",
     "BaseConnector",
     "ConnectorResult",
+    "Contract",
+    "Divergences",
     "EcmwfIfsError",
     "EcmwfIfsOpenDataConnector",
     "EcmwfIfsRequest",
@@ -64,7 +67,9 @@ __all__ = [
     "Transport",
     "UniteNonConvertible",
     "UnsafeDestinationError",
+    "compare_contracts",
     "connector_logger",
+    "contract",
     "decoding",
     "ecmwf_ifs",
     "failure_fields",
@@ -72,6 +77,7 @@ __all__ = [
     "fetch_started_fields",
     "meteofrance_pnt",
     "output",
+    "output_contract",
     "safe_target",
     "write_netcdf",
 ]

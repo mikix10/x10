@@ -26,6 +26,32 @@ Il joue pour X10 le rôle que [GeoDCAT-AP](https://semiceu.github.io/GeoDCAT-AP/
 | `Agent` | `dcterms:Agent` | `CI_ResponsibleParty` | entrée de `providers` | `prov:Agent` |
 | `Retrieval` | — (renvoie à PROV) | `LI_Lineage` | — | `prov:Activity` + `Entity` |
 | `CatalogEntry` | `dcat:Catalog` partiel | — | — | — |
+| `granule` | `dcat:Distribution` d'un `dcat:Dataset` | *dataset* d'une *series* | `Item` | `prov:Entity` |
+
+### Pourquoi « granule », et pas « paquet »
+
+L'unité **téléchargeable** d'une collection n'avait pas de nom chez nous. Le
+mot du producteur, « paquet », entre en collision deux fois : avec le paquet
+**Python** — `CLAUDE.md` emploie les deux sens dans un même fichier — et avec
+**GeoPackage**, norme OGC et format `.gpkg` que X10 produira dès qu'il fera de
+la géographie.
+
+`granule` est le terme transverse des référentiels d'observation de la Terre —
+NASA EOSDIS, WIS 2.0 de l'OMM — et correspond à l'`Item` de STAC comme à
+l'*item* d'OGC API. Il n'a **aucun sens logiciel**, ce qui le met hors
+d'atteinte des deux collisions, et il vaut pour le satellite comme pour
+l'océan et l'atmosphère.
+
+Il ne remplace pas `Distribution`, qui dit **où aller chercher** ; un granule
+est ce qu'on rapporte. Et « paquet » reste employé pour désigner un produit
+**nommé** du producteur — le paquet SP1, le paquet HP1 —, où le mot est le
+sien et ne prête pas à confusion.
+
+| Niveau | X10 | DCAT 3 | STAC | OGC API | EO |
+|---|---|---|---|---|---|
+| Série thématique | `Dataset` | `DatasetSeries` | `Collection` | *collection* | Collection |
+| Unité téléchargeable | **`granule`** | `Dataset` + `Distribution` | `Item` | *item* | **Granule** |
+| Accès concret | `Distribution` | `Distribution` | `Asset` | — | — |
 
 ## Rôles d'acteur
 

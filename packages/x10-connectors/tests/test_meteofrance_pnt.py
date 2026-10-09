@@ -290,7 +290,7 @@ def test_le_vent_se_reconstitue_depuis_les_composantes_sur_donnees_reelles(tmp_p
     """
     import numpy as np
 
-    from x10_connectors.decoding import open_package, wind_from_direction, wind_speed
+    from x10_connectors.decoding import open_granule, wind_from_direction, wind_speed
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
@@ -299,7 +299,7 @@ def test_le_vent_se_reconstitue_depuis_les_composantes_sur_donnees_reelles(tmp_p
     assert resultat.retrieval is not None
 
     cible = None
-    for jeu in open_package(resultat.retrieval.artefacts[0]):
+    for jeu in open_granule(resultat.retrieval.artefacts[0]):
         if {"u10", "v10", "wdir10", "si10"} <= set(jeu.data_vars):
             cible = jeu
             break

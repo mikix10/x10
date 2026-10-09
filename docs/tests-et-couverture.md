@@ -85,6 +85,54 @@ fichiers réels — ce qui permet de mesurer une perte réelle plutôt
 qu'idéalisée. C'est ainsi que la reconstitution du vent depuis ses
 composantes a pu être vérifiée.
 
+## Les références de contrat
+
+Une troisième couche complète les deux précédentes. Elle ne vérifie pas que
+le code fait ce qu'on croit, mais que **ce qui arrive reste ce qu'on
+attend**.
+
+Un *contrat de sortie* fige la forme et les métadonnées d'un granule décodé —
+jamais ses valeurs. Comparé à une référence versionnée, il signale un champ
+retiré, une unité modifiée, une grille déplacée, au lieu d'attendre la
+plainte d'un consommateur.
+
+| Référence | Construite sur | Détecte |
+|---|---|---|
+| `fixtures-surface.json` | fixtures, hors ligne | une régression **de notre code** |
+| `meteofrance-arome-0025-SP1.json` | granule réel, marqueur `network` | une **dérive du producteur** |
+
+### Trois choix qui décident de l'utilité
+
+**Du texte trié, pas un NetCDF.** Le bénéfice recherché est de voir dans un
+`git diff` ce que le producteur a changé ; un binaire ne montre rien. Les
+références font 4 et 10 Kio.
+
+**Les écarts sont classés, pas binaires.** Une variable disparue ou une unité
+modifiée sont des **ruptures** et font échouer ; une variable ou un libellé
+qui s'ajoutent sont des **nouveautés**, signalées sans échec. Un indicateur
+qui s'allume à chaque évolution bénigne est désactivé au bout de trois fois.
+
+**Ce qui varie légitimement est exclu** : date de réseau, `valid_time`,
+horodatages, valeurs. Les échéances restent, elles, parce qu'un passage de
+l'horaire au tri-horaire est précisément une dérive.
+
+### Régénérer une référence
+
+```bash
+X10_REGENERATE_REFERENCES=1 uv run pytest -k reproduit_sa_reference
+```
+
+Le test est alors sauté et la référence réécrite. **Le travail commence
+après** : relire le `git diff` et décider si l'écart est une évolution
+légitime ou un signal. Régénérer sans relire vide l'exercice de son sens.
+
+### Ce que la référence réelle a déjà prouvé
+
+Le contrat produit à partir du réseau du 8 octobre 2026 à 12 UTC et celui du
+réseau suivant sont **identiques**. La stabilité entre réseaux n'est donc pas
+supposée : une divergence signalera un vrai changement, pas une variation
+normale.
+
 ## La couverture, en deux vues
 
 ### Pourquoi un seuil unique ne convient pas
