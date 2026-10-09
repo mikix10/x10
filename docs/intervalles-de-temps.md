@@ -172,6 +172,36 @@ par `cell_methods` et par les bornes, qui sont, eux, normalisés.
 Les champs ponctuels n'ont pas de bornes : une valeur instantanée n'a pas
 d'étendue, et `time: point` le dit déjà.
 
+### Mis en œuvre, et une surprise en chemin
+
+Depuis le 9 octobre 2026. Deux points méritent d'être ajoutés à l'analyse
+qui précède, parce que la mise en œuvre les a révélés.
+
+**La longueur de fenêtre ne peut pas se lire dans un attribut.** `cfgrib`
+prend ses attributs au **premier message** du groupe. Sur des fenêtres
+variables — les cumuls croissent de une à six heures — l'attribut rend `1`
+pour les six échéances, et des bornes bâties dessus seraient fausses à cinq
+reprises sur six. Il faut la remonter en **coordonnée**, ce que permet
+l'option `extra_coords`.
+
+**Et cette option résout d'elle-même le problème des axes multiples.** La
+coordonnée distingue les hypercubes : `cfgrib` sépare désormais les cumuls
+des instantanés qu'il réunissait. Sur le granule mesuré, cinq jeux deviennent
+six, et **chacun est homogène en structure d'intervalle**. Puisque nous
+écrivons un fichier par jeu, chaque fichier n'a qu'un seul axe temporel — et
+la solution d'Unidata, plusieurs axes dans un même fichier, devient inutile.
+Elle reste la bonne réponse pour un serveur de collection comme THREDDS ;
+elle ne l'est pas pour qui produit des fichiers.
+
+Résultat sur le granule réel, dernière échéance :
+
+| Champs | `cell_methods` | Fenêtre |
+|---|---|---|
+| rafales | `time: maximum` | 17 h → 18 h |
+| cumuls | `time: sum` | **12 h → 18 h** |
+
+Même date de validité, six heures d'écart. C'était l'objet de cette note.
+
 ---
 
 ## 7. Comment rejouer ces vérifications

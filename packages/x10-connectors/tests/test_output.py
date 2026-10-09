@@ -20,13 +20,17 @@ from x10_connectors.output import (
     CONVENTIONS,
     CRS_VARIABLE,
     ECCODES_MANQUANT,
+    SUFFIXE_BORNES,
     UDUNITS,
+    IntervalleNonRepresentable,
     TraitementStatistiqueInconnu,
     UniteNonConvertible,
     cell_methods,
+    cf_shape,
     convert_units,
     global_attributes,
     grid_mapping,
+    time_bounds,
     udunits,
     write_netcdf,
 )
@@ -219,7 +223,12 @@ def test_le_fichier_s_ecrit_et_se_relit(tmp_path):
     relu = xr.open_dataset(cible)
     try:
         assert set(relu.data_vars) == {"u", "v", "crs"}
-        np.testing.assert_allclose(relu["u"].values, jeu["u"].values, atol=1e-5)
+        # Les valeurs sont comparées à plat : l'écriture remet l'axe temporel
+        # en une seule dimension — voir `cf_shape` —, donc les formes
+        # diffèrent sans qu'aucune valeur n'ait bougé.
+        np.testing.assert_allclose(
+            relu["u"].values.reshape(-1), jeu["u"].values.reshape(-1), atol=1e-5
+        )
         assert relu["u"].attrs["units"] == "m s-1"
         assert relu["u"].attrs["standard_name"] == "eastward_wind"
         assert relu.attrs["license"] == "etalab-2.0"
@@ -541,3 +550,227 @@ def test_une_methode_heritee_est_retiree_et_non_recopiee(tmp_path):
                 assert "cell_methods" not in v.attrs
     finally:
         relu.close()
+
+
+# --- Periode d'agregation : bornes de coordonnee -------------------------------
+
+
+def _jeu_fenetres(tmp_path, champs, nom):
+    return normalise(open_granule(paquet(tmp_path / f"{nom}.grib2", champs))[0])
+
+
+def test_la_remise_en_forme_ramene_a_quatre_dimensions(tmp_path):
+    """CF n'admet des bornes à deux sommets que sur une coordonnée **1D**.
+
+    La chaîne rend `(time, step, …)`, donc un `valid_time` bidimensionnel.
+    Réduire l'axe de réseau en coordonnée scalaire conserve la date sans
+    coûter une dimension.
+    """
+    avant = _jeu(tmp_path)
+    assert next(iter(avant.data_vars.values())).ndim == 5
+    apres = cf_shape(avant)
+    v = next(iter(apres.data_vars.values()))
+    assert v.dims == ("valid_time", "heightAboveGround", "latitude", "longitude")
+    assert apres["valid_time"].ndim == 1
+    assert apres["time"].ndim == 0, "la date de réseau doit rester, en scalaire"
+
+
+def test_la_remise_en_forme_ne_perd_pas_la_date_de_reseau(tmp_path):
+    avant = _jeu(tmp_path)
+    apres = cf_shape(avant)
+    assert apres["time"].values == avant["time"].values[0]
+
+
+def test_un_jeu_a_plusieurs_reseaux_reste_intact(tmp_path):
+    """Réduire serait alors une **perte**. Nos granules n'appartiennent qu'à
+    un réseau, mais le code ne doit pas le supposer."""
+    import numpy as np
+    import xarray as xr
+
+    deux = xr.Dataset(
+        {"x": (("time", "step", "y"), np.zeros((2, 3, 4)))},
+        coords={
+            "time": np.array(["2026-10-08T00", "2026-10-08T12"], dtype="datetime64[ns]"),
+            "step": np.arange(3),
+        },
+    )
+    assert cf_shape(deux) is deux
+
+
+def test_une_fenetre_glissante_donne_des_bornes_glissantes(tmp_path):
+    """Les maxima de rafale portent sur l'heure écoulée."""
+    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1, 2)]
+    bornes = time_bounds(cf_shape(_jeu_fenetres(tmp_path, champs, "glissant")))
+    assert bornes is not None
+    ecarts = {(f - d).astype("timedelta64[h]").astype(int) for d, f in bornes}
+    assert ecarts == {1}, "chaque fenêtre couvre une heure"
+    assert bornes[0][1] == bornes[1][0], "les fenêtres sont jointives"
+
+
+def test_une_fenetre_cumulative_donne_des_bornes_croissantes(tmp_path):
+    """Les cumuls courent depuis le début du réseau : c'est le piège de
+    lecture que ces bornes lèvent."""
+    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    bornes = time_bounds(cf_shape(_jeu_fenetres(tmp_path, champs, "cumul")))
+    assert bornes is not None
+    assert len({d for d, _ in bornes}) == 1, "toutes partent de la même origine"
+    ecarts = sorted((f - d).astype("timedelta64[h]").astype(int) for d, f in bornes)
+    assert ecarts == [1, 2, 3]
+
+
+def test_un_instantane_n_a_pas_de_bornes(tmp_path):
+    """Une valeur ponctuelle n'a pas d'étendue, et `time: point` le dit."""
+    assert time_bounds(cf_shape(_jeu(tmp_path))) is None
+
+
+def test_la_longueur_vient_de_la_coordonnee_et_non_de_l_attribut(tmp_path):
+    """`cfgrib` prend l'attribut au **premier message** : sur des fenêtres
+    variables il rendrait une seule valeur, et les bornes seraient fausses
+    partout sauf à la première échéance."""
+    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    jeu = _jeu_fenetres(tmp_path, champs, "variable")
+    assert list(jeu["lengthOfTimeRange"].values) == [1, 2, 3]
+
+    # Et l'attribut n'est **pas** remonté, délibérément : `cfgrib` le prend
+    # au premier message, donc il vaudrait 1 pour ces trois fenêtres. Un
+    # attribut juste à une échéance sur trois est pire qu'une absence, car
+    # rien ne signale qu'il ne vaut que là.
+    attrs = next(iter(jeu.data_vars.values())).attrs
+    assert "GRIB_lengthOfTimeRange" not in attrs
+
+
+def test_une_unite_d_intervalle_non_representable_interrompt(tmp_path):
+    """Les mois et les années n'ont pas de durée fixe : en faire des bornes
+    produirait une fenêtre fausse selon la date."""
+    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
+    jeu = cf_shape(_jeu_fenetres(tmp_path, champs, "unite"))
+    for var in jeu.data_vars.values():
+        var.attrs["GRIB_indicatorOfUnitForTimeRange"] = 3  # mois
+    with pytest.raises(IntervalleNonRepresentable, match=r"table 4\.4"):
+        time_bounds(jeu)
+
+
+def test_des_unites_melees_interrompent(tmp_path):
+    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
+    jeu = cf_shape(_jeu_fenetres(tmp_path, champs, "melees"))
+    for i, var in enumerate(jeu.data_vars.values()):
+        var.attrs["GRIB_indicatorOfUnitForTimeRange"] = (1, 0)[i % 2]
+    if len(jeu.data_vars) > 1:
+        with pytest.raises(IntervalleNonRepresentable, match="mêlées"):
+            time_bounds(jeu)
+
+
+def test_le_fichier_porte_ses_bornes_et_les_designe(tmp_path):
+    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    cible = write_netcdf(_jeu_fenetres(tmp_path, champs, "ecrit"), tmp_path / "b.nc")
+    relu = xr.open_dataset(cible, decode_coords=False)
+    try:
+        assert relu["valid_time"].attrs["bounds"] == f"valid_time{SUFFIXE_BORNES}"
+        assert relu[f"valid_time{SUFFIXE_BORNES}"].shape == (3, 2)
+    finally:
+        relu.close()
+
+
+# --- Format et compression -----------------------------------------------------
+
+
+def test_la_sortie_est_compressee_par_defaut(tmp_path):
+    import netCDF4
+
+    cible = write_netcdf(_jeu(tmp_path), tmp_path / "zip.nc")
+    ds = netCDF4.Dataset(cible)
+    try:
+        assert ds.variables["u"].filters()["zlib"] is True
+    finally:
+        ds.close()
+
+
+def test_la_compression_se_desactive(tmp_path):
+    import netCDF4
+
+    cible = write_netcdf(_jeu(tmp_path), tmp_path / "brut.nc", compress=0)
+    ds = netCDF4.Dataset(cible)
+    try:
+        assert ds.variables["u"].filters()["zlib"] is False
+    finally:
+        ds.close()
+
+
+def test_la_sortie_ne_contient_aucun_groupe(tmp_path):
+    """Seule incompatibilité que CDO nomme avec le modèle de données
+    classique. `xarray` n'en écrit pas, mais c'est une propriété du fichier
+    produit, pas une intention — donc on la vérifie."""
+    import netCDF4
+
+    cible = write_netcdf(_jeu(tmp_path), tmp_path / "plat.nc")
+    ds = netCDF4.Dataset(cible)
+    try:
+        assert ds.groups == {}
+    finally:
+        ds.close()
+
+
+# --- Ce qu'un consommateur retrouve dans le fichier ----------------------------
+
+
+def _ecrit_cumuls(tmp_path):
+    import netCDF4
+
+    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    cible = write_netcdf(_jeu_fenetres(tmp_path, champs, "attrs"), tmp_path / "a.nc")
+    return netCDF4.Dataset(cible)
+
+
+def test_la_remise_en_forme_ne_perd_aucun_attribut_temporel(tmp_path):
+    """Le point d'attention : `squeeze` et `swap_dims` peuvent dépouiller une
+    coordonnée en silence. Un consommateur qui n'exploiterait ni les bornes
+    ni la longueur de fenêtre doit malgré tout savoir ce qu'il lit.
+    """
+    ds = _ecrit_cumuls(tmp_path)
+    try:
+        assert ds.variables["valid_time"].standard_name == "time"
+        assert ds.variables["valid_time"].bounds == f"valid_time{SUFFIXE_BORNES}"
+        # La date de réseau survit en scalaire, et se décrit elle-même.
+        assert ds.variables["time"].standard_name == "forecast_reference_time"
+        assert ds.variables["time"].dimensions == ()
+        # L'échéance reste lisible le long de l'axe de validité.
+        assert ds.variables["step"].standard_name == "forecast_period"
+    finally:
+        ds.close()
+
+
+def test_la_longueur_de_fenetre_est_etiquetee(tmp_path):
+    """`cfgrib` la remonte en nombre nu : sans libellé ni unité, un lecteur y
+    verrait un entier sans signification."""
+    ds = _ecrit_cumuls(tmp_path)
+    try:
+        v = ds.variables["lengthOfTimeRange"]
+        assert "aggregation window" in v.long_name
+        assert v.units == "hours"
+    finally:
+        ds.close()
+
+
+def test_les_bornes_n_ont_pas_d_unite_propre(tmp_path):
+    """CF veut qu'une variable de bornes **hérite** de sa coordonnée.
+
+    Une unité propre y est dangereuse : un encodage indépendant leur a donné,
+    une fois, une époque décalée d'une heure de celle de la coordonnée.
+    """
+    ds = _ecrit_cumuls(tmp_path)
+    try:
+        assert "units" not in ds.variables[f"valid_time{SUFFIXE_BORNES}"].ncattrs()
+        assert ds.variables["valid_time"].units
+    finally:
+        ds.close()
+
+
+def test_aucune_coordonnee_ne_porte_de_valeur_de_remplissage(tmp_path):
+    """CF n'admet pas de valeur manquante dans une coordonnée, et `xarray` en
+    pose une d'office sur toute variable flottante."""
+    ds = _ecrit_cumuls(tmp_path)
+    try:
+        for nom in ("valid_time", "step", "latitude", "longitude"):
+            assert "_FillValue" not in ds.variables[nom].ncattrs(), nom
+    finally:
+        ds.close()
