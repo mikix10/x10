@@ -30,6 +30,7 @@ from x10_connectors.output import (
     convert_units,
     global_attributes,
     grid_mapping,
+    production_source,
     time_bounds,
     udunits,
     write_netcdf,
@@ -176,7 +177,15 @@ def test_les_attributs_cf_attendus_sont_poses(tmp_path):
     assert attrs["Conventions"] == CONVENTIONS
     assert "history" in attrs
     assert "institution" in attrs
-    assert attrs["source"].startswith("meteofrance-pnt-opendata")
+    # `source` décrit désormais la **production**, ce que CF demande, et non
+    # l'acquisition — qui a rejoint `history`, sa place. Le libellé exact
+    # dépend de ce que la donnée déclare : « operational analysis » sur une
+    # fixture, « operational forecast » sur un granule réel. On vérifie donc
+    # la structure, pas le mot.
+    assert "operational" in attrs["source"]
+    assert "centre lfpw" in attrs["source"]
+    assert "generating process" in attrs["source"]
+    assert "retrieved meteofrance-pnt-opendata" in attrs["history"]
     assert attrs["title"] == "meteofrance-pnt-opendata:arome:0025"
 
 
@@ -185,11 +194,17 @@ def test_la_licence_du_lignage_voyage_avec_le_fichier(tmp_path):
     assert attrs["license"] == "etalab-2.0"
 
 
-def test_sans_lignage_ni_licence_ni_source_ne_sont_inventes(tmp_path):
-    """L'absence de provenance doit se voir, non être comblée."""
+def test_sans_lignage_la_licence_n_est_pas_inventee(tmp_path):
+    """L'absence de provenance doit se voir, non être comblée.
+
+    `source` fait exception, et ce n'est pas une entorse : il décrit la
+    **production**, que la donnée déclare elle-même. Le lire n'est pas
+    l'inventer. La licence, elle, ne se trouve nulle part dans un GRIB.
+    """
     attrs = global_attributes(_jeu(tmp_path))
     assert "license" not in attrs
-    assert "source" not in attrs
+    assert "retrieved" not in attrs.get("history", "")
+    assert "source" in attrs, "la production se lit dans la donnée"
 
 
 def test_un_lignage_sans_licence_ne_pose_pas_l_attribut(tmp_path):
@@ -208,8 +223,13 @@ def test_une_trace_history_anterieure_est_preservee(tmp_path):
     jeu = _jeu(tmp_path)
     jeu.attrs["history"] = "ligne anterieure"
     attrs = global_attributes(jeu, retrieval=_lignage())
-    assert attrs["history"].endswith("ligne anterieure")
-    assert "x10-connectors" in attrs["history"]
+    # CF veut un journal **cumulatif** où les filtres *ajoutent* leur ligne :
+    # la trace antérieure vient donc en tête, les nouvelles à la suite, dans
+    # l'ordre chronologique.
+    lignes = attrs["history"].splitlines()
+    assert lignes[0] == "ligne anterieure"
+    assert "retrieved" in lignes[1]
+    assert "converted from GRIB2" in lignes[-1]
 
 
 # --- Écriture ------------------------------------------------------------------
@@ -774,3 +794,52 @@ def test_aucune_coordonnee_ne_porte_de_valeur_de_remplissage(tmp_path):
             assert "_FillValue" not in ds.variables[nom].ncattrs(), nom
     finally:
         ds.close()
+
+
+# --- Lignage : production contre acquisition -----------------------------------
+
+
+def test_la_source_decrit_la_production_telle_que_declaree(tmp_path):
+    """CF : « the method of production of the original data ». La fonction
+    lit les tables 1.3 et 4.3, et rien de plus."""
+    texte = production_source(_jeu(tmp_path))
+    assert texte is not None
+    assert texte.startswith("operational ")
+    assert "centre lfpw" in texte
+
+
+def test_le_code_de_processus_local_est_cite_jamais_traduit(tmp_path):
+    """`generatingProcessIdentifier` est **local au centre** : aucune table
+    publique ne le traduit, et ecCodes ne sait pas le rendre littéralement.
+    En déduire « AROME » serait une interprétation."""
+    texte = production_source(_jeu(tmp_path))
+    assert texte is not None
+    assert "generating process 128" in texte
+
+
+def test_un_code_de_table_inconnu_n_est_pas_traduit(tmp_path):
+    """Mieux vaut taire un type de processus qu'en inventer un."""
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        var.attrs["GRIB_typeOfGeneratingProcess"] = 200  # réservé à un usage local
+    texte = production_source(jeu)
+    assert texte is not None
+    assert "analysis" not in texte and "forecast" not in texte
+    assert "centre lfpw" in texte, "le reste du lignage subsiste"
+
+
+def test_une_source_explicite_l_emporte_sur_la_lecture(tmp_path):
+    """Le jour où le catalogue saura dire « AROME 0,025° », il le passera."""
+    attrs = global_attributes(_jeu(tmp_path), source="AROME 0.025 deg, Meteo-France")
+    assert attrs["source"] == "AROME 0.025 deg, Meteo-France"
+
+
+def test_sans_rien_de_declare_aucune_source_n_est_forgee(tmp_path):
+    jeu = _jeu(tmp_path)
+    for var in jeu.data_vars.values():
+        for cle in list(var.attrs):
+            if cle.startswith("GRIB_"):
+                del var.attrs[cle]
+    jeu.attrs.pop("GRIB_centre", None)
+    jeu.attrs.pop("GRIB_centreDescription", None)
+    assert production_source(jeu) is None

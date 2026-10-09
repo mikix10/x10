@@ -35,6 +35,14 @@ READ_KEYS = (
     # **attribut** et non une coordonnée : contrairement à la longueur, elle
     # ne varie pas d'une échéance à l'autre.
     "indicatorOfUnitForTimeRange",
+    # Ce que le format déclare du **processus de production**, et que CF
+    # attend dans son attribut `source`. Trois clés, trois degrés de
+    # lisibilité : deux se résolvent par des tables normalisées, la
+    # troisième est un code **local au centre** qu'aucune table publique ne
+    # traduit.
+    "typeOfGeneratingProcess",
+    "productionStatusOfProcessedData",
+    "generatingProcessIdentifier",
 )
 
 #: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
