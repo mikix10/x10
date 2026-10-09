@@ -512,16 +512,97 @@ def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
 # --- Attributs globaux --------------------------------------------------------
 
 
-def _ligne_history(precedente: str | None) -> str:
-    """Trace d'audit, au format que pratiquent les producteurs.
+#: Table 4.3 du format GRIB2, type de processus générateur. Relevée dans les
+#: définitions d'ecCodes le 09/10/2026 ; seules les valeurs rencontrées ou
+#: plausibles sur nos sources y figurent, un code absent n'étant pas traduit
+#: plutôt que deviné.
+TYPE_DE_PROCESSUS = {
+    0: "analysis",
+    1: "initialization",
+    2: "forecast",
+    3: "bias corrected forecast",
+    4: "ensemble forecast",
+    5: "probability forecast",
+    9: "climatological",
+    13: "post-processed forecast",
+    14: "nowcast",
+    15: "hindcast",
+}
 
-    CF demande un journal des modifications. ECMWF écrit « date GMT by
-    outil-version » ; la forme reprise ici en est proche, et **préserve** une
-    éventuelle ligne antérieure plutôt que de l'écraser.
+#: Table 1.3 du format GRIB2, statut de production. Même provenance.
+STATUT_DE_PRODUCTION = {
+    0: "operational",
+    1: "operational test",
+    2: "research",
+    3: "re-analysis",
+}
+
+
+def production_source(jeu: xr.Dataset) -> str | None:
+    """Décrit le **processus de production**, au sens de l'attribut `source`.
+
+    CF y attend « the method of production of the original data […] name the
+    model and its version ». Nous y écrivions l'identifiant du jeu et
+    l'origine du téléchargement : c'était l'acquisition, qui relève de
+    `history`.
+
+    **Ce que le GRIB permet de dire, et pas davantage.** Le statut de
+    production et le type de processus se résolvent par les tables 1.3 et
+    4.3. Le nom du modèle, lui, n'y est pas : `generatingProcessIdentifier`
+    est un code **local au centre**, qu'aucune table publique ne traduit et
+    qu'ecCodes ne sait pas rendre littéralement — vérifié. Nous le citons
+    tel quel plutôt que d'en déduire « AROME », ce qui serait une
+    interprétation et non une lecture.
+
+    Renvoie `None` si rien n'est déclaré. Un appelant qui en sait plus — le
+    catalogue, le jour où il sera peuplé — passe `source=` et l'emporte.
+    """
+    attrs: dict[str, object] = {}
+    for var in jeu.data_vars.values():
+        attrs.update(var.attrs)
+    attrs.update(jeu.attrs)
+
+    morceaux: list[str] = []
+    code_statut = _entier(attrs, "productionStatusOfProcessedData")
+    code_processus = _entier(attrs, "typeOfGeneratingProcess")
+    statut = STATUT_DE_PRODUCTION.get(code_statut) if code_statut is not None else None
+    processus = TYPE_DE_PROCESSUS.get(code_processus) if code_processus is not None else None
+    if statut and processus:
+        morceaux.append(f"{statut} {processus}")
+    elif processus:
+        morceaux.append(processus)
+
+    centre = attrs.get("GRIB_centre")
+    description = attrs.get("GRIB_centreDescription")
+    if centre:
+        morceaux.append(f"centre {centre}" + (f" ({description})" if description else ""))
+
+    identifiant = _entier(attrs, "generatingProcessIdentifier")
+    if identifiant is not None:
+        # Code local au centre : on le cite, on ne le traduit pas.
+        morceaux.append(f"generating process {identifiant}")
+
+    return ", ".join(morceaux) or None
+
+
+def _entier(attrs: dict[str, object], cle: str) -> int | None:
+    brut = attrs.get(f"GRIB_{cle}")
+    if isinstance(brut, bool) or not isinstance(brut, (int, float)):
+        return None
+    return int(brut)
+
+
+def _ligne_history(precedente: str | None, *lignes: str) -> str:
+    """Journal d'audit cumulatif, au format que CF recommande.
+
+    CF demande « an audit trail for modifications to the original data », et
+    que chaque ligne commence par la date et l'heure. Les filtres génériques
+    **ajoutent** la leur ; les nouvelles lignes vont donc **à la fin**, dans
+    l'ordre chronologique, et une trace antérieure est préservée.
     """
     horodatage = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    ligne = f"{horodatage} : converted from GRIB2 by {AGENT}"
-    return f"{ligne}\n{precedente}" if precedente else ligne
+    nouvelles = [*lignes, f"{horodatage} : converted from GRIB2 by {AGENT}"]
+    return "\n".join([precedente, *nouvelles] if precedente else nouvelles)
 
 
 def global_attributes(
@@ -538,19 +619,27 @@ def global_attributes(
     de provenance doit se voir dans le fichier**, et non être comblée par une
     valeur plausible.
     """
+    acquisitions: list[str] = []
+    if retrieval is not None:
+        # **L'acquisition relève de `history`, pas de `source`.** Elle
+        # modifie la donnée — elle la déplace — et CF réserve `source` à la
+        # méthode de production.
+        horodatage = retrieval.retrieved_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        acquisitions.append(
+            f"{horodatage} : retrieved {retrieval.dataset} "
+            f"from {retrieval.origin} by {retrieval.agent}"
+        )
+
     attrs: dict[str, str] = {
         "Conventions": CONVENTIONS,
-        "history": _ligne_history(jeu.attrs.get("history")),
+        "history": _ligne_history(jeu.attrs.get("history"), *acquisitions),
     }
     if institution := jeu.attrs.get("institution"):
         attrs["institution"] = str(institution)
-    if retrieval is not None:
-        attrs["source"] = source or f"{retrieval.dataset}, origine {retrieval.origin}"
-        if retrieval.license:
-            attrs["license"] = retrieval.license
-        attrs["comment"] = f"Acquis le {retrieval.retrieved_at.isoformat()} par {retrieval.agent}."
-    elif source:
-        attrs["source"] = source
+    if (methode := source or production_source(jeu)) is not None:
+        attrs["source"] = methode
+    if retrieval is not None and retrieval.license:
+        attrs["license"] = retrieval.license
     if title:
         attrs["title"] = title
     elif retrieval is not None:
@@ -683,7 +772,9 @@ __all__ = [
     "ECCODES_MANQUANT",
     "ENCODAGE_TEMPS",
     "SANS_CELL_METHOD",
+    "STATUT_DE_PRODUCTION",
     "SUFFIXE_BORNES",
+    "TYPE_DE_PROCESSUS",
     "UDUNITS",
     "UNITES_INTERVALLE",
     "IntervalleNonRepresentable",
@@ -695,6 +786,7 @@ __all__ = [
     "convert_units",
     "global_attributes",
     "grid_mapping",
+    "production_source",
     "time_bounds",
     "udunits",
     "write_netcdf",
