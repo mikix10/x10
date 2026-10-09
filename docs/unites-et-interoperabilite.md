@@ -156,6 +156,11 @@ Valider chaque unité émise contre UDUNITS lui-même est donc à portée, sur l
 trois systèmes, pour un coût d'installation négligeable. La seule lacune
 relevée est l'absence de roue pour Linux ARM.
 
+> **Mis en œuvre.** Depuis le 8 octobre 2026, la suite de tests de ce dépôt
+> soumet chaque unité émise à UDUNITS, et compare la **définition réduite**
+> de part et d'autre de la conversion — ce qui prouve que la canonicalisation
+> ne change pas la grandeur, garantie plus forte qu'une validité syntaxique.
+
 Un avertissement cependant : `cf-units` **court-circuite** les chaînes
 `unknown` et `no_unit`, qu'il traite comme des sentinelles internes sans les
 soumettre à UDUNITS. Elles passent donc sa validation alors qu'UDUNITS les
@@ -220,7 +225,10 @@ avec `flag_values` et `flag_meanings` — pas d'une grandeur continue.
 5. **Ne pas aérer les unités** : l'espacement autour du tiret change
    l'analyse, et peut la faire échouer.
 6. **Valider pour de bon**, maintenant qu'une bibliothèque UDUNITS portable
-   existe, plutôt que de s'en remettre à une liste tenue à la main.
+   existe, plutôt que de s'en remettre à une liste tenue à la main. Comparer
+   les **définitions réduites** de part et d'autre d'une conversion, et non
+   les seuls libellés : c'est ce qui distingue « la chaîne est analysable » de
+   « la grandeur est inchangée ».
 
 ---
 
