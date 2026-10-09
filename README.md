@@ -79,7 +79,9 @@ seconde note, [docs/agregation-et-reechantillonnage.md](docs/agregation-et-reech
 qu'il est donc légitime de déclarer sur un champ. Une troisième,
 [docs/intervalles-de-temps.md](docs/intervalles-de-temps.md), traite de la
 période sur laquelle porte un champ agrégé — un cumul n'a pas d'instant de
-validité, il a une durée.
+validité, il a une durée. Une quatrième,
+[docs/formats-de-sortie.md](docs/formats-de-sortie.md), relève ce que coûtent
+et permettent le modèle de données, la compression et le découpage.
 
 ## Plan retenu
 
