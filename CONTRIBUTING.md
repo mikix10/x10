@@ -53,7 +53,9 @@ outils de la chaîne en font — à lire avant de toucher aux unités ou aux nom
 standards. Une troisième,
 **[docs/agregation-et-reechantillonnage.md](docs/agregation-et-reechantillonnage.md)**,
 traite de ce que le rééchantillonnage des producteurs conserve ou détruit —
-à lire avant de déclarer une propriété statistique sur un champ.
+à lire avant de déclarer une propriété statistique sur un champ. Et
+**[docs/intervalles-de-temps.md](docs/intervalles-de-temps.md)** pour la
+période des champs agrégés, à lire avant de toucher aux axes temporels.
 
 ## Conventions de code
 

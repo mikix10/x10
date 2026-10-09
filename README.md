@@ -76,7 +76,10 @@ de la chaîne en font réellement, sont relevés dans
 [docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md). Une
 seconde note, [docs/agregation-et-reechantillonnage.md](docs/agregation-et-reechantillonnage.md),
 établit ce que l'interpolation des producteurs conserve et détruit, et ce
-qu'il est donc légitime de déclarer sur un champ.
+qu'il est donc légitime de déclarer sur un champ. Une troisième,
+[docs/intervalles-de-temps.md](docs/intervalles-de-temps.md), traite de la
+période sur laquelle porte un champ agrégé — un cumul n'a pas d'instant de
+validité, il a une durée.
 
 ## Plan retenu
 
