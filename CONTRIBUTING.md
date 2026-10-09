@@ -55,7 +55,10 @@ standards. Une troisième,
 traite de ce que le rééchantillonnage des producteurs conserve ou détruit —
 à lire avant de déclarer une propriété statistique sur un champ. Et
 **[docs/intervalles-de-temps.md](docs/intervalles-de-temps.md)** pour la
-période des champs agrégés, à lire avant de toucher aux axes temporels.
+période des champs agrégés, à lire avant de toucher aux axes temporels. Enfin
+**[docs/formats-de-sortie.md](docs/formats-de-sortie.md)** pour le modèle de
+données, la compression et le découpage — à lire avant de changer la façon
+dont un fichier est écrit.
 
 ## Analyses automatiques de sécurité
 
