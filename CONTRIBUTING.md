@@ -57,6 +57,67 @@ traite de ce que le rééchantillonnage des producteurs conserve ou détruit —
 **[docs/intervalles-de-temps.md](docs/intervalles-de-temps.md)** pour la
 période des champs agrégés, à lire avant de toucher aux axes temporels.
 
+## Analyses automatiques de sécurité
+
+Deux dispositifs tournent sans qu'on les lance. Ils **ne bloquent aucune
+fusion**, délibérément : il faut donc savoir où regarder.
+
+| Dispositif | Quand | Ce qu'il examine |
+|---|---|---|
+| **CodeQL** `python` | chaque push sur `main`, chaque demande de fusion, et le lundi 04 h 17 UTC | le code métier, jeu de règles `security-and-quality` — 172 règles |
+| **CodeQL** `actions` | idem | **nos propres workflows** : droits trop larges, injection par `${{ }}`, action non épinglée — 27 règles |
+| **Dependabot** `uv` | le lundi | `uv.lock` et les `pyproject.toml` du workspace |
+| **Dependabot** `github-actions` | le lundi | les empreintes SHA épinglées dans les workflows |
+
+Le passage hebdomadaire de CodeQL n'est pas une redondance : il applique les
+**règles nouvelles** au code existant, ce qu'aucun push ne déclencherait sur
+un dépôt calme.
+
+### Où consulter les résultats
+
+| Quoi | Où |
+|---|---|
+| Alertes CodeQL | onglet **Security → Code scanning**, et en commentaire de revue sur la demande de fusion concernée |
+| Montées de version | **demandes de fusion** étiquetées `dependencies` |
+| Vulnérabilités connues | onglet **Security → Dependabot alerts** |
+
+### Pourquoi CodeQL ne bloque pas une fusion
+
+Ses contextes ne sont **pas** inscrits au ruleset, et c'est un choix. Une
+analyse de sécurité qui barre la route finit contournée ou désactivée au
+premier faux positif ; elle informe, et c'est au mainteneur d'arbitrer. Une
+analyse rouge n'empêche donc pas de fusionner — mais elle se lit.
+
+### Ce qui est groupé, et ce qui ne l'est pas
+
+Dependabot regroupe ce qui se relit ensemble : l'outillage d'un côté — ruff,
+mypy, pytest —, la pile scientifique de l'autre — cfgrib, eccodes, xarray,
+netCDF4, cf-units. Sans regroupement, une semaine ordinaire ouvrirait cinq
+demandes que personne ne lirait.
+
+**Les montées de majeure restent isolées, une par demande.** C'est un
+changement fonctionnel, à éprouver à part. Dependabot comprend l'épinglage
+par empreinte et déplace le commentaire de version avec le SHA : la
+discipline survit à l'automatisation.
+
+### Secrets
+
+L'analyse de secrets est active, **protection au push comprise** : un jeton
+reconnu d'un fournisseur est refusé à l'envoi, et non signalé après coup.
+
+Elle s'arrête là. Les **motifs hors fournisseur** — clés privées, chaînes de
+connexion, mots de passe détectés par modèle — relèvent de GitHub Secret
+Protection, indisponible sur un dépôt public gratuit. Mesuré le 09/10/2026 :
+l'API accepte la demande d'activation avec un `HTTP 200 OK` et laisse le
+réglage désactivé, sans la moindre erreur.
+
+**Le filet qui compte pour ce dépôt est donc local**, et c'est le skill
+`commit` qui le décrit : `gitleaks`, le contrôle d'identifiants personnels et
+la liste de termes sous confidentialité. Aucun de ces trois contrôles n'a
+d'équivalent chez GitHub — une adresse de messagerie, un chemin nominatif ou
+le nom d'un tiers ne sont pas des secrets au sens d'un analyseur, et
+passeraient sans encombre.
+
 ## Conventions de code
 
 Elles vivent dans **[CLAUDE.md](CLAUDE.md)**, à la racine. Ce fichier est
