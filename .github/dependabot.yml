@@ -1,0 +1,59 @@
+# Mise a jour automatique des dependances.
+#
+# La condition posee dans CLAUDE.md est remplie : `x10-connectors` porte du
+# code metier, et non plus des ebauches. Deux ecosystemes seulement, parce
+# que le depot n'en emploie pas d'autres.
+#
+# **Dependabot comprend l'epinglage par empreinte.** Les actions sont figees
+# par SHA avec le numero de version en commentaire ; il met a jour les deux
+# de concert. C'est ce qui rend enfin traitables les montees de majeure
+# restees en attente.
+version: 2
+
+updates:
+  # --- Actions GitHub ---------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional Commits, comme tout l'historique du depot.
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      # Correctifs et mineures en une seule demande : sans regroupement, une
+      # semaine ordinaire en ouvrirait cinq, et personne ne les relirait.
+      actions-mineures:
+        update-types: [minor, patch]
+    # Les majeures restent **une par demande**, deliberement. CLAUDE.md les
+    # traite comme un changement fonctionnel a eprouver a part, pas comme une
+    # mise a jour de routine.
+
+  # --- Dependances Python, via uv --------------------------------------------
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      outillage:
+        # Ruff, mypy, pytest et consorts : leur montee ne touche pas le
+        # produit, et les portes de qualite disent immediatement si elle passe.
+        patterns: ["ruff", "mypy", "pytest*", "pre-commit", "coverage"]
+      pile-scientifique:
+        # cfgrib, eccodes, xarray, netCDF4, cf-units : c'est ici que se
+        # jouent les deriveS d'outillage que le contrat de sortie surveille.
+        # Regroupees pour etre eprouvees ensemble, comme elles s'emploient.
+        patterns: ["cfgrib", "eccodes*", "xarray", "netCDF4", "cf-units", "numpy", "pandas"]
+      autres-mineures:
+        update-types: [minor, patch]
