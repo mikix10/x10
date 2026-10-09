@@ -14,44 +14,60 @@ Il joue pour X10 le rôle que [GeoDCAT-AP](https://semiceu.github.io/GeoDCAT-AP/
 | DCAT | W3C Data Catalog Vocabulary 3 | <https://www.w3.org/TR/vocab-dcat-3/> |
 | PROV | W3C Provenance Ontology | <https://www.w3.org/TR/prov-o/> |
 | INSPIRE | Directive européenne, métadonnées dérivées d'ISO 19115 | <https://inspire.ec.europa.eu/> |
+| WCMP2 | WMO Core Metadata Profile 2, extension d'OGC API – Records. Appendice F du *Manual on the WMO Information System* (WMO-No. 1060), volume II | <https://github.com/wmo-im/wcmp2> |
 | STAC | SpatioTemporal Asset Catalog | <https://github.com/radiantearth/stac-spec> |
 | ECS | Elastic Common Schema, pour la journalisation | <https://www.elastic.co/guide/en/ecs/current/> |
 
 ## Classes
 
-| X10 | DCAT | INSPIRE / ISO 19115 | STAC | PROV |
-|---|---|---|---|---|
-| `Dataset` | `dcat:Dataset` | ressource de type *dataset* | `Collection` | `prov:Entity` |
-| `Distribution` | `dcat:Distribution` | *Resource locator* | — | — |
-| `Agent` | `dcterms:Agent` | `CI_ResponsibleParty` | entrée de `providers` | `prov:Agent` |
-| `Retrieval` | — (renvoie à PROV) | `LI_Lineage` | — | `prov:Activity` + `Entity` |
-| `CatalogEntry` | `dcat:Catalog` partiel | — | — | — |
-| `granule` | `dcat:Distribution` d'un `dcat:Dataset` | *dataset* d'une *series* | `Item` | `prov:Entity` |
+| X10 | DCAT | INSPIRE / ISO 19115 | WCMP2 | STAC | PROV |
+|---|---|---|---|---|---|
+| `Dataset` | `dcat:Dataset` | ressource de type *dataset* | `dataset` | `Collection` | `prov:Entity` |
+| `granule` | `dcat:Distribution` d'un `dcat:Dataset` | *dataset* d'une *series* | *data granule*, relation `item` | `Item` | `prov:Entity` |
+| `Distribution` | `dcat:Distribution` | *Resource locator* | entrée de `properties.links` | — | — |
+| `Agent` | `dcterms:Agent` | `CI_ResponsibleParty` | entrée de `properties.contacts` | entrée de `providers` | `prov:Agent` |
+| `Retrieval` | — (renvoie à PROV) | `LI_Lineage` | — | — | `prov:Activity` + `Entity` |
+| `CatalogEntry` | `dcat:Catalog` partiel | — | enregistrement WCMP, partiel | — | — |
+
+> Les rôles d'acteur ci-dessous **ne sont pas encore rapprochés de WCMP2**.
+> Son `properties.contacts` porte bien des rôles, hérités d'OGC API – Records,
+> mais les treize cellules demandent une vérification qui n'a pas été faite.
+> Mieux vaut une colonne absente qu'une colonne devinée.
 
 ### Pourquoi « granule », et pas « paquet »
 
 L'unité **téléchargeable** d'une collection n'avait pas de nom chez nous. Le
 mot du producteur, « paquet », entre en collision deux fois : avec le paquet
-**Python** — `CLAUDE.md` emploie les deux sens dans un même fichier — et avec
-**GeoPackage**, norme OGC et format `.gpkg` que X10 produira dès qu'il fera de
-la géographie.
+**Python** — `CLAUDE.md` employait les deux sens à quelques lignes d'écart,
+jusqu'à ce que ce relevé le mette au jour — et avec **GeoPackage**, norme OGC
+et format `.gpkg` que X10 produira dès qu'il fera de la géographie.
 
-`granule` est le terme transverse des référentiels d'observation de la Terre —
-NASA EOSDIS, WIS 2.0 de l'OMM — et correspond à l'`Item` de STAC comme à
-l'*item* d'OGC API. Il n'a **aucun sens logiciel**, ce qui le met hors
-d'atteinte des deux collisions, et il vaut pour le satellite comme pour
-l'océan et l'atmosphère.
+**Le terme vient de l'OMM, pas d'un emprunt à la pratique satellitaire.**
+WCMP2 l'emploie dans sa clause 7, qui est normative :
+
+> *A **dataset** is the primary granularity of a WCMP record describing a
+> collection of data granules.*
+
+et sa table des relations de lien pose `item` pour « a link providing a single
+data granule », `items` pour « numerous data granules » — soit exactement la
+relation d'OGC API – Records, dont WCMP2 est une extension, et de STAC.
+
+Trois sources sont à distinguer, ce que la rédaction initiale confondait :
+
+| Source | Nature | Où `granule` y figure |
+|---|---|---|
+| **WCMP2 / WIS 2.0** | standard de l'OMM | clause **normative** |
+| WIS2 Notification Message | standard de l'OMM | clause **informative** et exemples |
+| NASA EOSDIS, CMR | pratique d'implémentation | usage répandu, sans portée normative |
+
+Le mot n'a par ailleurs **aucun sens logiciel**, ce qui le met hors d'atteinte
+des deux collisions, et il vaut pour le satellite comme pour l'océan et
+l'atmosphère.
 
 Il ne remplace pas `Distribution`, qui dit **où aller chercher** ; un granule
 est ce qu'on rapporte. Et « paquet » reste employé pour désigner un produit
 **nommé** du producteur — le paquet SP1, le paquet HP1 —, où le mot est le
 sien et ne prête pas à confusion.
-
-| Niveau | X10 | DCAT 3 | STAC | OGC API | EO |
-|---|---|---|---|---|---|
-| Série thématique | `Dataset` | `DatasetSeries` | `Collection` | *collection* | Collection |
-| Unité téléchargeable | **`granule`** | `Dataset` + `Distribution` | `Item` | *item* | **Granule** |
-| Accès concret | `Distribution` | `Distribution` | `Asset` | — | — |
 
 ## Rôles d'acteur
 
