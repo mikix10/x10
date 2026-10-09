@@ -31,7 +31,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from .base import AGENT
+from .base import AGENT, ecriture_atomique
 from .decoding import COORD_INDEFINIE, GribIndisponible, _numpy
 from .observability import connector_logger
 
@@ -757,8 +757,11 @@ def write_netcdf(
         # c'est la coordonnée qui la désigne.
         prepare["valid_time"].attrs["bounds"] = nom_bornes
 
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    prepare.to_netcdf(cible, engine="netcdf4", encoding=_encodage(prepare, compress))
+    # L'écriture est atomique : un NetCDF tronqué s'ouvre parfois sans erreur
+    # et rend des variables amputées, ce qui est exactement le genre de panne
+    # silencieuse que la chaîne doit s'interdire.
+    with ecriture_atomique(cible) as provisoire:
+        prepare.to_netcdf(provisoire, engine="netcdf4", encoding=_encodage(prepare, compress))
     return cible
 
 
