@@ -216,6 +216,7 @@ Les procédures pas-à-pas ne sont pas dans ce fichier : elles vivent dans `.cla
 | [commit](.claude/skills/commit/SKILL.md) | **Avant tout commit, sans exception.** Contrôle des termes proscrits, quality gates, Conventional Commits, branche, identité et signature, relecture du message. |
 | [github-protection](.claude/skills/github-protection/SKILL.md) | Poser, vérifier ou modifier la protection de `main`. Le ruleset est versionné en JSON à côté du skill. |
 | [security](.claude/skills/security/SKILL.md) | Avant toute nouvelle source de données, moyen d'accès ou surface d'exposition, et en cas de suspicion de fuite de secret. |
+| [historique](.claude/skills/historique/SKILL.md) | Dès qu'une question porte sur **le fil de nos échanges** — qui a proposé quoi, quand une décision a basculé — et non sur l'état du code. Le transcrit de session est la source ; la mémoire de conversation n'en est pas une. |
 
 Trois points sont trop structurants pour n'exister que dans un skill :
 
