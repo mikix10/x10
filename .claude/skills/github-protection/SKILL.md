@@ -63,7 +63,19 @@ git push origin main
 | `required_linear_history` | pas de commit de fusion, cohérent avec le squash |
 | `required_signatures` | tout commit doit être signé |
 | `pull_request` | PR obligatoire, **0 approbation requise**, squash uniquement |
-| `required_status_checks` | `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, branche à jour avant merge |
+| `required_status_checks` | `Signatures des commits`, `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, branche à jour avant merge |
+
+### Pourquoi `Signatures des commits` est un contexte requis
+
+`required_signatures` ci-dessus **ne suffit pas**, et c'est contre-intuitif.
+Sous fusion en squash, GitHub crée un commit nouveau et le signe de sa propre
+clé : c'est le seul que la règle examine, et il l'est par construction. Les
+commits de la branche ne sont donc jamais contrôlés, quoi qu'ils contiennent.
+
+Le job de CI les parcourt par l'API et échoue si l'un n'est pas vérifié.
+**C'est lui qui rend l'exigence effective** — la règle de ruleset seule est
+une garantie de façade. Ajouté le 12/10/2026 ; les commits de Dependabot,
+signés par GitHub, passent.
 
 ## Renommer ou ajouter un job de CI : l'ordre compte
 
@@ -168,7 +180,7 @@ gh api -X POST  repos/<owner>/<repo>/rulesets --input ruleset-main.json
 
 `ruleset-main.json` cible `~DEFAULT_BRANCH` et non un nom en dur, il s'applique donc quelle que soit la branche par défaut.
 
-**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Lint et typage`, `Tests (Python 3.12)`, `Build des packages` et les deux contextes de portabilité. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
+**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Signatures des commits`, `Lint et typage`, `Tests (Python 3.12)`, `Build des packages` et le contexte de portabilité Windows. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
 
 ### Réglages de sécurité
 

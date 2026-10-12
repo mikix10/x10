@@ -46,6 +46,9 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
+            "context": "Signatures des commits"
+          },
+          {
             "context": "Lint et typage"
           },
           {
