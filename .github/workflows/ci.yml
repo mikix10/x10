@@ -39,6 +39,42 @@ jobs:
       - name: Mypy
         run: uv run mypy
 
+  signatures:
+    # Le ruleset exige `required_signatures`, et cette exigence est aujourd'hui
+    # SANS EFFET sous fusion par squash : GitHub cree alors un commit nouveau
+    # et le signe de sa propre cle. C'est le seul commit que la regle examine,
+    # et il est signe par construction — quoi qu'ait contenu la branche.
+    #
+    # Ce job examine les commits de la demande eux-memes. Il ne fait qu'un
+    # appel d'API : ni depot a recuperer, ni dependance a installer, donc
+    # aucun jeton laisse dans un `.git/config`.
+    #
+    # Verifie le 12/10/2026 : les commits de Dependabot sont signes par
+    # GitHub et passent ; les notres le sont en SSH.
+    name: Signatures des commits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Tous les commits de la demande sont signes et verifies
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPOT: ${{ github.repository }}
+          DEMANDE: ${{ github.event.pull_request.number }}
+        run: |
+          non_verifies=$(gh api --paginate "repos/$DEPOT/pulls/$DEMANDE/commits" \
+            --jq '.[] | select(.commit.verification.verified | not)
+                      | "\(.sha[0:7])  \(.commit.verification.reason)"')
+          if [ -n "$non_verifies" ]; then
+            echo "::error::Commits non signes ou non verifies :"
+            echo "$non_verifies"
+            exit 1
+          fi
+          echo "Tous les commits de la demande sont signes et verifies."
+
   test:
     # Python 3.12 est la cible supportée et bloque la CI.
     # Python 3.13 est un canari de compatibilité ascendante : il ne bloque pas.
