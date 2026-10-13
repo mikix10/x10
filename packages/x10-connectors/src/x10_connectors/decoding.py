@@ -53,11 +53,24 @@ READ_KEYS = (
     # `check_tables_version`.
     "tablesVersion",
     "tablesVersionLatest",
+    # Version des tables **locales**, octet 11 de la section 1. Zéro y
+    # signifie que les tables locales ne sont pas employées, donc que seules
+    # les entrées des tables maîtresses hors plage réservée à l'usage local
+    # sont valides. Confrontée aux numéros de paramètre par
+    # `check_local_tables`.
+    "localTablesVersion",
 )
 
-#: Attributs portant les deux versions de tables, une fois décodés.
+#: Attributs portant les versions de tables, une fois décodés.
 CLE_TABLES_DECLAREE = "GRIB_tablesVersion"
 CLE_TABLES_CONNUE = "GRIB_tablesVersionLatest"
+CLE_TABLES_LOCALES = "GRIB_localTablesVersion"
+
+#: Première valeur de la **plage réservée à l'usage local**. Le format la
+#: réserve dans les trois composantes du triplet — discipline, catégorie,
+#: numéro — et jusqu'à 254, 255 valant « manquant ». Un code de cette plage
+#: n'a de sens que rapporté à une table locale.
+PLAGE_USAGE_LOCAL = 192
 
 #: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
 #: sortie le perdait : un consommateur devait alors supposer, et les modèles
@@ -135,6 +148,10 @@ class GribIndisponible(RuntimeError):
     """La pile de décodage GRIB n'est pas installée."""
 
 
+class ChampsPerdus(RuntimeError):
+    """Des paramètres présents dans le fichier n'apparaissent pas au décodage."""
+
+
 def _cfgrib() -> ModuleType:
     try:
         import cfgrib
@@ -147,6 +164,18 @@ def _cfgrib() -> ModuleType:
     # Le passer par une variable typée garde la frontière explicite plutôt que
     # de laisser `Any` remonter dans la signature.
     module: ModuleType = cfgrib
+    return module
+
+
+def _eccodes() -> ModuleType:
+    try:
+        import eccodes
+    except ImportError as exc:  # pragma: no cover - depend de l'extra
+        raise GribIndisponible(
+            "La pile de décodage GRIB est absente. Installer l'extra : "
+            "uv sync --all-packages --extra grib"
+        ) from exc
+    module: ModuleType = eccodes
     return module
 
 
@@ -185,7 +214,6 @@ CF_STANDARD_NAMES: dict[tuple[int, int, int], str] = {
     (0, 2, 1): "wind_speed",
     (0, 2, 22): "wind_speed_of_gust",
     (0, 3, 1): "air_pressure_at_mean_sea_level",
-    (0, 3, 6): "geopotential_height",
     (0, 3, 18): "atmosphere_boundary_layer_thickness",
     (0, 4, 7): "surface_downwelling_shortwave_flux_in_air",
     (0, 5, 3): "surface_downwelling_longwave_flux_in_air",
@@ -206,6 +234,28 @@ SANS_NOM_CF: frozenset[tuple[int, int, int]] = frozenset(
         (0, 19, 11),  # energie cinetique turbulente
     }
 )
+
+#: Codes dont le **triplet ne détermine pas la grandeur**. Rien ne manque au
+#: vocabulaire CF ici : c'est le code GRIB qui désigne plusieurs champs, de
+#: sorte qu'aucun nom ne peut être posé sans savoir d'où vient le fichier.
+#: Les distinguer de `SANS_NOM_CF` importe — l'un se corrige en proposant un
+#: nom à CF, l'autre pas.
+#:
+#: `(0, 3, 6)`, « Geometric height », est le cas établi. **L'OMM le dit
+#: elle-même** : sa note 124 recommande les numéros 33 et 34 à la place du 6,
+#: « because it does not indicate whether this is referring to height above
+#: mean sea level or height above ground » — et laisse le 6 opérationnel.
+#: Mesuré le 13/10/2026 sur la grille AROME 0,025° : le code porte le relief
+#: du modèle dans les champs CONSTANT et un **autre** champ dans le paquet
+#: SP2, masqué sur 17,2 % du domaine et s'écartant du relief de 44 m en
+#: médiane au-dessus de 1 000 m. La table du producteur le nomme `ALTITUDE`,
+#: sans préciser laquelle.
+#:
+#: Notre table posait `geopotential_height`, qui est **faux** à deux titres :
+#: c'est l'entrée 5 de la table 4.2-0-3, et elle s'exprime en mètres
+#: géopotentiels quand le champ est en mètres. Le retirer vaut mieux que de
+#: lui substituer une autre supposition.
+TRIPLET_AMBIGU: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
 
 #: Direction et force du vent. **Écartées au décodage** : elles se recalculent
 #: exactement à partir des composantes, et la direction est une grandeur
@@ -251,6 +301,12 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     avertissement — un compte rendu `success` sur une donnée incomplète. Un
     échec visible se corrige ; une sortie fausse se propage. `"warn"` ou
     `"ignore"` restent accessibles à qui préfère la tolérance, et l'assument.
+
+    **Le même paramètre gouverne une seconde perte**, de même nature et
+    d'origine différente : deux paramètres qu'ecCodes ne résout pas reçoivent
+    tous deux le nom `unknown`, et l'un écrase l'autre dans le jeu. Voir
+    `champs_perdus`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
+    connaître.
     """
     jeux: list[xr.Dataset] = _cfgrib().open_datasets(
         str(source),
@@ -262,6 +318,22 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
         },
     )
     granule = tuple(jeux)
+
+    # Un champ qui disparaît n'est pas une métadonnée dégradée : c'est de la
+    # donnée en moins. Même faute que le `errors="warn"` de `cfgrib`, et même
+    # réponse — on la traite donc sous le **même paramètre**, pour que
+    # l'appelant n'ait qu'un seul réglage de tolérance à connaître.
+    if perdus := champs_perdus(source, granule):
+        detail = ", ".join(str(code) for code in sorted(perdus))
+        message = (
+            f"{len(perdus)} paramètre(s) du granule n'apparaissent pas au "
+            f"décodage : {detail}. Deux paramètres portant le même nom court "
+            "se recouvrent dans un jeu, et le second écrase le premier."
+        )
+        if errors == "raise":
+            raise ChampsPerdus(message)
+        if errors != "ignore":
+            _log.warning(message, extra={"x10.granule": str(source)})
 
     # Le référentiel de tables vit hors de notre code et change sans nous.
     # Une seule fois par granule : la version est une propriété du fichier,
@@ -276,6 +348,12 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
                 "x10.tables_version_connue": versions[1] if versions else None,
             },
         )
+
+    # Même raison, même portée : la déclaration de tables locales est une
+    # propriété du fichier. L'écart est un invariant du format, indépendant
+    # du producteur.
+    if (ecart := check_local_tables(granule)) is not None:
+        _log.warning(ecart, extra={"x10.granule": str(source)})
 
     return granule
 
@@ -341,6 +419,121 @@ def check_tables_version(jeux: tuple[xr.Dataset, ...]) -> str | None:
         f"version {connue} que connaît notre ecCodes. Les paramètres introduits "
         "depuis sortiront en 'unknown' ; ceux dont la définition a changé seront "
         "résolus contre l'ancienne, sans que rien ne le signale."
+    )
+
+
+def triplets_du_fichier(source: Path) -> frozenset[tuple[int, int, int]]:
+    """Les identifiants GRIB présents dans un granule, lus **sans le décoder**.
+
+    Seuls les en-têtes sont parcourus : la section de données n'est jamais
+    décompressée, de sorte que le coût reste négligeable même sur un granule
+    de plusieurs centaines de mébioctets.
+
+    **Un message illisible est passé, pas remonté.** Ce relevé sert à dire ce
+    que le fichier contient ; d'un message qu'on ne sait pas lire, on ne peut
+    rien affirmer, et prétendre le contraire accuserait le décodage d'une
+    perte dont il n'est pas responsable. La lisibilité des messages relève du
+    paramètre `errors` de `open_granule`, qui s'en charge en amont.
+    """
+    eccodes = _eccodes()
+    vus: set[tuple[int, int, int]] = set()
+    with source.open("rb") as flux:
+        while True:
+            position = flux.tell()
+            try:
+                h = eccodes.codes_grib_new_from_file(flux)
+            except Exception:  # message illisible : voir la note du docstring
+                # Sans progression dans le fichier, la boucle ne finirait pas.
+                if flux.tell() == position:
+                    break
+                continue
+            if h is None:
+                break
+            try:
+                vus.add(
+                    (
+                        int(eccodes.codes_get(h, "discipline")),
+                        int(eccodes.codes_get(h, "parameterCategory")),
+                        int(eccodes.codes_get(h, "parameterNumber")),
+                    )
+                )
+            finally:
+                eccodes.codes_release(h)
+    return frozenset(vus)
+
+
+def champs_perdus(source: Path, jeux: tuple[xr.Dataset, ...]) -> frozenset[tuple[int, int, int]]:
+    """Identifiants présents dans le fichier et absents du décodage.
+
+    **Le troisième silence de la chaîne, mesuré le 13/10/2026.** `cfgrib`
+    nomme ses variables d'après le nom court qu'ecCodes résout. Deux
+    paramètres portant **le même nom court** se recouvrent donc dans un jeu,
+    et le second écrase le premier : quatre messages entrent, un champ sort.
+    Sans exception, sans avertissement, et le compte rendu dirait `success`.
+
+    Deux familles de recouvrement, et la seconde surprend.
+
+    Les codes qu'ecCodes **ne résout pas** reçoivent tous `unknown`. Ce n'est
+    pas un cas d'école : `(0, 6, 11)` et `(0, 17, 4)`, du paquet SP3 d'ARPEGE
+    0,25°, ne sont résolus ni par ecCodes ni par la table du producteur.
+
+    Mais des codes **parfaitement résolus** se recouvrent aussi. Relevé sur
+    365 codes des disciplines 0 et 10 : **cinq noms courts** désignent
+    plusieurs triplets — dont `h` pour `(0, 3, 6)` et `(0, 3, 34)`, et `tmax`
+    pour une température maximale `(0, 0, 4)` et une période de houle
+    `(10, 0, 23)`. Le recouvrement n'est donc pas réservé aux codes exotiques.
+
+    Ni `errors="raise"` ni `compat="equals"` n'y voient quoi que ce soit : le
+    premier porte sur les messages illisibles, le second sur la fusion de
+    jeux. La perte se produit **à l'intérieur** d'un jeu, au nommage.
+    """
+    decodes = {
+        code for jeu in jeux for var in jeu.data_vars.values() if (code := triplet(var)) is not None
+    }
+    return frozenset(triplets_du_fichier(source) - decodes)
+
+
+def check_local_tables(jeux: tuple[xr.Dataset, ...]) -> str | None:
+    """Signale un paramètre de la plage locale sur un fichier qui n'en déclare aucune.
+
+    **Un invariant du format, pas un cas connu.** La section 1 donne à son
+    octet 11 la valeur zéro pour dire que les tables locales ne sont pas
+    employées, et que seules les entrées des tables maîtresses *hors* plage
+    réservée à l'usage local sont valides. Un code de cette plage dans un tel
+    fichier est donc une contradiction interne au message : il n'existe aucune
+    table où aller le lire.
+
+    Le contrôle ne connaît aucun producteur et n'en nomme aucun. C'est ce qui
+    lui permet de rendre la main sur une source que nous n'avons jamais vue.
+
+    Mesuré le 12/10/2026 sur 863 messages d'AROME 0,025° : quarante-deux
+    messages portent `(0, 16, 192)` alors que tous déclarent une version de
+    tables locales nulle. ecCodes rend alors `shortName`, `name` **et**
+    `units` à `unknown`. Le producteur publie bien la définition — `RFLCTVT` —
+    mais hors du mécanisme que le format prévoit pour la désigner.
+
+    Renvoie le message d'écart, ou `None`. **Ne lève pas** : le fichier reste
+    exploitable pour tous ses autres champs, et c'est au contrat de sortie,
+    non à ce contrôle, de refuser une donnée.
+    """
+    fautifs: dict[tuple[int, int, int], str] = {}
+    for jeu in jeux:
+        for nom, var in jeu.data_vars.items():
+            locales = var.attrs.get(CLE_TABLES_LOCALES)
+            if not isinstance(locales, (int, float)) or int(locales) != 0:
+                continue
+            code = triplet(var)
+            if code is None or max(code) < PLAGE_USAGE_LOCAL:
+                continue
+            fautifs.setdefault(code, str(nom))
+    if not fautifs:
+        return None
+    detail = ", ".join(f"{code} ({nom})" for code, nom in sorted(fautifs.items()))
+    return (
+        "Le granule déclare n'employer aucune table locale et porte pourtant "
+        f"{len(fautifs)} paramètre(s) de la plage réservée à l'usage local : "
+        f"{detail}. Aucune table ne permet de les interpréter ; leur nom et "
+        "leur unité resteront indéterminés."
     )
 
 
@@ -418,22 +611,29 @@ __all__ = [
     "CF_STANDARD_NAMES",
     "CLE_TABLES_CONNUE",
     "CLE_TABLES_DECLAREE",
+    "CLE_TABLES_LOCALES",
     "COORD_INDEFINIE",
     "GEO_KEYS",
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
+    "PLAGE_USAGE_LOCAL",
     "READ_KEYS",
     "SANS_NOM_CF",
+    "TRIPLET_AMBIGU",
     "VALUES_DTYPE",
     "VENT_DERIVE",
+    "ChampsPerdus",
     "GribIndisponible",
     "apply_cf_names",
+    "champs_perdus",
+    "check_local_tables",
     "check_tables_version",
     "drop_derived_wind",
     "normalise",
     "open_granule",
     "tables_version",
     "triplet",
+    "triplets_du_fichier",
     "wind_from_direction",
     "wind_speed",
 ]
