@@ -1,4 +1,4 @@
-"""Rien n'apparaît sous son nom définitif avant d'être complet.
+"""Socle commun — l'écriture atomique, quel que soit le format écrit.
 
 Le défaut que ces tests ferment est silencieux : un processus interrompu en
 cours de transfert laissait un fichier partiel que *rien ne distinguait* d'un
@@ -18,14 +18,14 @@ from typing import Any
 import pytest
 
 from x10_connectors import (
-    AucunFichierProduit,
     EcmwfIfsError,
     EcmwfIfsOpenDataConnector,
     EcmwfIfsRequest,
     MeteoFrancePntError,
-    ecriture_atomique,
+    NoOutputFileError,
+    atomic_write,
 )
-from x10_connectors.base import SUFFIXE_PARTIEL
+from x10_connectors.base import PARTIAL_SUFFIX
 
 
 class _PanneSimulee(RuntimeError):
@@ -42,7 +42,7 @@ def _residus(dossier: Path) -> list[Path]:
 
 def test_la_cible_n_apparait_qu_une_fois_l_ecriture_finie(tmp_path):
     cible = tmp_path / "granule.grib2"
-    with ecriture_atomique(cible) as provisoire:
+    with atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"GRIB7777")
         assert not cible.exists(), "la cible ne doit pas exister avant la fin du bloc"
     assert cible.read_bytes() == b"GRIB7777"
@@ -51,7 +51,7 @@ def test_la_cible_n_apparait_qu_une_fois_l_ecriture_finie(tmp_path):
 
 def test_un_echec_ne_laisse_ni_cible_ni_residu(tmp_path):
     cible = tmp_path / "granule.grib2"
-    with pytest.raises(_PanneSimulee), ecriture_atomique(cible) as provisoire:
+    with pytest.raises(_PanneSimulee), atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"GRI")  # transfert interrompu
         raise _PanneSimulee
     assert not cible.exists()
@@ -62,7 +62,7 @@ def test_un_echec_preserve_la_version_precedente(tmp_path):
     """Une acquisition ratée ne doit pas détruire la précédente, qui était bonne."""
     cible = tmp_path / "granule.grib2"
     cible.write_bytes(b"ancien mais valide")
-    with pytest.raises(_PanneSimulee), ecriture_atomique(cible) as provisoire:
+    with pytest.raises(_PanneSimulee), atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"nouveau, incomplet")
         raise _PanneSimulee
     assert cible.read_bytes() == b"ancien mais valide"
@@ -72,7 +72,7 @@ def test_un_echec_preserve_la_version_precedente(tmp_path):
 def test_une_ecriture_reussie_remplace_la_version_precedente(tmp_path):
     cible = tmp_path / "granule.grib2"
     cible.write_bytes(b"ancien")
-    with ecriture_atomique(cible) as provisoire:
+    with atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"nouveau")
     assert cible.read_bytes() == b"nouveau"
 
@@ -80,9 +80,9 @@ def test_une_ecriture_reussie_remplace_la_version_precedente(tmp_path):
 def test_le_provisoire_est_voisin_de_la_cible(tmp_path):
     """Condition de l'atomicité : un renommage entre systèmes de fichiers copie."""
     cible = tmp_path / "sous" / "dossier" / "granule.grib2"
-    with ecriture_atomique(cible) as provisoire:
+    with atomic_write(cible) as provisoire:
         assert provisoire.parent == cible.parent
-        assert provisoire.name.endswith(SUFFIXE_PARTIEL)
+        assert provisoire.name.endswith(PARTIAL_SUFFIX)
         provisoire.write_bytes(b"x")
 
 
@@ -91,7 +91,7 @@ def test_le_provisoire_est_unique_a_chaque_appel(tmp_path):
     cible = tmp_path / "granule.grib2"
     vus: set[Path] = set()
     for _ in range(5):
-        with ecriture_atomique(cible) as provisoire:
+        with atomic_write(cible) as provisoire:
             vus.add(provisoire)
             provisoire.write_bytes(b"x")
     assert len(vus) == 5
@@ -99,7 +99,7 @@ def test_le_provisoire_est_unique_a_chaque_appel(tmp_path):
 
 def test_l_arborescence_manquante_est_creee(tmp_path):
     cible = tmp_path / "a" / "b" / "granule.grib2"
-    with ecriture_atomique(cible) as provisoire:
+    with atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"x")
     assert cible.exists()
 
@@ -107,7 +107,7 @@ def test_l_arborescence_manquante_est_creee(tmp_path):
 def test_un_bloc_qui_n_ecrit_rien_leve(tmp_path):
     """Publier une absence en silence serait la même faute, à l'envers."""
     cible = tmp_path / "granule.grib2"
-    with pytest.raises(AucunFichierProduit, match=r"granule\.grib2"), ecriture_atomique(cible):
+    with pytest.raises(NoOutputFileError, match=r"granule\.grib2"), atomic_write(cible):
         pass
     assert not cible.exists()
 
@@ -116,7 +116,7 @@ def test_une_interruption_du_processus_est_aussi_nettoyee(tmp_path):
     """`KeyboardInterrupt` n'hérite pas d'`Exception` : le nettoyage doit
     quand même avoir lieu, sans quoi un arrêt manuel laisserait un résidu."""
     cible = tmp_path / "granule.grib2"
-    with pytest.raises(KeyboardInterrupt), ecriture_atomique(cible) as provisoire:
+    with pytest.raises(KeyboardInterrupt), atomic_write(cible) as provisoire:
         provisoire.write_bytes(b"partiel")
         raise KeyboardInterrupt
     assert _residus(tmp_path) == []
@@ -129,7 +129,7 @@ def test_write_netcdf_ne_laisse_aucun_residu_si_l_ecriture_echoue(tmp_path, monk
     """Un NetCDF tronqué s'ouvre parfois sans erreur et rend des variables
     amputées — la panne la plus discrète de toute la chaîne."""
     xr = pytest.importorskip("xarray")
-    from x10_connectors import output
+    from x10_connectors import netcdf_cf
 
     jeu = xr.Dataset({"t": ("x", [1.0, 2.0])}, coords={"x": [0, 1]})
     jeu["t"].attrs["units"] = "K"
@@ -140,7 +140,7 @@ def test_write_netcdf_ne_laisse_aucun_residu_si_l_ecriture_echoue(tmp_path, monk
     monkeypatch.setattr(xr.Dataset, "to_netcdf", _echoue)
     cible = tmp_path / "sortie.nc"
     with pytest.raises(_PanneSimulee):
-        output.write_netcdf(jeu, cible)
+        netcdf_cf.write_netcdf(jeu, cible)
     assert not cible.exists()
     assert _residus(tmp_path) == []
 
@@ -151,8 +151,8 @@ def test_write_netcdf_ne_laisse_aucun_residu_si_l_ecriture_echoue(tmp_path, monk
 RESEAU = "2026-10-09T00:00:00Z"
 
 
-def _cle(paquet: str, tranche: str) -> str:
-    return f"pnt/{RESEAU}/arome/0025/{paquet}/arome__0025__{paquet}__{tranche}__{RESEAU}.grib2"
+def _cle(granule: str, time_range: str) -> str:
+    return f"pnt/{RESEAU}/arome/0025/{granule}/arome__0025__{granule}__{time_range}__{RESEAU}.grib2"
 
 
 class _TransportQuiLache:
@@ -196,11 +196,11 @@ def test_meteofrance_un_transfert_coupe_ne_laisse_aucun_residu(tmp_path):
 class _ClientTropGros:
     """Écrit un fichier qui dépasse le plafond : le refus vient après écriture."""
 
-    def __init__(self, taille: int, **kwargs: Any) -> None:
-        self.taille = taille
+    def __init__(self, size: int, **kwargs: Any) -> None:
+        self.size = size
 
     def retrieve(self, request: dict[str, Any], target: str) -> None:
-        Path(target).write_bytes(b"GRIB" + b"\x00" * (self.taille - 8) + b"7777")
+        Path(target).write_bytes(b"GRIB" + b"\x00" * (self.size - 8) + b"7777")
 
 
 def test_ecmwf_un_depassement_de_plafond_ne_laisse_aucun_residu(tmp_path):
@@ -215,7 +215,7 @@ def test_ecmwf_un_depassement_de_plafond_ne_laisse_aucun_residu(tmp_path):
             destination=tmp_path,
             request=EcmwfIfsRequest(parameters=("2t",)),
             max_bytes=512,
-            client_factory=lambda **kwargs: _ClientTropGros(taille=4096, **kwargs),
+            client_factory=lambda **kwargs: _ClientTropGros(size=4096, **kwargs),
         ).fetch()
 
     assert _residus(tmp_path) == []
@@ -227,7 +227,7 @@ def test_ecmwf_une_acquisition_normale_publie_bien_la_cible(tmp_path):
     resultat = EcmwfIfsOpenDataConnector(
         destination=tmp_path,
         request=EcmwfIfsRequest(parameters=("2t",)),
-        client_factory=lambda **kwargs: _ClientTropGros(taille=1024, **kwargs),
+        client_factory=lambda **kwargs: _ClientTropGros(size=1024, **kwargs),
     ).fetch()
 
     assert resultat.outcome == "success"

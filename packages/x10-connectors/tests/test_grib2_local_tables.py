@@ -1,4 +1,4 @@
-"""Un paramètre de la plage locale sur un fichier qui n'en déclare aucune.
+"""GRIB2 — un paramètre de la plage locale sans table locale déclarée.
 
 **Un invariant du format, pas un cas connu.** La section 1 donne à son
 octet 11 la valeur zéro pour dire que les tables locales ne sont pas
@@ -18,9 +18,9 @@ from __future__ import annotations
 import logging
 
 import pytest
-from fixtures_grib import Champ, paquet
+from fixtures_grib2 import Field, granule
 
-decoding = pytest.importorskip("x10_connectors.decoding")
+grib2 = pytest.importorskip("x10_connectors.grib2")
 
 
 # --- Le constat qui justifie le contrôle -------------------------------------
@@ -36,9 +36,9 @@ def test_eccodes_ne_resout_rien_et_ne_dit_rien(tmp_path):
         eccodes.codes_set(h, "parameterCategory", 16)
         eccodes.codes_set(h, "parameterNumber", 192)
         assert eccodes.codes_get(h, "localTablesVersion") == 0
-        for cle in ("shortName", "name", "units"):
-            assert eccodes.codes_get(h, cle) == "unknown", (
-                f"{cle} devrait rester indéterminé — si ecCodes le résout "
+        for key in ("shortName", "name", "units"):
+            assert eccodes.codes_get(h, key) == "unknown", (
+                f"{key} devrait rester indéterminé — si ecCodes le résout "
                 "désormais, c'est une table locale embarquée, à relever"
             )
     finally:
@@ -49,13 +49,13 @@ def test_eccodes_ne_resout_rien_et_ne_dit_rien(tmp_path):
 
 
 def test_un_parametre_de_la_plage_normalisee_ne_declenche_rien(tmp_path):
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=0, number=0)])
-    assert decoding.check_local_tables(decoding.open_granule(chemin)) is None
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0)])
+    assert grib2.check_local_tables(grib2.open_granule(chemin)) is None
 
 
 def test_un_numero_de_la_plage_locale_sans_table_locale_est_signale(tmp_path):
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=16, number=192)])
-    ecart = decoding.check_local_tables(decoding.open_granule(chemin))
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=16, number=192)])
+    ecart = grib2.check_local_tables(grib2.open_granule(chemin))
     assert ecart is not None
     assert "(0, 16, 192)" in ecart
     assert "aucune table locale" in ecart
@@ -64,19 +64,19 @@ def test_un_numero_de_la_plage_locale_sans_table_locale_est_signale(tmp_path):
 def test_une_categorie_de_la_plage_locale_est_signalee_aussi(tmp_path):
     """Le format réserve la plage dans les trois composantes, pas seulement
     dans le numéro de paramètre."""
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=192, number=1)])
-    ecart = decoding.check_local_tables(decoding.open_granule(chemin))
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=192, number=1)])
+    ecart = grib2.check_local_tables(grib2.open_granule(chemin))
     assert ecart is not None
     assert "(0, 192, 1)" in ecart
 
 
 def test_une_table_locale_declaree_leve_le_signalement(tmp_path):
     """Le même code, mais le fichier dit cette fois où aller le lire."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192, tables_locales=1)],
+        [Field(category=16, number=192, local_tables=1)],
     )
-    assert decoding.check_local_tables(decoding.open_granule(chemin)) is None
+    assert grib2.check_local_tables(grib2.open_granule(chemin)) is None
 
 
 def test_le_signalement_compte_les_codes_sans_les_repeter(tmp_path):
@@ -87,43 +87,43 @@ def test_le_signalement_compte_les_codes_sans_les_repeter(tmp_path):
     distincts. Sans cela ils se recouvriraient au nommage — voir
     `test_champs_perdus`.
     """
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=16, number=192, step=0),
-            Champ(category=16, number=192, step=1),
-            Champ(category=16, number=193, level_type=1, level=0, step=0),
-            Champ(category=16, number=193, level_type=1, level=0, step=1),
+            Field(category=16, number=192, step=0),
+            Field(category=16, number=192, step=1),
+            Field(category=16, number=193, level_type=1, level=0, step=0),
+            Field(category=16, number=193, level_type=1, level=0, step=1),
         ],
     )
-    ecart = decoding.check_local_tables(decoding.open_granule(chemin, errors="ignore"))
+    ecart = grib2.check_local_tables(grib2.open_granule(chemin, errors="ignore"))
     assert ecart is not None
     assert "2 paramètre(s)" in ecart
 
 
 def test_un_granule_vide_ne_declenche_rien():
-    assert decoding.check_local_tables(()) is None
+    assert grib2.check_local_tables(()) is None
 
 
 # --- Le branchement ----------------------------------------------------------
 
 
 def test_l_ouverture_journalise_l_ecart_une_fois(tmp_path, caplog):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192, step=0), Champ(category=16, number=192, step=1)],
+        [Field(category=16, number=192, step=0), Field(category=16, number=192, step=1)],
     )
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
-        decoding.open_granule(chemin)
+        grib2.open_granule(chemin)
     alertes = [e for e in caplog.records if "plage réservée à l'usage local" in e.getMessage()]
     assert len(alertes) == 1, "une seule fois par granule, pas une fois par hypercube"
     assert alertes[0].__dict__["x10.granule"] == str(chemin)
 
 
 def test_l_ouverture_ne_journalise_rien_sur_un_granule_conforme(tmp_path, caplog):
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=0, number=0)])
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0)])
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
-        decoding.open_granule(chemin)
+        grib2.open_granule(chemin)
     assert not [e for e in caplog.records if "plage réservée à l'usage local" in e.getMessage()]
 
 
@@ -132,10 +132,10 @@ def test_l_ouverture_ne_journalise_rien_sur_un_granule_conforme(tmp_path, caplog
 
 def test_le_granule_reste_decodable(tmp_path):
     """Le contrôle informe l'exploitant ; il ne retire rien du résultat."""
-    jeux = decoding.open_granule(
-        paquet(
+    datasets = grib2.open_granule(
+        granule(
             tmp_path / "granule.grib2",
-            [Champ(category=16, number=192), Champ(category=0, number=0)],
+            [Field(category=16, number=192), Field(category=0, number=0)],
         )
     )
-    assert sum(len(j.data_vars) for j in jeux) == 2
+    assert sum(len(j.data_vars) for j in datasets) == 2

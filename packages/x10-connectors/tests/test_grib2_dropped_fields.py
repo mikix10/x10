@@ -1,4 +1,4 @@
-"""Deux paramètres irrésolus reçoivent le même nom, et l'un écrase l'autre.
+"""GRIB2 — deux paramètres de même nom court, et l'un écrase l'autre.
 
 **Le troisième silence de la chaîne**, mesuré le 13/10/2026. `cfgrib` nomme
 ses variables d'après le nom court qu'ecCodes résout. Deux codes qu'ecCodes
@@ -22,9 +22,9 @@ import logging
 
 import numpy as np
 import pytest
-from fixtures_grib import Champ, paquet
+from fixtures_grib2 import Field, granule
 
-decoding = pytest.importorskip("x10_connectors.decoding")
+grib2 = pytest.importorskip("x10_connectors.grib2")
 
 
 # --- Le constat --------------------------------------------------------------
@@ -32,37 +32,37 @@ decoding = pytest.importorskip("x10_connectors.decoding")
 
 def test_deux_codes_irresolus_se_recouvrent_au_nommage(tmp_path):
     """Le cœur du sujet. Si `cfgrib` les distinguait, ce module serait inutile."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=16, number=192, valeurs=np.full(45, 111.0)),
-            Champ(category=16, number=193, valeurs=np.full(45, 222.0)),
+            Field(category=16, number=192, values=np.full(45, 111.0)),
+            Field(category=16, number=193, values=np.full(45, 222.0)),
         ],
     )
-    jeux = decoding.open_granule(chemin, errors="ignore")
-    champs = [(nom, v) for jeu in jeux for nom, v in jeu.data_vars.items()]
+    datasets = grib2.open_granule(chemin, errors="ignore")
+    champs = [(nom, v) for jeu in datasets for nom, v in jeu.data_vars.items()]
     assert len(champs) == 1, "deux messages, un seul champ : c'est la perte"
     nom, var = champs[0]
     assert nom == "unknown"
     # Le survivant reste cohérent : ses attributs et ses valeurs sont du même
     # paramètre. La faute est une disparition, pas un mélange.
-    assert decoding.triplet(var) == (0, 16, 192)
+    assert grib2.triplet(var) == (0, 16, 192)
     assert np.unique(np.asarray(var.values)).tolist() == [111.0]
 
 
 def test_ni_errors_raise_ni_compat_equals_ne_le_voient(tmp_path):
     """Les deux garde-fous existants portent ailleurs : sur les messages
     illisibles pour l'un, sur la fusion de jeux pour l'autre."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192), Champ(category=16, number=193)],
+        [Field(category=16, number=192), Field(category=16, number=193)],
     )
     cfgrib = pytest.importorskip("cfgrib")
-    jeux = cfgrib.open_datasets(
+    datasets = cfgrib.open_datasets(
         str(chemin),
-        backend_kwargs={**decoding.OPTIONS_CFGRIB, "errors": "raise"},
+        backend_kwargs={**grib2.OPTIONS_CFGRIB, "errors": "raise"},
     )
-    assert sum(len(j.data_vars) for j in jeux) == 1, (
+    assert sum(len(j.data_vars) for j in datasets) == 1, (
         "cfgrib perd le champ sans rien lever, options strictes comprises"
     )
 
@@ -76,31 +76,31 @@ def test_le_recouvrement_ne_touche_pas_que_les_codes_irresolus(tmp_path):
     qu'une période de houle. Le défaut n'est donc pas réservé aux codes
     exotiques, et c'est ce qui justifie un contrôle plutôt qu'une liste.
     """
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=3, number=6, valeurs=np.full(45, 111.0)),
-            Champ(category=3, number=34, valeurs=np.full(45, 222.0)),
+            Field(category=3, number=6, values=np.full(45, 111.0)),
+            Field(category=3, number=34, values=np.full(45, 222.0)),
         ],
     )
-    jeux = decoding.open_granule(chemin, errors="ignore")
-    assert sum(len(j.data_vars) for j in jeux) == 1
-    assert decoding.champs_perdus(chemin, jeux) == {(0, 3, 34)}
+    datasets = grib2.open_granule(chemin, errors="ignore")
+    assert sum(len(j.data_vars) for j in datasets) == 1
+    assert grib2.dropped_fields(chemin, datasets) == {(0, 3, 34)}
 
 
 # --- La lecture des en-têtes --------------------------------------------------
 
 
 def test_les_triplets_du_fichier_sont_tous_releves(tmp_path):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=0, number=0),
-            Champ(category=16, number=192),
-            Champ(category=16, number=193),
+            Field(category=0, number=0),
+            Field(category=16, number=192),
+            Field(category=16, number=193),
         ],
     )
-    assert decoding.triplets_du_fichier(chemin) == {
+    assert grib2.file_triplets(chemin) == {
         (0, 0, 0),
         (0, 16, 192),
         (0, 16, 193),
@@ -109,68 +109,68 @@ def test_les_triplets_du_fichier_sont_tous_releves(tmp_path):
 
 def test_un_echeancier_ne_compte_qu_une_fois(tmp_path):
     """C'est un ensemble de codes, pas un compte de messages."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=0, number=0, step=s) for s in range(4)],
+        [Field(category=0, number=0, step=s) for s in range(4)],
     )
-    assert decoding.triplets_du_fichier(chemin) == {(0, 0, 0)}
+    assert grib2.file_triplets(chemin) == {(0, 0, 0)}
 
 
 # --- La détection -------------------------------------------------------------
 
 
 def test_aucune_perte_sur_un_granule_ordinaire(tmp_path):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=0, number=0), Champ(category=2, number=2)],
+        [Field(category=0, number=0), Field(category=2, number=2)],
     )
-    jeux = decoding.open_granule(chemin)
-    assert decoding.champs_perdus(chemin, jeux) == frozenset()
+    datasets = grib2.open_granule(chemin)
+    assert grib2.dropped_fields(chemin, datasets) == frozenset()
 
 
 def test_la_perte_est_nommee_par_le_code_disparu(tmp_path):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192), Champ(category=16, number=193)],
+        [Field(category=16, number=192), Field(category=16, number=193)],
     )
-    jeux = decoding.open_granule(chemin, errors="ignore")
-    assert decoding.champs_perdus(chemin, jeux) == {(0, 16, 193)}
+    datasets = grib2.open_granule(chemin, errors="ignore")
+    assert grib2.dropped_fields(chemin, datasets) == {(0, 16, 193)}
 
 
 def test_des_types_de_niveau_distincts_ne_perdent_rien(tmp_path):
     """Deux hypercubes distincts, donc deux jeux : le nom ne collisionne pas."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=16, number=192),
-            Champ(category=16, number=193, level_type=1, level=0),
+            Field(category=16, number=192),
+            Field(category=16, number=193, level_type=1, level=0),
         ],
     )
-    jeux = decoding.open_granule(chemin)
-    assert decoding.champs_perdus(chemin, jeux) == frozenset()
+    datasets = grib2.open_granule(chemin)
+    assert grib2.dropped_fields(chemin, datasets) == frozenset()
 
 
 # --- Le branchement -----------------------------------------------------------
 
 
 def test_l_ouverture_leve_par_defaut(tmp_path):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192), Champ(category=16, number=193)],
+        [Field(category=16, number=192), Field(category=16, number=193)],
     )
-    with pytest.raises(decoding.ChampsPerdus) as capture:
-        decoding.open_granule(chemin)
+    with pytest.raises(grib2.DroppedFieldsError) as capture:
+        grib2.open_granule(chemin)
     assert "(0, 16, 193)" in str(capture.value)
 
 
 def test_la_tolerance_reste_accessible_et_journalise(tmp_path, caplog):
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192), Champ(category=16, number=193)],
+        [Field(category=16, number=192), Field(category=16, number=193)],
     )
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
-        jeux = decoding.open_granule(chemin, errors="warn")
-    assert len(jeux) == 1
+        datasets = grib2.open_granule(chemin, errors="warn")
+    assert len(datasets) == 1
     alertes = [e for e in caplog.records if "n'apparaissent pas au" in e.getMessage()]
     assert len(alertes) == 1
     assert alertes[0].__dict__["x10.granule"] == str(chemin)
@@ -178,12 +178,12 @@ def test_la_tolerance_reste_accessible_et_journalise(tmp_path, caplog):
 
 def test_ignore_ne_journalise_rien(tmp_path, caplog):
     """Qui demande le silence l'obtient, et l'assume."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
-        [Champ(category=16, number=192), Champ(category=16, number=193)],
+        [Field(category=16, number=192), Field(category=16, number=193)],
     )
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
-        decoding.open_granule(chemin, errors="ignore")
+        grib2.open_granule(chemin, errors="ignore")
     assert not [e for e in caplog.records if "n'apparaissent pas au" in e.getMessage()]
 
 
@@ -196,6 +196,6 @@ def test_un_message_illisible_est_passe_sans_accuser_le_decodage(tmp_path):
     au décodage une faute qui n'est pas la sienne — la lisibilité relève du
     paramètre `errors`, en amont."""
     chemin = tmp_path / "granule.grib2"
-    valide = paquet(tmp_path / "valide.grib2", [Champ(category=0, number=0)])
+    valide = granule(tmp_path / "valide.grib2", [Field(category=0, number=0)])
     chemin.write_bytes(valide.read_bytes() + b"GRIB" + b"\x00" * 24)
-    assert decoding.triplets_du_fichier(chemin) == {(0, 0, 0)}
+    assert grib2.file_triplets(chemin) == {(0, 0, 0)}

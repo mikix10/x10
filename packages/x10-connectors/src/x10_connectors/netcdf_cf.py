@@ -1,6 +1,6 @@
 """Écriture des champs décodés en NetCDF, suivant les conventions CF.
 
-Lire et écrire sont deux métiers : le décodage vit dans `decoding`, l'écriture
+Lire et écrire sont deux métiers : le décodage vit dans `grib2`, l'écriture
 ici, avec ses propres tables.
 
 **Ce que font les producteurs, et que l'on suit.** Un relevé de quatre chaînes
@@ -31,8 +31,8 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from .base import AGENT, ecriture_atomique
-from .decoding import COORD_INDEFINIE, GribIndisponible, _numpy
+from .base import AGENT, atomic_write
+from .grib2 import COORD_UNDEFINED, GribUnavailableError, _numpy
 from .observability import connector_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -72,10 +72,10 @@ CRS_VARIABLE = "crs"
 #: Marqueur d'absence d'ecCodes sur une clé entière, `INT32_MAX`. Lu sans
 #: précaution, il produirait un rayon terrestre de 2 147 483 647 mètres —
 #: une valeur absurde qu'aucun contrôle de conformité ne rattraperait.
-ECCODES_MANQUANT = 2147483647
+ECCODES_MISSING = 2147483647
 
 
-class UniteNonConvertible(ValueError):
+class UnconvertibleUnitError(ValueError):
     """Une unité GRIB n'a pas de correspondance UDUNITS connue."""
 
 
@@ -142,7 +142,7 @@ UDUNITS: dict[str, str | None] = {
 }
 
 
-def udunits(unite: str | None) -> str | None:
+def udunits(unit: str | None) -> str | None:
     """Traduit une unité GRIB en UDUNITS, ou renvoie `None` s'il n'y a rien à
     émettre.
 
@@ -150,18 +150,18 @@ def udunits(unite: str | None) -> str | None:
     délibéré : deviner une conversion produirait un fichier faux, et un fichier
     faux qui se dit conforme est pire qu'une écriture qui refuse.
     """
-    if unite is None or not unite.strip():
+    if unit is None or not unit.strip():
         return None
-    if unite not in UDUNITS:
-        raise UniteNonConvertible(
-            f"Unité GRIB sans correspondance UDUNITS connue : {unite!r}. "
+    if unit not in UDUNITS:
+        raise UnconvertibleUnitError(
+            f"Unité GRIB sans correspondance UDUNITS connue : {unit!r}. "
             "L'ajouter à `UDUNITS` après avoir vérifié la forme attendue, "
             "plutôt que de laisser l'écriture deviner."
         )
-    return UDUNITS[unite]
+    return UDUNITS[unit]
 
 
-def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
+def convert_units(dataset: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
     """Réécrit les unités de chaque variable en UDUNITS.
 
     Une unité sans correspondance fait échouer l'écriture quand `strict`, et
@@ -169,24 +169,24 @@ def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
     et `GRIB_units`, que la chaîne de décodage conserve, garde la valeur
     d'origine.
     """
-    sortie = jeu.copy()
-    for nom, var in sortie.data_vars.items():
-        origine = var.attrs.get("units")
+    out = dataset.copy()
+    for name, var in out.data_vars.items():
+        origin = var.attrs.get("units")
         try:
-            traduite = udunits(origine)
-        except UniteNonConvertible:
+            traduite = udunits(origin)
+        except UnconvertibleUnitError:
             if strict:
                 raise
             _log.warning(
                 "Unité non convertible, attribut omis",
-                extra={"x10.variable": str(nom), "x10.units": origine},
+                extra={"x10.variable": str(name), "x10.units": origin},
             )
             traduite = None
         if traduite is None:
-            sortie[nom].attrs.pop("units", None)
+            out[name].attrs.pop("units", None)
         else:
-            sortie[nom].attrs["units"] = traduite
-    return sortie
+            out[name].attrs["units"] = traduite
+    return out
 
 
 # --- Période d'agrégation : bornes de coordonnée -------------------------------
@@ -204,12 +204,12 @@ def convert_units(jeu: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
 
 #: Suffixe des variables de bornes. Celui qu'emploie netCDF-Java, donc celui
 #: qu'un consommateur habitué aux fichiers d'Unidata reconnaîtra.
-SUFFIXE_BORNES = "_bnds"
+BOUNDS_SUFFIX = "_bnds"
 
 #: Table 4.4 du format GRIB2, restreinte aux unités **représentables par une
 #: durée fixe**. Mois, année et décennie en sont absents à dessein : leur
 #: durée dépend de la date, et `timedelta64` ne sait pas les porter.
-UNITES_INTERVALLE: dict[int, tuple[int, str]] = {
+INTERVAL_UNITS: dict[int, tuple[int, str]] = {
     0: (1, "m"),
     1: (1, "h"),
     2: (1, "D"),
@@ -220,25 +220,25 @@ UNITES_INTERVALLE: dict[int, tuple[int, str]] = {
 }
 
 
-class IntervalleNonRepresentable(ValueError):
+class UnrepresentableIntervalError(ValueError):
     """Une unité de fenêtre d'agrégation que l'on ne sait pas convertir."""
 
 
-def _duree(longueur: int, code_unite: int) -> object:
+def _duration(longueur: int, unit_code: int) -> object:
     """Convertit une longueur de fenêtre en durée."""
     np = _numpy()
-    if code_unite not in UNITES_INTERVALLE:
-        raise IntervalleNonRepresentable(
-            f"Unité d'intervalle GRIB inconnue ou de durée variable : {code_unite}. "
+    if unit_code not in INTERVAL_UNITS:
+        raise UnrepresentableIntervalError(
+            f"Unité d'intervalle GRIB inconnue ou de durée variable : {unit_code}. "
             "Voir la table 4.4 du format et `UNITES_INTERVALLE` ; les mois et "
             "les années n'ont pas de durée fixe et ne peuvent pas devenir des "
             "bornes."
         )
-    facteur, unite = UNITES_INTERVALLE[code_unite]
-    return np.timedelta64(longueur * facteur, unite)
+    facteur, unit = INTERVAL_UNITS[unit_code]
+    return np.timedelta64(longueur * facteur, unit)
 
 
-def time_bounds(jeu: xr.Dataset) -> object | None:
+def time_bounds(dataset: xr.Dataset) -> object | None:
     """Bornes de la fenêtre d'agrégation, ou `None` s'il n'y en a pas.
 
     Renvoie un tableau `(n, 2)` — début puis fin — aligné sur la coordonnée
@@ -251,34 +251,34 @@ def time_bounds(jeu: xr.Dataset) -> object | None:
     cinq échéances sur six.
     """
     np = _numpy()
-    if "lengthOfTimeRange" not in jeu.coords or "valid_time" not in jeu.coords:
+    if "lengthOfTimeRange" not in dataset.coords or "valid_time" not in dataset.coords:
         return None
 
-    longueurs = np.atleast_1d(jeu["lengthOfTimeRange"].values)
-    if any(str(x) == COORD_INDEFINIE for x in longueurs):
+    longueurs = np.atleast_1d(dataset["lengthOfTimeRange"].values)
+    if any(str(x) == COORD_UNDEFINED for x in longueurs):
         # Champ sans agrégation : il n'a pas d'étendue, et `time: point` le
         # dit déjà. Poser des bornes y serait une affirmation de trop.
         return None
 
-    unites = {
+    units = {
         int(var.attrs["GRIB_indicatorOfUnitForTimeRange"])
-        for var in jeu.data_vars.values()
+        for var in dataset.data_vars.values()
         if "GRIB_indicatorOfUnitForTimeRange" in var.attrs
     }
-    if len(unites) != 1:
-        raise IntervalleNonRepresentable(
-            f"Unités d'intervalle mêlées dans un même jeu : {sorted(unites)}. "
+    if len(units) != 1:
+        raise UnrepresentableIntervalError(
+            f"Unités d'intervalle mêlées dans un même jeu : {sorted(units)}. "
             "Une coordonnée de bornes unique ne peut pas les décrire."
         )
-    (code,) = unites
+    (code,) = units
 
-    fin = np.atleast_1d(jeu["valid_time"].values).reshape(-1)
-    debut = np.array([f - _duree(int(n), code) for f, n in zip(fin, longueurs, strict=True)])
+    end = np.atleast_1d(dataset["valid_time"].values).reshape(-1)
+    start = np.array([f - _duration(int(n), code) for f, n in zip(end, longueurs, strict=True)])
     # `numpy` entre par import paresseux, donc sans types : la variable
     # annotée rend la frontière explicite plutôt que de laisser `Any`
     # remonter dans la signature. Même motif que `_cfgrib` dans `decoding`.
-    bornes: object = np.stack([debut, fin], axis=-1)
-    return bornes
+    bounds: object = np.stack([start, end], axis=-1)
+    return bounds
 
 
 #: Libellés posés sur la coordonnée de longueur de fenêtre. `cfgrib` la
@@ -288,9 +288,9 @@ def time_bounds(jeu: xr.Dataset) -> object | None:
 #: Clés d'encodage reprises telles quelles d'une variable à l'écriture.
 #: Restreintes à l'échelle de temps : le reste de l'encodage hérité du
 #: décodage appartient à `cfgrib` et ferait échouer le moteur netCDF4.
-ENCODAGE_TEMPS = ("units", "calendar", "dtype")
+TIME_ENCODING = ("units", "calendar", "dtype")
 
-ATTRS_LONGUEUR = {
+LENGTH_ATTRS = {
     "long_name": "length of the aggregation window",
     "comment": (
         "Derived from GRIB lengthOfTimeRange. The normative form of this "
@@ -299,27 +299,27 @@ ATTRS_LONGUEUR = {
 }
 
 
-def _etiqueter_longueur(jeu: xr.Dataset) -> None:
+def _label_length(dataset: xr.Dataset) -> None:
     """Donne un libellé et une unité à la longueur de fenêtre, en place."""
-    if "lengthOfTimeRange" not in jeu.coords:
+    if "lengthOfTimeRange" not in dataset.coords:
         return
-    unites = {
+    units = {
         int(var.attrs["GRIB_indicatorOfUnitForTimeRange"])
-        for var in jeu.data_vars.values()
+        for var in dataset.data_vars.values()
         if "GRIB_indicatorOfUnitForTimeRange" in var.attrs
     }
-    attrs: dict[str, str] = dict(ATTRS_LONGUEUR)
-    if len(unites) == 1:
-        (code,) = unites
-        if code in UNITES_INTERVALLE:
-            facteur, unite = UNITES_INTERVALLE[code]
-            attrs["units"] = {"m": "minutes", "h": "hours", "D": "days", "s": "seconds"}[unite]
+    attrs: dict[str, str] = dict(LENGTH_ATTRS)
+    if len(units) == 1:
+        (code,) = units
+        if code in INTERVAL_UNITS:
+            facteur, unit = INTERVAL_UNITS[code]
+            attrs["units"] = {"m": "minutes", "h": "hours", "D": "days", "s": "seconds"}[unit]
             if facteur != 1:
                 attrs["units"] = f"{facteur} {attrs['units']}"
-    jeu["lengthOfTimeRange"].attrs.update(attrs)
+    dataset["lengthOfTimeRange"].attrs.update(attrs)
 
 
-def cf_shape(jeu: xr.Dataset) -> xr.Dataset:
+def cf_shape(dataset: xr.Dataset) -> xr.Dataset:
     """Ramène l'axe temporel à une seule dimension, la date de validité.
 
     La chaîne de décodage rend `(time, step, …)` : la date de réseau et
@@ -335,11 +335,11 @@ def cf_shape(jeu: xr.Dataset) -> xr.Dataset:
     Un jeu couvrant plusieurs réseaux est rendu **inchangé** : la réduction
     serait une perte, et c'est un cas que nos granules ne produisent pas.
     """
-    if "time" not in jeu.dims or jeu.sizes.get("time", 0) != 1:
-        return jeu
-    if "step" not in jeu.dims or "valid_time" not in jeu.coords:
-        return jeu
-    return jeu.squeeze("time", drop=False).swap_dims({"step": "valid_time"})
+    if "time" not in dataset.dims or dataset.sizes.get("time", 0) != 1:
+        return dataset
+    if "step" not in dataset.dims or "valid_time" not in dataset.coords:
+        return dataset
+    return dataset.squeeze("time", drop=False).swap_dims({"step": "valid_time"})
 
 
 # --- Méthodes de cellule : la nature du traitement statistique -----------------
@@ -378,7 +378,7 @@ def cf_shape(jeu: xr.Dataset) -> xr.Dataset:
 #: méthode spatiale qu'on aurait **soi-même calculée** en connaissance de
 #: cause. Ce qui est proscrit, c'est de la **recopier** — hériter d'un
 #: attribut dont on ne sait pas s'il survit au traitement subi.
-AXES_DECLARABLES = ("time",)
+DECLARABLE_AXES = ("time",)
 
 CELL_METHODS: dict[str, str] = {
     "instant": "time: point",
@@ -401,10 +401,10 @@ CELL_METHODS: dict[str, str] = {
 #: * `stdanom` — anomalie **normalisée**. Le tableau porte `anomaly_wrt`, qui
 #:   décrit un écart à une norme et non un écart réduit par l'écart-type ;
 #:   la méthode est d'ailleurs postérieure au CF-1.7 que nous déclarons.
-SANS_CELL_METHOD = frozenset({"diff", "cov", "ratio", "stdanom"})
+WITHOUT_CELL_METHOD = frozenset({"diff", "cov", "ratio", "stdanom"})
 
 
-class TraitementStatistiqueInconnu(ValueError):
+class UnknownStatisticalProcessingError(ValueError):
     """Un `stepType` absent de la table et non recensé comme sans équivalent."""
 
 
@@ -418,18 +418,18 @@ def cell_method(attrs: Mapping[str, object]) -> str | None:
     recensés dans `SANS_CELL_METHOD` et n'émettent rien, en connaissance de
     cause.
     """
-    brut = attrs.get("GRIB_stepType")
-    if brut is None:
+    raw = attrs.get("GRIB_stepType")
+    if raw is None:
         return None
-    step_type = str(brut)
-    if step_type in SANS_CELL_METHOD:
+    step_type = str(raw)
+    if step_type in WITHOUT_CELL_METHOD:
         _log.info(
             "Traitement statistique sans équivalent CF, aucune méthode émise",
             extra={"x10.step_type": step_type},
         )
         return None
     if step_type not in CELL_METHODS:
-        raise TraitementStatistiqueInconnu(
+        raise UnknownStatisticalProcessingError(
             f"`stepType` GRIB inconnu : {step_type!r}. L'ajouter à "
             "`CELL_METHODS` après avoir vérifié la méthode au tableau E.1 de "
             "CF, ou à `SANS_CELL_METHOD` si CF ne la couvre pas."
@@ -437,7 +437,7 @@ def cell_method(attrs: Mapping[str, object]) -> str | None:
     return CELL_METHODS[step_type]
 
 
-def cell_methods(jeu: xr.Dataset) -> dict[str, str]:
+def cell_methods(dataset: xr.Dataset) -> dict[str, str]:
     """Méthodes de cellule du jeu, par variable.
 
     **La résolution est par variable, et non par jeu.** On pouvait croire
@@ -452,8 +452,8 @@ def cell_methods(jeu: xr.Dataset) -> dict[str, str]:
     homogènes. Il a fallu un fichier du producteur pour le voir.
     """
     return {
-        str(nom): methode
-        for nom, var in jeu.data_vars.items()
+        str(name): methode
+        for name, var in dataset.data_vars.items()
         if (methode := cell_method(var.attrs)) is not None
     }
 
@@ -461,16 +461,16 @@ def cell_methods(jeu: xr.Dataset) -> dict[str, str]:
 # --- Référentiel géodésique ----------------------------------------------------
 
 
-def _valeur(attrs: dict[str, object], cle: str) -> float | None:
+def _value(attrs: dict[str, object], key: str) -> float | None:
     """Lit une clé GRIB numérique, en écartant le marqueur d'absence."""
-    brut = attrs.get(f"GRIB_{cle}")
-    if not isinstance(brut, (int, float)) or isinstance(brut, bool):
+    raw = attrs.get(f"GRIB_{key}")
+    if not isinstance(raw, (int, float)) or isinstance(raw, bool):
         return None
-    valeur = float(brut)
-    return None if valeur == ECCODES_MANQUANT else valeur
+    value = float(raw)
+    return None if value == ECCODES_MISSING else value
 
 
-def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
+def grid_mapping(dataset: xr.Dataset) -> dict[str, object] | None:
     """Décrit le référentiel géodésique, au sens de l'annexe F de CF.
 
     **Pourquoi ce n'est pas un détail.** Les modèles de prévision travaillent
@@ -483,7 +483,7 @@ def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
     un référentiel par défaut — supposer à la place du producteur serait la
     faute même que cette fonction corrige.
     """
-    for var in jeu.data_vars.values():
+    for var in dataset.data_vars.values():
         attrs = dict(var.attrs)
         if "GRIB_shapeOfTheEarth" not in attrs:
             continue
@@ -493,15 +493,15 @@ def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
             #: Trace de la correspondance, pour qui veut remonter au GRIB.
             "GRIB_shapeOfTheEarth": attrs["GRIB_shapeOfTheEarth"],
         }
-        if _valeur(attrs, "earthIsOblate"):
-            demi_grand = _valeur(attrs, "earthMajorAxis")
-            demi_petit = _valeur(attrs, "earthMinorAxis")
+        if _value(attrs, "earthIsOblate"):
+            demi_grand = _value(attrs, "earthMajorAxis")
+            demi_petit = _value(attrs, "earthMinorAxis")
             if demi_grand is None or demi_petit is None:
                 return None
             mapping["semi_major_axis"] = demi_grand
             mapping["semi_minor_axis"] = demi_petit
         else:
-            rayon = _valeur(attrs, "radius")
+            rayon = _value(attrs, "radius")
             if rayon is None:
                 return None
             mapping["earth_radius"] = rayon
@@ -516,7 +516,7 @@ def grid_mapping(jeu: xr.Dataset) -> dict[str, object] | None:
 #: définitions d'ecCodes le 09/10/2026 ; seules les valeurs rencontrées ou
 #: plausibles sur nos sources y figurent, un code absent n'étant pas traduit
 #: plutôt que deviné.
-TYPE_DE_PROCESSUS = {
+PROCESS_TYPE = {
     0: "analysis",
     1: "initialization",
     2: "forecast",
@@ -530,7 +530,7 @@ TYPE_DE_PROCESSUS = {
 }
 
 #: Table 1.3 du format GRIB2, statut de production. Même provenance.
-STATUT_DE_PRODUCTION = {
+PRODUCTION_STATUS = {
     0: "operational",
     1: "operational test",
     2: "research",
@@ -538,7 +538,7 @@ STATUT_DE_PRODUCTION = {
 }
 
 
-def production_source(jeu: xr.Dataset) -> str | None:
+def production_source(dataset: xr.Dataset) -> str | None:
     """Décrit le **processus de production**, au sens de l'attribut `source`.
 
     CF y attend « the method of production of the original data […] name the
@@ -558,41 +558,41 @@ def production_source(jeu: xr.Dataset) -> str | None:
     catalogue, le jour où il sera peuplé — passe `source=` et l'emporte.
     """
     attrs: dict[str, object] = {}
-    for var in jeu.data_vars.values():
+    for var in dataset.data_vars.values():
         attrs.update(var.attrs)
-    attrs.update(jeu.attrs)
+    attrs.update(dataset.attrs)
 
-    morceaux: list[str] = []
-    code_statut = _entier(attrs, "productionStatusOfProcessedData")
-    code_processus = _entier(attrs, "typeOfGeneratingProcess")
-    statut = STATUT_DE_PRODUCTION.get(code_statut) if code_statut is not None else None
-    processus = TYPE_DE_PROCESSUS.get(code_processus) if code_processus is not None else None
+    parts: list[str] = []
+    code_statut = _integer(attrs, "productionStatusOfProcessedData")
+    code_processus = _integer(attrs, "typeOfGeneratingProcess")
+    statut = PRODUCTION_STATUS.get(code_statut) if code_statut is not None else None
+    processus = PROCESS_TYPE.get(code_processus) if code_processus is not None else None
     if statut and processus:
-        morceaux.append(f"{statut} {processus}")
+        parts.append(f"{statut} {processus}")
     elif processus:
-        morceaux.append(processus)
+        parts.append(processus)
 
     centre = attrs.get("GRIB_centre")
     description = attrs.get("GRIB_centreDescription")
     if centre:
-        morceaux.append(f"centre {centre}" + (f" ({description})" if description else ""))
+        parts.append(f"centre {centre}" + (f" ({description})" if description else ""))
 
-    identifiant = _entier(attrs, "generatingProcessIdentifier")
+    identifiant = _integer(attrs, "generatingProcessIdentifier")
     if identifiant is not None:
         # Code local au centre : on le cite, on ne le traduit pas.
-        morceaux.append(f"generating process {identifiant}")
+        parts.append(f"generating process {identifiant}")
 
-    return ", ".join(morceaux) or None
+    return ", ".join(parts) or None
 
 
-def _entier(attrs: dict[str, object], cle: str) -> int | None:
-    brut = attrs.get(f"GRIB_{cle}")
-    if isinstance(brut, bool) or not isinstance(brut, (int, float)):
+def _integer(attrs: dict[str, object], key: str) -> int | None:
+    raw = attrs.get(f"GRIB_{key}")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
         return None
-    return int(brut)
+    return int(raw)
 
 
-def _ligne_history(precedente: str | None, *lignes: str) -> str:
+def _history_line(precedente: str | None, *lines: str) -> str:
     """Journal d'audit cumulatif, au format que CF recommande.
 
     CF demande « an audit trail for modifications to the original data », et
@@ -601,12 +601,12 @@ def _ligne_history(precedente: str | None, *lignes: str) -> str:
     l'ordre chronologique, et une trace antérieure est préservée.
     """
     horodatage = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    nouvelles = [*lignes, f"{horodatage} : converted from GRIB2 by {AGENT}"]
+    nouvelles = [*lines, f"{horodatage} : converted from GRIB2 by {AGENT}"]
     return "\n".join([precedente, *nouvelles] if precedente else nouvelles)
 
 
 def global_attributes(
-    jeu: xr.Dataset,
+    dataset: xr.Dataset,
     *,
     retrieval: Retrieval | None = None,
     title: str | None = None,
@@ -632,11 +632,11 @@ def global_attributes(
 
     attrs: dict[str, str] = {
         "Conventions": CONVENTIONS,
-        "history": _ligne_history(jeu.attrs.get("history"), *acquisitions),
+        "history": _history_line(dataset.attrs.get("history"), *acquisitions),
     }
-    if institution := jeu.attrs.get("institution"):
+    if institution := dataset.attrs.get("institution"):
         attrs["institution"] = str(institution)
-    if (methode := source or production_source(jeu)) is not None:
+    if (methode := source or production_source(dataset)) is not None:
         attrs["source"] = methode
     if retrieval is not None and retrieval.license:
         attrs["license"] = retrieval.license
@@ -649,7 +649,7 @@ def global_attributes(
     return attrs
 
 
-def _encodage(jeu: xr.Dataset, compress: int) -> dict[str, dict[str, object]]:
+def _encoding(dataset: xr.Dataset, compress: int) -> dict[str, dict[str, object]]:
     """Encodage d'écriture : compression des données, et coordonnées sans
     valeur de remplissage.
 
@@ -667,34 +667,34 @@ def _encodage(jeu: xr.Dataset, compress: int) -> dict[str, dict[str, object]]:
     # clés propres à `cfgrib` — `filter_by_keys`, `encode_cf` — que le
     # moteur netCDF4 refuse. On ne garde que l'échelle de temps.
     repris: dict[str, dict[str, object]] = {
-        str(nom): {
-            cle: valeur for cle, valeur in jeu[nom].encoding.items() if cle in ENCODAGE_TEMPS
+        str(name): {
+            key: value for key, value in dataset[name].encoding.items() if key in TIME_ENCODING
         }
-        for nom in (*jeu.coords, *jeu.data_vars)
+        for name in (*dataset.coords, *dataset.data_vars)
     }
 
     encodage: dict[str, dict[str, object]] = {
-        str(nom): {**repris[str(nom)], "_FillValue": None} for nom in jeu.coords
+        str(name): {**repris[str(name)], "_FillValue": None} for name in dataset.coords
     }
     # Les bornes ne sont pas une donnée : leur encodage est **conservé**, ce
     # qui les aligne sur leur coordonnée, et elles ne sont pas comprimées —
     # quelques dizaines d'octets n'y gagneraient rien.
-    bornes = [nom for nom in jeu.data_vars if str(nom).endswith(SUFFIXE_BORNES)]
-    encodage.update({str(nom): {**repris[str(nom)], "_FillValue": None} for nom in bornes})
+    bounds = [name for name in dataset.data_vars if str(name).endswith(BOUNDS_SUFFIX)]
+    encodage.update({str(name): {**repris[str(name)], "_FillValue": None} for name in bounds})
     if compress:
         encodage.update(
             {
-                str(nom): {"zlib": True, "complevel": compress}
-                for nom in jeu.data_vars
-                if nom not in bornes
+                str(name): {"zlib": True, "complevel": compress}
+                for name in dataset.data_vars
+                if name not in bounds
             }
         )
     return encodage
 
 
 def write_netcdf(
-    jeu: xr.Dataset,
-    cible: Path,
+    dataset: xr.Dataset,
+    target: Path,
     *,
     retrieval: Retrieval | None = None,
     title: str | None = None,
@@ -711,12 +711,12 @@ def write_netcdf(
     try:
         import netCDF4  # noqa: F401
     except ImportError as exc:  # pragma: no cover - depend de l'extra
-        raise GribIndisponible(
+        raise GribUnavailableError(
             "L'écriture NetCDF demande `netCDF4`. Installer l'extra : "
             "uv sync --all-packages --extra grib"
         ) from exc
 
-    prepare = convert_units(jeu, strict=strict_units)
+    prepare = convert_units(dataset, strict=strict_units)
     prepare.attrs = {
         **prepare.attrs,
         **global_attributes(
@@ -724,65 +724,65 @@ def write_netcdf(
         ),
     }
     methodes = cell_methods(prepare)
-    for nom in jeu.data_vars:
-        if nom in methodes:
-            prepare[nom].attrs["cell_methods"] = methodes[nom]
+    for name in dataset.data_vars:
+        if name in methodes:
+            prepare[name].attrs["cell_methods"] = methodes[name]
         else:
             # Rien à déclarer : on **retire** un éventuel attribut hérité
             # plutôt que de le laisser passer. Un `cell_methods` recopié est
             # une affirmation dont personne n'a vérifié qu'elle tient encore
             # après le traitement subi — voir `AXES_DECLARABLES`.
-            prepare[nom].attrs.pop("cell_methods", None)
+            prepare[name].attrs.pop("cell_methods", None)
 
     if (mapping := grid_mapping(prepare)) is not None:
         import xarray
 
         prepare[CRS_VARIABLE] = xarray.DataArray(0, attrs=mapping)
-        for nom in jeu.data_vars:
-            prepare[nom].attrs["grid_mapping"] = CRS_VARIABLE
+        for name in dataset.data_vars:
+            prepare[name].attrs["grid_mapping"] = CRS_VARIABLE
 
     prepare = cf_shape(prepare)
-    _etiqueter_longueur(prepare)
-    if (bornes := time_bounds(prepare)) is not None:
+    _label_length(prepare)
+    if (bounds := time_bounds(prepare)) is not None:
         import xarray
 
-        nom_bornes = f"valid_time{SUFFIXE_BORNES}"
-        prepare[nom_bornes] = xarray.DataArray(bornes, dims=("valid_time", "bnds"))
+        bounds_name = f"valid_time{BOUNDS_SUFFIX}"
+        prepare[bounds_name] = xarray.DataArray(bounds, dims=("valid_time", "bnds"))
         # **Les bornes reprennent l'encodage de leur coordonnée** — même
         # époque, même calendrier. Sans cela `xarray` en choisit une autre,
         # et les deux ne se lisent plus sur la même échelle : mesuré une
         # fois à une heure d'écart.
-        prepare[nom_bornes].encoding = dict(prepare["valid_time"].encoding)
+        prepare[bounds_name].encoding = dict(prepare["valid_time"].encoding)
         # CF : la variable de bornes **n'hérite pas** d'attributs propres ;
         # c'est la coordonnée qui la désigne.
-        prepare["valid_time"].attrs["bounds"] = nom_bornes
+        prepare["valid_time"].attrs["bounds"] = bounds_name
 
     # L'écriture est atomique : un NetCDF tronqué s'ouvre parfois sans erreur
     # et rend des variables amputées, ce qui est exactement le genre de panne
     # silencieuse que la chaîne doit s'interdire.
-    with ecriture_atomique(cible) as provisoire:
-        prepare.to_netcdf(provisoire, engine="netcdf4", encoding=_encodage(prepare, compress))
-    return cible
+    with atomic_write(target) as provisoire:
+        prepare.to_netcdf(provisoire, engine="netcdf4", encoding=_encoding(prepare, compress))
+    return target
 
 
 __all__ = [
-    "ATTRS_LONGUEUR",
-    "AXES_DECLARABLES",
+    "BOUNDS_SUFFIX",
     "CELL_METHODS",
     "COMPRESSION",
     "CONVENTIONS",
     "CRS_VARIABLE",
-    "ECCODES_MANQUANT",
-    "ENCODAGE_TEMPS",
-    "SANS_CELL_METHOD",
-    "STATUT_DE_PRODUCTION",
-    "SUFFIXE_BORNES",
-    "TYPE_DE_PROCESSUS",
+    "DECLARABLE_AXES",
+    "ECCODES_MISSING",
+    "INTERVAL_UNITS",
+    "LENGTH_ATTRS",
+    "PROCESS_TYPE",
+    "PRODUCTION_STATUS",
+    "TIME_ENCODING",
     "UDUNITS",
-    "UNITES_INTERVALLE",
-    "IntervalleNonRepresentable",
-    "TraitementStatistiqueInconnu",
-    "UniteNonConvertible",
+    "WITHOUT_CELL_METHOD",
+    "UnconvertibleUnitError",
+    "UnknownStatisticalProcessingError",
+    "UnrepresentableIntervalError",
     "cell_method",
     "cell_methods",
     "cf_shape",

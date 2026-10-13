@@ -39,7 +39,7 @@ from urllib.request import Request, urlopen
 
 from x10_models import Retrieval
 
-from .base import AGENT, BaseConnector, ConnectorResult, ecriture_atomique, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, atomic_write, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -68,7 +68,7 @@ SOURCE_LICENSE = "etalab-2.0"
 SOURCE_URL = "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
 
 BASE_URL = "https://meteofrance-pnt.s3.rbx.io.cloud.ovh.net"
-PREFIXE = "pnt"
+PREFIX = "pnt"
 
 #: Une seule origine : la republication par le moissonneur. Il n'y a pas de
 #: miroir, donc pas de bascule — contrairement à ECMWF et ses quatre origines.
@@ -84,14 +84,14 @@ DEFAULT_MAX_BYTES = 256 * 1024 * 1024
 #: c'est une entrée, et une entrée se valide. Une liste blanche stricte évite
 #: d'avoir à raisonner sur ce qu'un caractère inattendu pourrait produire plus
 #: loin dans la chaîne.
-CLE_VALIDE = re.compile(
+VALID_KEY = re.compile(
     r"^pnt/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
     r"/[a-z0-9-]{1,32}/[A-Za-z0-9-]{1,32}/[A-Z0-9-]{1,16}"
     r"/[A-Za-z0-9_.:-]{1,128}\.grib2$"
 )
 
-_CLE_XML = re.compile(r"<Key>(.*?)</Key>.*?<Size>(\d+)</Size>", re.S)
-_PREFIXE_XML = re.compile(r"<CommonPrefixes><Prefix>(.+?)</Prefix></CommonPrefixes>")
+_XML_KEY = re.compile(r"<Key>(.*?)</Key>.*?<Size>(\d+)</Size>", re.S)
+_XML_PREFIX = re.compile(r"<CommonPrefixes><Prefix>(.+?)</Prefix></CommonPrefixes>")
 
 
 class MeteoFrancePntError(RuntimeError):
@@ -99,27 +99,27 @@ class MeteoFrancePntError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class ObjetDistant:
+class RemoteObject:
     """Un paquet disponible sur le stockage objet."""
 
-    cle: str
-    paquet: str
-    tranche: str
-    octets: int
+    key: str
+    granule: str
+    time_range: str
+    size_bytes: int
 
     @property
     def url(self) -> str:
-        return f"{BASE_URL}/{self.cle}"
+        return f"{BASE_URL}/{self.key}"
 
     @property
-    def nom_local(self) -> str:
+    def local_name(self) -> str:
         """Nom de fichier portable.
 
         Les noms distants portent l'horodatage du réseau, donc des `:`, que
         Windows refuse dans un nom de fichier. La substitution est faite ici,
         une fois, plutôt que découverte à l'exécution sur un autre système.
         """
-        return self.cle.rsplit("/", 1)[-1].replace(":", "-")
+        return self.key.rsplit("/", 1)[-1].replace(":", "-")
 
 
 class Transport(Protocol):
@@ -131,7 +131,7 @@ class Transport(Protocol):
 
     def lire(self, url: str) -> bytes: ...
 
-    def telecharger(self, url: str, cible: Path, plafond: int) -> int: ...
+    def telecharger(self, url: str, target: Path, ceiling: int) -> int: ...
 
 
 class TransportHttp:  # couvert par les tests reseau
@@ -147,28 +147,28 @@ class TransportHttp:  # couvert par les tests reseau
         self.bloc = bloc
 
     def lire(self, url: str) -> bytes:
-        with urlopen(Request(url), timeout=self.timeout) as reponse:
-            contenu: bytes = reponse.read()
+        with urlopen(Request(url), timeout=self.timeout) as response:
+            contenu: bytes = response.read()
         return contenu
 
-    def telecharger(self, url: str, cible: Path, plafond: int) -> int:
-        recu = 0
-        with urlopen(Request(url), timeout=self.timeout) as reponse, cible.open("wb") as sortie:
+    def telecharger(self, url: str, target: Path, ceiling: int) -> int:
+        received = 0
+        with urlopen(Request(url), timeout=self.timeout) as response, target.open("wb") as out:
             while True:
-                morceau = reponse.read(self.bloc)
+                morceau = response.read(self.bloc)
                 if not morceau:
                     break
-                recu += len(morceau)
-                if recu > plafond:
-                    sortie.close()
-                    cible.unlink(missing_ok=True)
+                received += len(morceau)
+                if received > ceiling:
+                    out.close()
+                    target.unlink(missing_ok=True)
                     raise MeteoFrancePntError(
-                        f"Volume au-delà du plafond de {plafond} octets pour {cible.name!r}. "
+                        f"Volume au-delà du plafond de {ceiling} octets pour {target.name!r}. "
                         "Le transfert a été interrompu. Relever `max_bytes` si la prise "
                         "d'un paquet de niveaux est délibérée."
                     )
-                sortie.write(morceau)
-        return recu
+                out.write(morceau)
+        return received
 
 
 @dataclass(frozen=True)
@@ -181,16 +181,16 @@ class MeteoFrancePntRequest:
 
     model: str = "arome"
     grid: str = "0025"
-    paquets: tuple[str, ...] = ("SP1",)
-    tranches: tuple[str, ...] = ()
+    packages: tuple[str, ...] = ("SP1",)
+    time_ranges: tuple[str, ...] = ()
     run: str | None = None
 
     def __post_init__(self) -> None:
         if not self.model or not self.grid:
             raise ValueError("Le modèle et la grille sont requis.")
-        if not self.paquets:
+        if not self.packages:
             raise ValueError("Au moins un paquet est requis.")
-        if len(set(self.paquets)) != len(self.paquets):
+        if len(set(self.packages)) != len(self.packages):
             raise ValueError("Un paquet ne peut pas figurer deux fois dans la sélection.")
 
 
@@ -215,35 +215,37 @@ class MeteoFrancePntConnector(BaseConnector):
 
     # --- Découverte -----------------------------------------------------------
 
-    def _lister(self, prefixe: str, *, delimiter: bool = False) -> str:
-        url = f"{BASE_URL}/?list-type=2&prefix={prefixe}&max-keys=1000"
+    def _lister(self, prefix: str, *, delimiter: bool = False) -> str:
+        url = f"{BASE_URL}/?list-type=2&prefix={prefix}&max-keys=1000"
         if delimiter:
             url += "&delimiter=/"
         return self.transport.lire(url).decode("utf-8", "replace")
 
     def reseaux(self) -> tuple[str, ...]:
         """Réseaux présents sur le stockage, du plus ancien au plus récent."""
-        xml = self._lister(f"{PREFIXE}/", delimiter=True)
-        trouves = {p.removeprefix(f"{PREFIXE}/").rstrip("/") for p in _PREFIXE_XML.findall(xml)}
+        xml = self._lister(f"{PREFIX}/", delimiter=True)
+        trouves = {p.removeprefix(f"{PREFIX}/").rstrip("/") for p in _XML_PREFIX.findall(xml)}
         return tuple(sorted(t for t in trouves if t))
 
-    def objets(self, run: str) -> tuple[ObjetDistant, ...]:
+    def objects(self, run: str) -> tuple[RemoteObject, ...]:
         """Paquets disponibles pour un réseau, un modèle et une grille."""
-        prefixe = f"{PREFIXE}/{run}/{self.request.model}/{self.request.grid}/"
-        xml = self._lister(prefixe)
-        sortie: list[ObjetDistant] = []
-        for cle, taille in _CLE_XML.findall(xml):
-            if not CLE_VALIDE.match(cle):
+        prefix = f"{PREFIX}/{run}/{self.request.model}/{self.request.grid}/"
+        xml = self._lister(prefix)
+        out: list[RemoteObject] = []
+        for key, size in _XML_KEY.findall(xml):
+            if not VALID_KEY.match(key):
                 continue
-            morceaux = cle.split("/")
-            nom = morceaux[-1]
-            tranche = nom.split("__")[-2] if nom.count("__") >= 3 else ""
-            sortie.append(
-                ObjetDistant(cle=cle, paquet=morceaux[-2], tranche=tranche, octets=int(taille))
+            parts = key.split("/")
+            name = parts[-1]
+            time_range = name.split("__")[-2] if name.count("__") >= 3 else ""
+            out.append(
+                RemoteObject(
+                    key=key, granule=parts[-2], time_range=time_range, size_bytes=int(size)
+                )
             )
-        return tuple(sorted(sortie, key=lambda o: (o.paquet, o.tranche)))
+        return tuple(sorted(out, key=lambda o: (o.granule, o.time_range)))
 
-    def _selection(self) -> tuple[str, tuple[ObjetDistant, ...]]:
+    def _selection(self) -> tuple[str, tuple[RemoteObject, ...]]:
         """Résout le réseau et les objets à prendre.
 
         Sans réseau imposé, parcourt les réseaux du plus récent au plus ancien
@@ -257,25 +259,25 @@ class MeteoFrancePntConnector(BaseConnector):
         for run in candidats:
             if run is None:  # pragma: no cover - garde de typage
                 continue
-            disponibles = self.objets(run)
+            disponibles = self.objects(run)
             retenus = tuple(
                 o
                 for o in disponibles
-                if o.paquet in self.request.paquets
-                and (not self.request.tranches or o.tranche in self.request.tranches)
+                if o.granule in self.request.packages
+                and (not self.request.time_ranges or o.time_range in self.request.time_ranges)
             )
-            manquants = set(self.request.paquets) - {o.paquet for o in retenus}
-            if retenus and not manquants:
+            missing = set(self.request.packages) - {o.granule for o in retenus}
+            if retenus and not missing:
                 return run, retenus
 
         raise MeteoFrancePntError(
             f"Aucun réseau ne porte la sélection demandée : modèle {self.request.model!r}, "
-            f"grille {self.request.grid!r}, paquets {', '.join(sorted(self.request.paquets))}."
+            f"grille {self.request.grid!r}, paquets {', '.join(sorted(self.request.packages))}."
         )
 
     # --- Récupération ---------------------------------------------------------
 
-    def _champs_debut(self, run: str) -> dict[str, object]:
+    def _start_fields(self, run: str) -> dict[str, object]:
         return fetch_started_fields(
             source=SOURCE_NAME,
             run_id=self.run_id,
@@ -283,7 +285,7 @@ class MeteoFrancePntConnector(BaseConnector):
             details={
                 "model": self.request.model,
                 "grid": self.request.grid,
-                "packages": list(self.request.paquets),
+                "packages": list(self.request.packages),
                 "run": run,
             },
         )
@@ -293,58 +295,61 @@ class MeteoFrancePntConnector(BaseConnector):
         racine.mkdir(parents=True, exist_ok=True)
 
         started_at = datetime.now(UTC)
-        debut = time.perf_counter_ns()
+        start = time.perf_counter_ns()
 
         try:
-            run, objets = self._selection()
-        except Exception as erreur:
+            run, objects = self._selection()
+        except Exception as error:
             _log.error(
                 "Sélection Météo-France impossible",
                 extra={
                     **fetch_started_fields(source=SOURCE_NAME, run_id=self.run_id, origin=ORIGIN),
-                    **failure_fields(erreur),
-                    "event.duration": time.perf_counter_ns() - debut,
+                    **failure_fields(error),
+                    "event.duration": time.perf_counter_ns() - start,
                 },
             )
             raise
 
-        _log.info("Récupération Météo-France démarrée", extra=self._champs_debut(run))
+        _log.info("Récupération Météo-France démarrée", extra=self._start_fields(run))
 
         artefacts: list[Path] = []
-        recu = 0
+        received = 0
         try:
-            for objet in objets:
-                cible = safe_target(racine, objet.nom_local)
+            for obj in objects:
+                target = safe_target(racine, obj.local_name)
                 # L'atomicité est posée ici et non dans le transport : un
                 # transport injecté en bénéficie sans rien savoir, et c'est
                 # l'appelant qui connaît le nom définitif.
-                with ecriture_atomique(cible) as provisoire:
-                    recu += self.transport.telecharger(objet.url, provisoire, self.max_bytes - recu)
-                artefacts.append(cible)
-        except Exception as erreur:
+                with atomic_write(target) as provisoire:
+                    received += self.transport.telecharger(
+                        obj.url, provisoire, self.max_bytes - received
+                    )
+                artefacts.append(target)
+        except Exception as error:
             for fait in artefacts:
                 fait.unlink(missing_ok=True)
             _log.error(
                 "Récupération Météo-France en échec",
                 extra={
-                    **self._champs_debut(run),
-                    **failure_fields(erreur),
-                    "event.duration": time.perf_counter_ns() - debut,
+                    **self._start_fields(run),
+                    **failure_fields(error),
+                    "event.duration": time.perf_counter_ns() - start,
                 },
             )
             raise
 
-        resultat = ConnectorResult(
+        result = ConnectorResult(
             source=SOURCE_NAME,
             outcome="success",
             message=(
-                f"{len(artefacts)} paquet(s) GRIB2 récupéré(s) pour le réseau {run}, {recu} octets."
+                f"{len(artefacts)} paquet(s) GRIB2 récupéré(s) pour le réseau "
+                f"{run}, {received} octets."
             ),
             run_id=self.run_id,
             origin=ORIGIN,
             started_at=started_at,
-            duration_ns=time.perf_counter_ns() - debut,
-            bytes_downloaded=recu,
+            duration_ns=time.perf_counter_ns() - start,
+            bytes_downloaded=received,
             retrieval=Retrieval(
                 artefacts=tuple(artefacts),
                 retrieved_at=datetime.now(UTC),
@@ -353,25 +358,24 @@ class MeteoFrancePntConnector(BaseConnector):
                 selection={
                     "model": self.request.model,
                     "grid": self.request.grid,
-                    "packages": list(self.request.paquets),
-                    "slices": [o.tranche for o in objets],
+                    "packages": list(self.request.packages),
+                    "slices": [o.time_range for o in objects],
                     "run": run,
                 },
                 agent=AGENT,
                 license=SOURCE_LICENSE,
             ),
         )
-        _log.info("Récupération Météo-France terminée", extra=fetch_finished_fields(resultat))
-        return resultat
+        _log.info("Récupération Météo-France terminée", extra=fetch_finished_fields(result))
+        return result
 
 
 __all__ = [
     "AGENT",
     "BASE_URL",
-    "CLE_VALIDE",
     "DEFAULT_MAX_BYTES",
     "ORIGIN",
-    "PREFIXE",
+    "PREFIX",
     "SOURCE_FORMAT",
     "SOURCE_HARVESTER",
     "SOURCE_KIND",
@@ -379,10 +383,11 @@ __all__ = [
     "SOURCE_NAME",
     "SOURCE_PRODUCER",
     "SOURCE_URL",
+    "VALID_KEY",
     "MeteoFrancePntConnector",
     "MeteoFrancePntError",
     "MeteoFrancePntRequest",
-    "ObjetDistant",
+    "RemoteObject",
     "Transport",
     "TransportHttp",
 ]

@@ -1,6 +1,6 @@
-"""Tests de l'écriture NetCDF, sans aucun accès réseau.
+"""NetCDF-CF — l'écriture de sortie, sans aucun accès réseau.
 
-Les paquets sont fabriqués en mémoire par `fixtures_grib` ; les fichiers
+Les paquets sont fabriqués en mémoire par `fixtures_grib2` ; les fichiers
 produits vivent dans le `tmp_path` de pytest et disparaissent avec lui.
 """
 
@@ -11,20 +11,20 @@ from datetime import UTC, datetime
 import numpy as np
 import pytest
 import xarray as xr
-from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
+from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 
-from x10_connectors.decoding import normalise, open_granule
-from x10_connectors.output import (
-    AXES_DECLARABLES,
+from x10_connectors.grib2 import normalise, open_granule
+from x10_connectors.netcdf_cf import (
+    BOUNDS_SUFFIX,
     CELL_METHODS,
     CONVENTIONS,
     CRS_VARIABLE,
-    ECCODES_MANQUANT,
-    SUFFIXE_BORNES,
+    DECLARABLE_AXES,
+    ECCODES_MISSING,
     UDUNITS,
-    IntervalleNonRepresentable,
-    TraitementStatistiqueInconnu,
-    UniteNonConvertible,
+    UnconvertibleUnitError,
+    UnknownStatisticalProcessingError,
+    UnrepresentableIntervalError,
     cell_methods,
     cf_shape,
     convert_units,
@@ -37,7 +37,7 @@ from x10_connectors.output import (
 )
 from x10_models import Retrieval
 
-N = int(GRILLE_PAR_DEFAUT["ni"] * GRILLE_PAR_DEFAUT["nj"])
+N = int(DEFAULT_GRID["ni"] * DEFAULT_GRID["nj"])
 
 
 def _lignage(licence: str | None = "etalab-2.0") -> Retrieval:
@@ -52,8 +52,8 @@ def _lignage(licence: str | None = "etalab-2.0") -> Retrieval:
 
 
 def _jeu(tmp_path, champs=None):
-    champs = champs or champs_vent(steps=(0,))
-    return normalise(open_granule(paquet(tmp_path / "p.grib2", champs))[0])
+    champs = champs or wind_fields(steps=(0,))
+    return normalise(open_granule(granule(tmp_path / "p.grib2", champs))[0])
 
 
 # --- Unités --------------------------------------------------------------------
@@ -82,7 +82,7 @@ def test_une_unite_sans_sens_ne_produit_rien(grib):
 
 
 def test_une_unite_inconnue_fait_echouer_plutot_que_deviner():
-    with pytest.raises(UniteNonConvertible, match="sans correspondance"):
+    with pytest.raises(UnconvertibleUnitError, match="sans correspondance"):
         udunits("parsecs par fortnight")
 
 
@@ -165,7 +165,7 @@ def test_sans_strict_une_unite_inconnue_retire_l_attribut(tmp_path):
 def test_en_strict_une_unite_inconnue_interrompt(tmp_path):
     jeu = _jeu(tmp_path)
     jeu["u"].attrs["units"] = "parsecs par fortnight"
-    with pytest.raises(UniteNonConvertible):
+    with pytest.raises(UnconvertibleUnitError):
         convert_units(jeu, strict=True)
 
 
@@ -270,8 +270,8 @@ def test_les_coordonnees_survivent_a_l_aller_retour(tmp_path):
 
 
 def test_les_valeurs_manquantes_restent_manquantes(tmp_path):
-    champs = [Champ(category=0, number=0, manquants=7, valeurs=np.full(N, 280.0))]
-    jeu = normalise(open_granule(paquet(tmp_path / "trous.grib2", champs))[0])
+    champs = [Field(category=0, number=0, missing=7, values=np.full(N, 280.0))]
+    jeu = normalise(open_granule(granule(tmp_path / "trous.grib2", champs))[0])
     cible = write_netcdf(jeu, tmp_path / "trous.nc")
     relu = xr.open_dataset(cible)
     try:
@@ -352,16 +352,16 @@ def test_le_marqueur_d_absence_d_eccodes_n_est_pas_pris_pour_un_rayon(tmp_path):
     une Terre de 2 147 483 647 mètres, qu'aucun contrôle ne rattraperait."""
     jeu = _jeu(tmp_path)
     for var in jeu.data_vars.values():
-        var.attrs["GRIB_radius"] = ECCODES_MANQUANT
+        var.attrs["GRIB_radius"] = ECCODES_MISSING
     assert grid_mapping(jeu) is None
 
 
 def test_sans_information_aucun_referentiel_n_est_invente(tmp_path):
     jeu = _jeu(tmp_path)
     for var in jeu.data_vars.values():
-        for cle in list(var.attrs):
-            if cle.startswith("GRIB_shapeOfTheEarth"):
-                del var.attrs[cle]
+        for key in list(var.attrs):
+            if key.startswith("GRIB_shapeOfTheEarth"):
+                del var.attrs[key]
     assert grid_mapping(jeu) is None
     cible = write_netcdf(jeu, tmp_path / "sans.nc")
     relu = xr.open_dataset(cible, decode_coords=False)
@@ -384,7 +384,9 @@ def test_ecriture_depuis_un_paquet_reel(tmp_path):
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(model="arome", grid="0025", paquets=("SP1",), tranches=("00H06H",)),
+        MeteoFrancePntRequest(
+            model="arome", grid="0025", packages=("SP1",), time_ranges=("00H06H",)
+        ),
     ).fetch()
     assert resultat.retrieval is not None
 
@@ -434,8 +436,8 @@ TRAITEMENTS = [
 
 
 def _jeu_traite(tmp_path, code):
-    champs = [Champ(category=1, number=8, accumulation=3, traitement=code, step=s) for s in (3, 6)]
-    return normalise(open_granule(paquet(tmp_path / f"t{code}.grib2", champs))[0])
+    champs = [Field(category=1, number=8, accumulation=3, statistic=code, step=s) for s in (3, 6)]
+    return normalise(open_granule(granule(tmp_path / f"t{code}.grib2", champs))[0])
 
 
 @pytest.mark.parametrize(("code", "step_type", "methode"), TRAITEMENTS)
@@ -489,7 +491,7 @@ def test_un_traitement_inconnu_interrompt_plutot_que_de_se_taire(tmp_path):
     jeu = _jeu(tmp_path)
     for var in jeu.data_vars.values():
         var.attrs["GRIB_stepType"] = "sorcellerie"
-    with pytest.raises(TraitementStatistiqueInconnu, match="inconnu"):
+    with pytest.raises(UnknownStatisticalProcessingError, match="inconnu"):
         cell_methods(jeu)
 
 
@@ -548,9 +550,9 @@ def test_toutes_les_methodes_emises_sont_au_tableau_de_cf():
 def test_aucune_methode_n_est_declaree_hors_de_l_axe_temporel(tmp_path):
     """Seul le temps se traduit depuis le GRIB. Une méthode spatiale cesse
     d'être vraie dès que le producteur rééchantillonne — ce que tous font."""
-    assert AXES_DECLARABLES == ("time",)
+    assert DECLARABLE_AXES == ("time",)
     for methode in CELL_METHODS.values():
-        assert methode.split(": ")[0] in AXES_DECLARABLES
+        assert methode.split(": ")[0] in DECLARABLE_AXES
 
 
 def test_une_methode_heritee_est_retiree_et_non_recopiee(tmp_path):
@@ -576,7 +578,7 @@ def test_une_methode_heritee_est_retiree_et_non_recopiee(tmp_path):
 
 
 def _jeu_fenetres(tmp_path, champs, nom):
-    return normalise(open_granule(paquet(tmp_path / f"{nom}.grib2", champs))[0])
+    return normalise(open_granule(granule(tmp_path / f"{nom}.grib2", champs))[0])
 
 
 def test_la_remise_en_forme_ramene_a_quatre_dimensions(tmp_path):
@@ -619,7 +621,7 @@ def test_un_jeu_a_plusieurs_reseaux_reste_intact(tmp_path):
 
 def test_une_fenetre_glissante_donne_des_bornes_glissantes(tmp_path):
     """Les maxima de rafale portent sur l'heure écoulée."""
-    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1, 2)]
+    champs = [Field(category=1, number=8, accumulation=1, step=n) for n in (0, 1, 2)]
     bornes = time_bounds(cf_shape(_jeu_fenetres(tmp_path, champs, "glissant")))
     assert bornes is not None
     ecarts = {(f - d).astype("timedelta64[h]").astype(int) for d, f in bornes}
@@ -630,7 +632,7 @@ def test_une_fenetre_glissante_donne_des_bornes_glissantes(tmp_path):
 def test_une_fenetre_cumulative_donne_des_bornes_croissantes(tmp_path):
     """Les cumuls courent depuis le début du réseau : c'est le piège de
     lecture que ces bornes lèvent."""
-    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    champs = [Field(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
     bornes = time_bounds(cf_shape(_jeu_fenetres(tmp_path, champs, "cumul")))
     assert bornes is not None
     assert len({d for d, _ in bornes}) == 1, "toutes partent de la même origine"
@@ -647,7 +649,7 @@ def test_la_longueur_vient_de_la_coordonnee_et_non_de_l_attribut(tmp_path):
     """`cfgrib` prend l'attribut au **premier message** : sur des fenêtres
     variables il rendrait une seule valeur, et les bornes seraient fausses
     partout sauf à la première échéance."""
-    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    champs = [Field(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
     jeu = _jeu_fenetres(tmp_path, champs, "variable")
     assert list(jeu["lengthOfTimeRange"].values) == [1, 2, 3]
 
@@ -662,31 +664,31 @@ def test_la_longueur_vient_de_la_coordonnee_et_non_de_l_attribut(tmp_path):
 def test_une_unite_d_intervalle_non_representable_interrompt(tmp_path):
     """Les mois et les années n'ont pas de durée fixe : en faire des bornes
     produirait une fenêtre fausse selon la date."""
-    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
+    champs = [Field(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
     jeu = cf_shape(_jeu_fenetres(tmp_path, champs, "unite"))
     for var in jeu.data_vars.values():
         var.attrs["GRIB_indicatorOfUnitForTimeRange"] = 3  # mois
-    with pytest.raises(IntervalleNonRepresentable, match=r"table 4\.4"):
+    with pytest.raises(UnrepresentableIntervalError, match=r"table 4\.4"):
         time_bounds(jeu)
 
 
 def test_des_unites_melees_interrompent(tmp_path):
-    champs = [Champ(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
+    champs = [Field(category=1, number=8, accumulation=1, step=n) for n in (0, 1)]
     jeu = cf_shape(_jeu_fenetres(tmp_path, champs, "melees"))
     for i, var in enumerate(jeu.data_vars.values()):
         var.attrs["GRIB_indicatorOfUnitForTimeRange"] = (1, 0)[i % 2]
     if len(jeu.data_vars) > 1:
-        with pytest.raises(IntervalleNonRepresentable, match="mêlées"):
+        with pytest.raises(UnrepresentableIntervalError, match="mêlées"):
             time_bounds(jeu)
 
 
 def test_le_fichier_porte_ses_bornes_et_les_designe(tmp_path):
-    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    champs = [Field(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
     cible = write_netcdf(_jeu_fenetres(tmp_path, champs, "ecrit"), tmp_path / "b.nc")
     relu = xr.open_dataset(cible, decode_coords=False)
     try:
-        assert relu["valid_time"].attrs["bounds"] == f"valid_time{SUFFIXE_BORNES}"
-        assert relu[f"valid_time{SUFFIXE_BORNES}"].shape == (3, 2)
+        assert relu["valid_time"].attrs["bounds"] == f"valid_time{BOUNDS_SUFFIX}"
+        assert relu[f"valid_time{BOUNDS_SUFFIX}"].shape == (3, 2)
     finally:
         relu.close()
 
@@ -736,7 +738,7 @@ def test_la_sortie_ne_contient_aucun_groupe(tmp_path):
 def _ecrit_cumuls(tmp_path):
     import netCDF4
 
-    champs = [Champ(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
+    champs = [Field(category=1, number=8, accumulation=n, step=0) for n in (1, 2, 3)]
     cible = write_netcdf(_jeu_fenetres(tmp_path, champs, "attrs"), tmp_path / "a.nc")
     return netCDF4.Dataset(cible)
 
@@ -749,7 +751,7 @@ def test_la_remise_en_forme_ne_perd_aucun_attribut_temporel(tmp_path):
     ds = _ecrit_cumuls(tmp_path)
     try:
         assert ds.variables["valid_time"].standard_name == "time"
-        assert ds.variables["valid_time"].bounds == f"valid_time{SUFFIXE_BORNES}"
+        assert ds.variables["valid_time"].bounds == f"valid_time{BOUNDS_SUFFIX}"
         # La date de réseau survit en scalaire, et se décrit elle-même.
         assert ds.variables["time"].standard_name == "forecast_reference_time"
         assert ds.variables["time"].dimensions == ()
@@ -779,7 +781,7 @@ def test_les_bornes_n_ont_pas_d_unite_propre(tmp_path):
     """
     ds = _ecrit_cumuls(tmp_path)
     try:
-        assert "units" not in ds.variables[f"valid_time{SUFFIXE_BORNES}"].ncattrs()
+        assert "units" not in ds.variables[f"valid_time{BOUNDS_SUFFIX}"].ncattrs()
         assert ds.variables["valid_time"].units
     finally:
         ds.close()
@@ -837,9 +839,9 @@ def test_une_source_explicite_l_emporte_sur_la_lecture(tmp_path):
 def test_sans_rien_de_declare_aucune_source_n_est_forgee(tmp_path):
     jeu = _jeu(tmp_path)
     for var in jeu.data_vars.values():
-        for cle in list(var.attrs):
-            if cle.startswith("GRIB_"):
-                del var.attrs[cle]
+        for key in list(var.attrs):
+            if key.startswith("GRIB_"):
+                del var.attrs[key]
     jeu.attrs.pop("GRIB_centre", None)
     jeu.attrs.pop("GRIB_centreDescription", None)
     assert production_source(jeu) is None

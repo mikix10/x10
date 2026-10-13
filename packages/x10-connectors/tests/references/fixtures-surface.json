@@ -1,13 +1,13 @@
 {
   "geometry": {
-    "grille": {},
-    "jeux": 3,
-    "referentiel": {
+    "crs": {
       "GRIB_shapeOfTheEarth": "6",
       "earth_radius": "6371229.0",
       "grid_mapping_name": "latitude_longitude",
       "longitude_of_prime_meridian": "0.0"
-    }
+    },
+    "datasets": 3,
+    "grid": {}
   },
   "variables": {
     "t": {

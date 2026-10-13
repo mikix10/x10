@@ -292,13 +292,13 @@ granule de plusieurs centaines de mébioctets.
 
 | Constat | Réponse |
 |---|---|
-| `(0, 3, 6)` est ambigu | l'entrée est **retirée** de la table GRIB → CF et inscrite dans un ensemble `TRIPLET_AMBIGU`, distinct de `SANS_NOM_CF` |
-| Un code de la plage locale sans table locale | `decoding.check_local_tables`, un invariant du format — il **signale**, il ne refuse pas de servir |
-| Deux codes irrésolus se recouvrent | `decoding.champs_perdus`, sous le même paramètre `errors` que les messages illisibles — **lève** par défaut |
+| `(0, 3, 6)` est ambigu | l'entrée est **retirée** de la table GRIB → CF et inscrite dans un ensemble `AMBIGUOUS_TRIPLETS`, distinct de `WITHOUT_CF_NAME` |
+| Un code de la plage locale sans table locale | `grib2.check_local_tables`, un invariant du format — il **signale**, il ne refuse pas de servir |
+| Deux codes irrésolus se recouvrent | `grib2.dropped_fields`, sous le même paramètre `errors` que les messages illisibles — **lève** par défaut |
 | La table du producteur | consultée comme référence, **pas installée** dans la chaîne |
 | Les écarts constatés | remontés au producteur, datés et reproductibles |
 
-Distinguer `TRIPLET_AMBIGU` de `SANS_NOM_CF` n'est pas cosmétique : l'un se
+Distinguer `AMBIGUOUS_TRIPLETS` de `WITHOUT_CF_NAME` n'est pas cosmétique : l'un se
 corrige en proposant un nom au tableau CF, l'autre non. Les confondre ferait
 porter à CF un manque qui est celui du code GRIB.
 

@@ -1,4 +1,4 @@
-"""Tests du connecteur Météo-France, sans aucun accès réseau.
+"""Source Météo-France PNT — le connecteur, sans aucun accès réseau.
 
 Le transport est substitué : les listages sont fabriqués, les téléchargements
 écrivent des octets inertes. Rien ne sort de la machine, et la suite reste
@@ -18,20 +18,19 @@ from x10_connectors import (
     UnsafeDestinationError,
 )
 from x10_connectors.meteofrance_pnt import (
-    CLE_VALIDE,
     ORIGIN,
     SOURCE_LICENSE,
     SOURCE_NAME,
-    ObjetDistant,
+    VALID_KEY,
+    RemoteObject,
 )
 
 RESEAUX = ("2026-10-05T00:00:00Z", "2026-10-05T03:00:00Z")
 
 
-def _cle(run: str, modele: str, grille: str, paquet: str, tranche: str) -> str:
-    return (
-        f"pnt/{run}/{modele}/{grille}/{paquet}/{modele}__{grille}__{paquet}__{tranche}__{run}.grib2"
-    )
+def _cle(run: str, modele: str, grid: str, granule: str, time_range: str) -> str:
+    nom = f"{modele}__{grid}__{granule}__{time_range}__{run}.grib2"
+    return f"pnt/{run}/{modele}/{grid}/{granule}/{nom}"
 
 
 def _xml_prefixes(runs: tuple[str, ...]) -> str:
@@ -74,9 +73,9 @@ class _TransportSimule:
 def _catalogue_complet() -> dict[str, dict[str, int]]:
     return {
         run: {
-            _cle(run, "arome", "0025", paquet, tranche): 1000
-            for paquet in ("SP1", "SP2")
-            for tranche in ("00H06H", "07H12H")
+            _cle(run, "arome", "0025", granule, time_range): 1000
+            for granule in ("SP1", "SP2")
+            for time_range in ("00H06H", "07H12H")
         }
         for run in RESEAUX
     }
@@ -94,16 +93,16 @@ def test_les_reseaux_se_decouvrent_par_listage(tmp_path):
 def test_les_objets_portent_paquet_tranche_et_taille(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)
-    objets = connecteur.objets(RESEAUX[0])
-    assert {o.paquet for o in objets} == {"SP1", "SP2"}
-    assert {o.tranche for o in objets} == {"00H06H", "07H12H"}
-    assert all(o.octets == 1000 for o in objets)
+    objets = connecteur.objects(RESEAUX[0])
+    assert {o.granule for o in objets} == {"SP1", "SP2"}
+    assert {o.time_range for o in objets} == {"00H06H", "07H12H"}
+    assert all(o.size_bytes == 1000 for o in objets)
 
 
 def test_le_reseau_le_plus_recent_est_retenu(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("SP1",)), transport=transport
+        tmp_path, MeteoFrancePntRequest(packages=("SP1",)), transport=transport
     )
     resultat = connecteur.fetch()
     assert resultat.retrieval is not None
@@ -120,7 +119,7 @@ def test_un_reseau_incomplet_fait_reculer_vers_le_precedent(tmp_path):
     catalogue[recent] = {c: t for c, t in catalogue[recent].items() if "SP2" not in c}
     transport = _TransportSimule(catalogue=catalogue)
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("SP1", "SP2")), transport=transport
+        tmp_path, MeteoFrancePntRequest(packages=("SP1", "SP2")), transport=transport
     )
     resultat = connecteur.fetch()
     assert resultat.retrieval is not None
@@ -130,7 +129,7 @@ def test_un_reseau_incomplet_fait_reculer_vers_le_precedent(tmp_path):
 def test_une_selection_introuvable_echoue_clairement(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("IP9",)), transport=transport
+        tmp_path, MeteoFrancePntRequest(packages=("IP9",)), transport=transport
     )
     with pytest.raises(MeteoFrancePntError, match="Aucun réseau ne porte la sélection"):
         connecteur.fetch()
@@ -140,7 +139,7 @@ def test_une_selection_introuvable_echoue_clairement(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "cle",
+    "key",
     [
         "pnt/2026-10-05T00:00:00Z/arome/0025/SP1/../../../evade.grib2",
         "pnt/2026-10-05T00:00:00Z/arome/0025/SP1/fichier.sh",
@@ -148,8 +147,8 @@ def test_une_selection_introuvable_echoue_clairement(tmp_path):
         "pnt/pas-un-reseau/arome/0025/SP1/x.grib2",
     ],
 )
-def test_une_cle_hors_forme_attendue_est_ignoree(cle):
-    assert CLE_VALIDE.match(cle) is None
+def test_une_cle_hors_forme_attendue_est_ignoree(key):
+    assert VALID_KEY.match(key) is None
 
 
 def test_une_cle_malformee_n_est_pas_retenue_par_l_inventaire(tmp_path):
@@ -162,22 +161,22 @@ def test_une_cle_malformee_n_est_pas_retenue_par_l_inventaire(tmp_path):
     }
     transport = _TransportSimule(catalogue=catalogue)
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)
-    objets = connecteur.objets(run)
+    objets = connecteur.objects(run)
     assert len(objets) == 1
-    assert "evade" not in objets[0].cle
+    assert "evade" not in objets[0].key
 
 
 def test_le_nom_local_est_portable():
     """Les noms distants portent l'horodatage, donc des deux-points, que
     Windows refuse dans un nom de fichier."""
-    objet = ObjetDistant(
-        cle=_cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H"),
-        paquet="SP1",
-        tranche="00H06H",
-        octets=1,
+    objet = RemoteObject(
+        key=_cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H"),
+        granule="SP1",
+        time_range="00H06H",
+        size_bytes=1,
     )
-    assert ":" not in objet.nom_local
-    assert objet.nom_local.endswith(".grib2")
+    assert ":" not in objet.local_name
+    assert objet.local_name.endswith(".grib2")
 
 
 def test_un_nom_local_qui_remonte_l_arborescence_est_refuse(tmp_path):
@@ -190,7 +189,7 @@ def test_un_nom_local_qui_remonte_l_arborescence_est_refuse(tmp_path):
 def test_le_plafond_de_volume_interrompt_et_nettoie(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet(), taille_ecrite=4096)
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("SP1",)), max_bytes=100, transport=transport
+        tmp_path, MeteoFrancePntRequest(packages=("SP1",)), max_bytes=100, transport=transport
     )
     with pytest.raises(MeteoFrancePntError, match="plafond"):
         connecteur.fetch()
@@ -203,7 +202,7 @@ def test_le_plafond_porte_sur_le_cumul_et_non_sur_chaque_fichier(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet(), taille_ecrite=80)
     connecteur = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(paquets=("SP1",), tranches=("00H06H", "07H12H")),
+        MeteoFrancePntRequest(packages=("SP1",), time_ranges=("00H06H", "07H12H")),
         max_bytes=100,
         transport=transport,
     )
@@ -217,7 +216,9 @@ def test_le_plafond_porte_sur_le_cumul_et_non_sur_chaque_fichier(tmp_path):
 def test_le_compte_rendu_porte_provenance_licence_et_selection(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("SP1",), tranches=("00H06H",)), transport=transport
+        tmp_path,
+        MeteoFrancePntRequest(packages=("SP1",), time_ranges=("00H06H",)),
+        transport=transport,
     )
     resultat = connecteur.fetch()
 
@@ -238,7 +239,9 @@ def test_le_compte_rendu_porte_provenance_licence_et_selection(tmp_path):
 def test_le_compte_rendu_fait_l_aller_retour_json(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(
-        tmp_path, MeteoFrancePntRequest(paquets=("SP1",), tranches=("00H06H",)), transport=transport
+        tmp_path,
+        MeteoFrancePntRequest(packages=("SP1",), time_ranges=("00H06H",)),
+        transport=transport,
     )
     resultat = connecteur.fetch()
     repris = type(resultat).model_validate(json.loads(resultat.model_dump_json()))
@@ -247,12 +250,12 @@ def test_le_compte_rendu_fait_l_aller_retour_json(tmp_path):
 
 def test_une_requete_sans_paquet_est_refusee():
     with pytest.raises(ValueError, match="Au moins un paquet"):
-        MeteoFrancePntRequest(paquets=())
+        MeteoFrancePntRequest(packages=())
 
 
 def test_un_paquet_en_double_est_refuse():
     with pytest.raises(ValueError, match="deux fois"):
-        MeteoFrancePntRequest(paquets=("SP1", "SP1"))
+        MeteoFrancePntRequest(packages=("SP1", "SP1"))
 
 
 # --- Service reel --------------------------------------------------------------
@@ -265,7 +268,9 @@ def test_telechargement_reel_d_un_paquet_de_surface(tmp_path):
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(model="arome", grid="0025", paquets=("SP1",), tranches=("00H06H",)),
+        MeteoFrancePntRequest(
+            model="arome", grid="0025", packages=("SP1",), time_ranges=("00H06H",)
+        ),
     ).fetch()
 
     assert resultat.outcome == "success"
@@ -290,11 +295,13 @@ def test_le_vent_se_reconstitue_depuis_les_composantes_sur_donnees_reelles(tmp_p
     """
     import numpy as np
 
-    from x10_connectors.decoding import open_granule, wind_from_direction, wind_speed
+    from x10_connectors.grib2 import open_granule, wind_from_direction, wind_speed
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(model="arome", grid="0025", paquets=("SP1",), tranches=("00H06H",)),
+        MeteoFrancePntRequest(
+            model="arome", grid="0025", packages=("SP1",), time_ranges=("00H06H",)
+        ),
     ).fetch()
     assert resultat.retrieval is not None
 

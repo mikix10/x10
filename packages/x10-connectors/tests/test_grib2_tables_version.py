@@ -1,4 +1,4 @@
-"""Le producteur peut employer des tables que notre outillage ignore.
+"""GRIB2 — le producteur peut employer des tables que notre outillage ignore.
 
 Le second silence de la chaîne, et le plus discret. Mesuré le 09/10/2026 :
 demander à ecCodes une version de tables supérieure à celle qu'il connaît
@@ -17,9 +17,9 @@ from __future__ import annotations
 import logging
 
 import pytest
-from fixtures_grib import Champ, paquet
+from fixtures_grib2 import Field, granule
 
-decoding = pytest.importorskip("x10_connectors.decoding")
+grib2 = pytest.importorskip("x10_connectors.grib2")
 
 #: Ce que notre roue ecCodes sait résoudre. Relevé, non supposé : la valeur
 #: dépend de la version installée, pas d'un réglage.
@@ -45,8 +45,8 @@ def test_eccodes_accepte_sans_broncher_une_version_qu_il_ignore(tmp_path):
 
 def test_la_version_connue_est_celle_de_la_roue_installee(tmp_path):
     """Elle n'est pas configurable : les définitions sont compilées dans la roue."""
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=0, number=0)])
-    versions = decoding.tables_version(decoding.open_granule(chemin))
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0)])
+    versions = grib2.tables_version(grib2.open_granule(chemin))
     assert versions is not None
     _, connue = versions
     assert connue == CONNUE_ATTENDUE, (
@@ -59,23 +59,23 @@ def test_la_version_connue_est_celle_de_la_roue_installee(tmp_path):
 
 
 def test_un_producteur_a_jour_ne_declenche_rien(tmp_path):
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=30)])
-    assert decoding.check_tables_version(decoding.open_granule(chemin)) is None
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0, tables=30)])
+    assert grib2.check_tables_version(grib2.open_granule(chemin)) is None
 
 
 def test_une_version_egale_a_la_notre_ne_declenche_rien(tmp_path):
     """La borne est inclusive : connaître la version 37 suffit à la lire."""
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE)]
     )
-    assert decoding.check_tables_version(decoding.open_granule(chemin)) is None
+    assert grib2.check_tables_version(grib2.open_granule(chemin)) is None
 
 
 def test_une_version_en_avance_est_signalee(tmp_path):
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE + 3)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE + 3)]
     )
-    ecart = decoding.check_tables_version(decoding.open_granule(chemin))
+    ecart = grib2.check_tables_version(grib2.open_granule(chemin))
     assert ecart is not None
     assert str(CONNUE_ATTENDUE + 3) in ecart
     assert str(CONNUE_ATTENDUE) in ecart
@@ -84,20 +84,20 @@ def test_une_version_en_avance_est_signalee(tmp_path):
 def test_le_message_nomme_le_cas_dangereux(tmp_path):
     """Un paramètre absent se voit ; un paramètre **redéfini**, non. Le message
     doit dire les deux, sans quoi on croira n'avoir affaire qu'au premier."""
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE + 1)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE + 1)]
     )
-    ecart = decoding.check_tables_version(decoding.open_granule(chemin))
+    ecart = grib2.check_tables_version(grib2.open_granule(chemin))
     assert ecart is not None
     assert "unknown" in ecart
     assert "définition a changé" in ecart
 
 
 def test_les_deux_versions_sont_rendues(tmp_path):
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE + 2)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE + 2)]
     )
-    assert decoding.tables_version(decoding.open_granule(chemin)) == (
+    assert grib2.tables_version(grib2.open_granule(chemin)) == (
         CONNUE_ATTENDUE + 2,
         CONNUE_ATTENDUE,
     )
@@ -108,20 +108,20 @@ def test_un_granule_sans_les_cles_ne_prononce_rien(tmp_path):
     import xarray as xr
 
     jeu = xr.Dataset({"t": ("x", [1.0])}, coords={"x": [0]})
-    assert decoding.tables_version((jeu,)) is None
-    assert decoding.check_tables_version((jeu,)) is None
+    assert grib2.tables_version((jeu,)) is None
+    assert grib2.check_tables_version((jeu,)) is None
 
 
 def test_la_version_la_plus_haute_du_granule_est_retenue(tmp_path):
     """Un granule hétérogène existe ; le choix prudent est la plus avancée."""
-    chemin = paquet(
+    chemin = granule(
         tmp_path / "granule.grib2",
         [
-            Champ(category=0, number=0, tables=CONNUE_ATTENDUE),
-            Champ(category=1, number=1, tables=CONNUE_ATTENDUE + 5),
+            Field(category=0, number=0, tables=CONNUE_ATTENDUE),
+            Field(category=1, number=1, tables=CONNUE_ATTENDUE + 5),
         ],
     )
-    versions = decoding.tables_version(decoding.open_granule(chemin))
+    versions = grib2.tables_version(grib2.open_granule(chemin))
     assert versions is not None
     assert versions[0] == CONNUE_ATTENDUE + 5
 
@@ -131,11 +131,11 @@ def test_la_version_la_plus_haute_du_granule_est_retenue(tmp_path):
 
 def test_l_ouverture_journalise_l_ecart(tmp_path, caplog):
     """Un indicateur qui ne sort pas du processus ne sert à personne."""
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE + 4)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE + 4)]
     )
-    with caplog.at_level(logging.WARNING, logger="x10_connectors.decoding"):
-        decoding.open_granule(chemin)
+    with caplog.at_level(logging.WARNING, logger="x10_connectors.grib2"):
+        grib2.open_granule(chemin)
 
     assert len(caplog.records) == 1, "une seule alerte par granule, non par hypercube"
     enregistre = caplog.records[0]
@@ -145,9 +145,9 @@ def test_l_ouverture_journalise_l_ecart(tmp_path, caplog):
 
 
 def test_l_ouverture_reste_muette_quand_il_n_y_a_rien_a_dire(tmp_path, caplog):
-    chemin = paquet(tmp_path / "granule.grib2", [Champ(category=0, number=0)])
-    with caplog.at_level(logging.WARNING, logger="x10_connectors.decoding"):
-        decoding.open_granule(chemin)
+    chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0)])
+    with caplog.at_level(logging.WARNING, logger="x10_connectors.grib2"):
+        grib2.open_granule(chemin)
     assert caplog.records == []
 
 
@@ -155,10 +155,10 @@ def test_l_ecart_ne_leve_pas(tmp_path):
     """Une table plus récente n'est pas une panne : la plupart des paramètres
     continuent de se résoudre. C'est un signal pour l'exploitant, pas un refus
     de servir — et le décodage doit rendre ses jeux."""
-    chemin = paquet(
-        tmp_path / "granule.grib2", [Champ(category=0, number=0, tables=CONNUE_ATTENDUE + 9)]
+    chemin = granule(
+        tmp_path / "granule.grib2", [Field(category=0, number=0, tables=CONNUE_ATTENDUE + 9)]
     )
-    assert len(decoding.open_granule(chemin)) >= 1
+    assert len(grib2.open_granule(chemin)) >= 1
 
 
 # --- Service reel ------------------------------------------------------------
@@ -180,12 +180,14 @@ def test_le_producteur_reel_est_dans_ce_que_nous_savons_lire(tmp_path):
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(model="arome", grid="0025", paquets=("SP1",), tranches=("00H06H",)),
+        MeteoFrancePntRequest(
+            model="arome", grid="0025", packages=("SP1",), time_ranges=("00H06H",)
+        ),
     ).fetch()
     assert resultat.retrieval is not None
 
-    granule = decoding.open_granule(resultat.retrieval.artefacts[0])
-    versions = decoding.tables_version(granule)
+    datasets = grib2.open_granule(resultat.retrieval.artefacts[0])
+    versions = grib2.tables_version(datasets)
     assert versions is not None, "le producteur ne déclare pas sa version de tables"
 
     declaree, connue = versions

@@ -1,3 +1,9 @@
+"""Socle commun aux connecteurs — compte rendu et destination sûre.
+
+Ni format ni source : `base` est la seule couche qui ne dépend
+d'aucun des deux.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
