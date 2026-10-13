@@ -1,27 +1,27 @@
 {
   "geometry": {
-    "grille": {
-      "latitude": {
-        "dernier": 37.5,
-        "empreinte": "6ccbf169aada648d",
-        "pas": -0.025,
-        "premier": 55.4,
-        "taille": 717
-      },
-      "longitude": {
-        "dernier": 16.0,
-        "empreinte": "c0d3642939d66171",
-        "pas": 0.025,
-        "premier": -12.0,
-        "taille": 1121
-      }
-    },
-    "jeux": 6,
-    "referentiel": {
+    "crs": {
       "GRIB_shapeOfTheEarth": "6",
       "earth_radius": "6371229.0",
       "grid_mapping_name": "latitude_longitude",
       "longitude_of_prime_meridian": "0.0"
+    },
+    "datasets": 6,
+    "grid": {
+      "latitude": {
+        "fingerprint": "6ccbf169aada648d",
+        "first": 55.4,
+        "last": 37.5,
+        "size": 717,
+        "stride": -0.025
+      },
+      "longitude": {
+        "fingerprint": "c0d3642939d66171",
+        "first": -12.0,
+        "last": 16.0,
+        "size": 1121,
+        "stride": 0.025
+      }
     }
   },
   "variables": {

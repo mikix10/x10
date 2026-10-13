@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from x10_models import Retrieval
 
-from .base import AGENT, BaseConnector, ConnectorResult, ecriture_atomique, safe_target
+from .base import AGENT, BaseConnector, ConnectorResult, atomic_write, safe_target
 from .observability import (
     connector_logger,
     failure_fields,
@@ -85,7 +85,7 @@ class EcmwfIfsError(RuntimeError):
 #: réseau, HTTP, erreurs propres au client — déclenche une bascule.
 #:
 #: `UnsafeDestinationError` dérive de `ValueError` et y figure donc déjà.
-NON_REESSAYABLE = (EcmwfIfsError, ValueError, TypeError)
+NOT_RETRYABLE = (EcmwfIfsError, ValueError, TypeError)
 
 
 @dataclass(frozen=True)
@@ -198,23 +198,23 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             # désigne : on lui désigne donc le provisoire. Le plafond est
             # vérifié **avant** publication, de sorte qu'un dépassement ne
             # laisse rien sous le nom définitif.
-            with ecriture_atomique(target) as provisoire:
+            with atomic_write(target) as provisoire:
                 client.retrieve(request=self._mars_request(parameter), target=str(provisoire))
 
                 if not provisoire.exists():
                     raise EcmwfIfsError(f"Aucun fichier produit pour le paramètre {parameter!r}.")
-                taille = provisoire.stat().st_size
-                if downloaded + taille > self.max_bytes:
+                size = provisoire.stat().st_size
+                if downloaded + size > self.max_bytes:
                     raise EcmwfIfsError(
                         f"Volume téléchargé au-delà du plafond de {self.max_bytes} octets. "
                         "Le contrôle est effectué après écriture : le client n'expose pas "
                         "le flux, il n'est donc pas interrompible en cours de transfert."
                     )
-            downloaded += taille
+            downloaded += size
             artefacts.append(target)
         return artefacts, downloaded
 
-    def _champs_debut(self, origin: str, attempt: int) -> dict[str, Any]:
+    def _start_fields(self, origin: str, attempt: int) -> dict[str, Any]:
         return fetch_started_fields(
             source=SOURCE_NAME,
             run_id=self.run_id,
@@ -241,53 +241,53 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         root.mkdir(parents=True, exist_ok=True)
 
         started_at = datetime.now(UTC)
-        debut = time.perf_counter_ns()
-        origines = self.request.origins
+        start = time.perf_counter_ns()
+        origins = self.request.origins
 
         artefacts: list[Path] = []
         downloaded = 0
         retenue = ""
-        for rang, origin in enumerate(origines, start=1):
+        for rang, origin in enumerate(origins, start=1):
             _log.info(
                 "Récupération ECMWF IFS démarrée",
-                extra=self._champs_debut(origin, rang),
+                extra=self._start_fields(origin, rang),
             )
             try:
                 artefacts, downloaded = self._tenter(root, origin)
-            except NON_REESSAYABLE as erreur:
+            except NOT_RETRYABLE as error:
                 # Un défaut de notre fait ou de la requête : une autre origine
                 # servirait la même donnée et échouerait de la même manière.
                 _log.error(
                     "Récupération ECMWF IFS en échec, sans repli",
                     extra={
-                        **self._champs_debut(origin, rang),
-                        **failure_fields(erreur),
-                        "event.duration": time.perf_counter_ns() - debut,
+                        **self._start_fields(origin, rang),
+                        **failure_fields(error),
+                        "event.duration": time.perf_counter_ns() - start,
                     },
                 )
                 raise
-            except Exception as erreur:
+            except Exception as error:
                 # Un repli reste un incident mineur ; l'échec de la dernière
                 # origine est terminal et doit remonter comme tel.
-                dernier = rang == len(origines)
-                journalise = _log.error if dernier else _log.warning
+                last = rang == len(origins)
+                journalise = _log.error if last else _log.warning
                 journalise(
                     "Toutes les origines sont inaccessibles"
-                    if dernier
+                    if last
                     else "Origine inaccessible, repli sur la suivante",
                     extra={
-                        **self._champs_debut(origin, rang),
-                        **failure_fields(erreur),
-                        "event.duration": time.perf_counter_ns() - debut,
+                        **self._start_fields(origin, rang),
+                        **failure_fields(error),
+                        "event.duration": time.perf_counter_ns() - start,
                     },
                 )
-                if dernier:
+                if last:
                     raise
                 continue
             retenue = origin
             break
 
-        resultat = ConnectorResult(
+        result = ConnectorResult(
             source=SOURCE_NAME,
             outcome="success",
             message=(
@@ -297,7 +297,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             run_id=self.run_id,
             origin=retenue,
             started_at=started_at,
-            duration_ns=time.perf_counter_ns() - debut,
+            duration_ns=time.perf_counter_ns() - start,
             bytes_downloaded=downloaded,
             retrieval=Retrieval(
                 artefacts=tuple(artefacts),
@@ -314,15 +314,15 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 license=SOURCE_LICENSE,
             ),
         )
-        _log.info("Récupération ECMWF IFS terminée", extra=fetch_finished_fields(resultat))
-        return resultat
+        _log.info("Récupération ECMWF IFS terminée", extra=fetch_finished_fields(result))
+        return result
 
 
 __all__ = [
     "AGENT",
     "DEFAULT_MAX_BYTES",
     "DEFAULT_PARAMETERS",
-    "NON_REESSAYABLE",
+    "NOT_RETRYABLE",
     "ORIGINS",
     "SOURCE_FORMAT",
     "SOURCE_KIND",

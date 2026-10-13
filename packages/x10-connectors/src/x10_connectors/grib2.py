@@ -62,15 +62,15 @@ READ_KEYS = (
 )
 
 #: Attributs portant les versions de tables, une fois décodés.
-CLE_TABLES_DECLAREE = "GRIB_tablesVersion"
-CLE_TABLES_CONNUE = "GRIB_tablesVersionLatest"
-CLE_TABLES_LOCALES = "GRIB_localTablesVersion"
+ATTR_TABLES_VERSION = "GRIB_tablesVersion"
+ATTR_TABLES_LATEST = "GRIB_tablesVersionLatest"
+ATTR_LOCAL_TABLES = "GRIB_localTablesVersion"
 
 #: Première valeur de la **plage réservée à l'usage local**. Le format la
 #: réserve dans les trois composantes du triplet — discipline, catégorie,
 #: numéro — et jusqu'à 254, 255 valant « manquant ». Un code de cette plage
 #: n'a de sens que rapporté à une table locale.
-PLAGE_USAGE_LOCAL = 192
+LOCAL_USE_RANGE_START = 192
 
 #: Clés décrivant le **référentiel géodésique**. Le GRIB le déclare et notre
 #: sortie le perdait : un consommateur devait alors supposer, et les modèles
@@ -135,7 +135,7 @@ OPTIONS_CFGRIB: dict[str, object] = {
 #: Valeur que `cfgrib` pose sur une coordonnée issue d'une clé GRIB absente.
 #: C'est une **chaîne**, pas un manquant : la confondre avec un nombre
 #: produirait une fenêtre d'agrégation sur un champ qui n'en a pas.
-COORD_INDEFINIE = "undef"
+COORD_UNDEFINED = "undef"
 
 #: Précision de restitution des valeurs. Défaut de `cfgrib`, repris
 #: délibérément : les producteurs quantifient sur 12 bits, et la mantisse d'un
@@ -144,11 +144,11 @@ COORD_INDEFINIE = "undef"
 VALUES_DTYPE = "float32"
 
 
-class GribIndisponible(RuntimeError):
+class GribUnavailableError(RuntimeError):
     """La pile de décodage GRIB n'est pas installée."""
 
 
-class ChampsPerdus(RuntimeError):
+class DroppedFieldsError(RuntimeError):
     """Des paramètres présents dans le fichier n'apparaissent pas au décodage."""
 
 
@@ -156,7 +156,7 @@ def _cfgrib() -> ModuleType:
     try:
         import cfgrib
     except ImportError as exc:  # pragma: no cover - depend de l'extra
-        raise GribIndisponible(
+        raise GribUnavailableError(
             "La pile de décodage GRIB est absente. Installer l'extra : "
             "uv sync --all-packages --extra grib"
         ) from exc
@@ -171,7 +171,7 @@ def _eccodes() -> ModuleType:
     try:
         import eccodes
     except ImportError as exc:  # pragma: no cover - depend de l'extra
-        raise GribIndisponible(
+        raise GribUnavailableError(
             "La pile de décodage GRIB est absente. Installer l'extra : "
             "uv sync --all-packages --extra grib"
         ) from exc
@@ -183,7 +183,7 @@ def _numpy() -> ModuleType:
     try:
         import numpy
     except ImportError as exc:  # pragma: no cover - depend de l'extra
-        raise GribIndisponible(
+        raise GribUnavailableError(
             "La pile de décodage GRIB est absente. Installer l'extra : "
             "uv sync --all-packages --extra grib"
         ) from exc
@@ -229,7 +229,7 @@ CF_STANDARD_NAMES: dict[tuple[int, int, int], str] = {
 #: Champs pour lesquels **CF n'a pas de nom**, vérifié et non supposé. Les
 #: énumérer vaut mieux que de les laisser se confondre avec un oubli de notre
 #: part : ce sont des candidats à proposer au tableau CF.
-SANS_NOM_CF: frozenset[tuple[int, int, int]] = frozenset(
+WITHOUT_CF_NAME: frozenset[tuple[int, int, int]] = frozenset(
     {
         (0, 19, 11),  # energie cinetique turbulente
     }
@@ -255,7 +255,7 @@ SANS_NOM_CF: frozenset[tuple[int, int, int]] = frozenset(
 #: c'est l'entrée 5 de la table 4.2-0-3, et elle s'exprime en mètres
 #: géopotentiels quand le champ est en mètres. Le retirer vaut mieux que de
 #: lui substituer une autre supposition.
-TRIPLET_AMBIGU: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
+AMBIGUOUS_TRIPLETS: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
 
 #: Direction et force du vent. **Écartées au décodage** : elles se recalculent
 #: exactement à partir des composantes, et la direction est une grandeur
@@ -264,7 +264,7 @@ TRIPLET_AMBIGU: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
 #:
 #: L'API ciblée du producteur ne les expose d'ailleurs pas non plus, pas plus
 #: que les données ouvertes de l'ECMWF.
-VENT_DERIVE: frozenset[tuple[int, int, int]] = frozenset({(0, 2, 0), (0, 2, 1)})
+DERIVED_WIND: frozenset[tuple[int, int, int]] = frozenset({(0, 2, 0), (0, 2, 1)})
 
 
 def triplet(variable: xr.DataArray) -> tuple[int, int, int] | None:
@@ -308,7 +308,7 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     `champs_perdus`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
     connaître.
     """
-    jeux: list[xr.Dataset] = _cfgrib().open_datasets(
+    datasets: list[xr.Dataset] = _cfgrib().open_datasets(
         str(source),
         backend_kwargs={
             **OPTIONS_CFGRIB,
@@ -317,31 +317,31 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
             "values_dtype": _numpy().dtype(VALUES_DTYPE),
         },
     )
-    granule = tuple(jeux)
+    granule = tuple(datasets)
 
     # Un champ qui disparaît n'est pas une métadonnée dégradée : c'est de la
     # donnée en moins. Même faute que le `errors="warn"` de `cfgrib`, et même
     # réponse — on la traite donc sous le **même paramètre**, pour que
     # l'appelant n'ait qu'un seul réglage de tolérance à connaître.
-    if perdus := champs_perdus(source, granule):
-        detail = ", ".join(str(code) for code in sorted(perdus))
+    if dropped := dropped_fields(source, granule):
+        detail = ", ".join(str(code) for code in sorted(dropped))
         message = (
-            f"{len(perdus)} paramètre(s) du granule n'apparaissent pas au "
+            f"{len(dropped)} paramètre(s) du granule n'apparaissent pas au "
             f"décodage : {detail}. Deux paramètres portant le même nom court "
             "se recouvrent dans un jeu, et le second écrase le premier."
         )
         if errors == "raise":
-            raise ChampsPerdus(message)
+            raise DroppedFieldsError(message)
         if errors != "ignore":
             _log.warning(message, extra={"x10.granule": str(source)})
 
     # Le référentiel de tables vit hors de notre code et change sans nous.
     # Une seule fois par granule : la version est une propriété du fichier,
     # pas de chacun de ses hypercubes.
-    if (ecart := check_tables_version(granule)) is not None:
+    if (gap := check_tables_version(granule)) is not None:
         versions = tables_version(granule)
         _log.warning(
-            ecart,
+            gap,
             extra={
                 "x10.granule": str(source),
                 "x10.tables_version_declaree": versions[0] if versions else None,
@@ -352,13 +352,13 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     # Même raison, même portée : la déclaration de tables locales est une
     # propriété du fichier. L'écart est un invariant du format, indépendant
     # du producteur.
-    if (ecart := check_local_tables(granule)) is not None:
-        _log.warning(ecart, extra={"x10.granule": str(source)})
+    if (gap := check_local_tables(granule)) is not None:
+        _log.warning(gap, extra={"x10.granule": str(source)})
 
     return granule
 
 
-def tables_version(jeux: tuple[xr.Dataset, ...]) -> tuple[int, int] | None:
+def tables_version(datasets: tuple[xr.Dataset, ...]) -> tuple[int, int] | None:
     """Version de tables **déclarée** par le producteur, et version **connue**.
 
     La seconde n'est pas un réglage : les définitions d'ecCodes sont
@@ -371,23 +371,23 @@ def tables_version(jeux: tuple[xr.Dataset, ...]) -> tuple[int, int] | None:
     ce qui est le choix prudent quand un granule n'est pas homogène.
     """
     declarees = {
-        int(valeur)
-        for jeu in jeux
-        for var in jeu.data_vars.values()
-        if isinstance(valeur := var.attrs.get(CLE_TABLES_DECLAREE), (int, float))
+        int(value)
+        for dataset in datasets
+        for var in dataset.data_vars.values()
+        if isinstance(value := var.attrs.get(ATTR_TABLES_VERSION), (int, float))
     }
     connues = {
-        int(valeur)
-        for jeu in jeux
-        for var in jeu.data_vars.values()
-        if isinstance(valeur := var.attrs.get(CLE_TABLES_CONNUE), (int, float))
+        int(value)
+        for dataset in datasets
+        for var in dataset.data_vars.values()
+        if isinstance(value := var.attrs.get(ATTR_TABLES_LATEST), (int, float))
     }
     if not declarees or not connues:
         return None
     return max(declarees), min(connues)
 
 
-def check_tables_version(jeux: tuple[xr.Dataset, ...]) -> str | None:
+def check_tables_version(datasets: tuple[xr.Dataset, ...]) -> str | None:
     """Signale que le producteur emploie des tables que nous ne connaissons pas.
 
     **Le second silence de la chaîne.** Mesuré le 09/10/2026 : demander à
@@ -396,7 +396,7 @@ def check_tables_version(jeux: tuple[xr.Dataset, ...]) -> str | None:
     résolus sortent en `unknown` — sans avertissement.
 
     Ce qui nous protège aujourd'hui est accidentel : une unité `unknown`
-    heurte la table UDUNITS fermée de `output`, qui lève. Le garde-fou est à
+    heurte la table UDUNITS fermée de `netcdf_cf`, qui lève. Le garde-fou est à
     trois étapes de là et n'a pas été conçu pour cela. **Et il ne couvre pas
     le cas dangereux** — un paramètre qui existe déjà dans la version connue
     mais dont une version ultérieure change la définition se résoudrait
@@ -408,21 +408,21 @@ def check_tables_version(jeux: tuple[xr.Dataset, ...]) -> str | None:
     des paramètres continuent de se résoudre. C'est un signal pour
     l'exploitant, pas un refus de servir.
     """
-    versions = tables_version(jeux)
+    versions = tables_version(datasets)
     if versions is None:
         return None
-    declaree, connue = versions
-    if declaree <= connue:
+    declared, known = versions
+    if declared <= known:
         return None
     return (
-        f"Le producteur déclare la version de tables {declaree}, au-delà de la "
-        f"version {connue} que connaît notre ecCodes. Les paramètres introduits "
+        f"Le producteur déclare la version de tables {declared}, au-delà de la "
+        f"version {known} que connaît notre ecCodes. Les paramètres introduits "
         "depuis sortiront en 'unknown' ; ceux dont la définition a changé seront "
         "résolus contre l'ancienne, sans que rien ne le signale."
     )
 
 
-def triplets_du_fichier(source: Path) -> frozenset[tuple[int, int, int]]:
+def file_triplets(source: Path) -> frozenset[tuple[int, int, int]]:
     """Les identifiants GRIB présents dans un granule, lus **sans le décoder**.
 
     Seuls les en-têtes sont parcourus : la section de données n'est jamais
@@ -436,7 +436,7 @@ def triplets_du_fichier(source: Path) -> frozenset[tuple[int, int, int]]:
     paramètre `errors` de `open_granule`, qui s'en charge en amont.
     """
     eccodes = _eccodes()
-    vus: set[tuple[int, int, int]] = set()
+    seen: set[tuple[int, int, int]] = set()
     with source.open("rb") as flux:
         while True:
             position = flux.tell()
@@ -450,7 +450,7 @@ def triplets_du_fichier(source: Path) -> frozenset[tuple[int, int, int]]:
             if h is None:
                 break
             try:
-                vus.add(
+                seen.add(
                     (
                         int(eccodes.codes_get(h, "discipline")),
                         int(eccodes.codes_get(h, "parameterCategory")),
@@ -459,10 +459,12 @@ def triplets_du_fichier(source: Path) -> frozenset[tuple[int, int, int]]:
                 )
             finally:
                 eccodes.codes_release(h)
-    return frozenset(vus)
+    return frozenset(seen)
 
 
-def champs_perdus(source: Path, jeux: tuple[xr.Dataset, ...]) -> frozenset[tuple[int, int, int]]:
+def dropped_fields(
+    source: Path, datasets: tuple[xr.Dataset, ...]
+) -> frozenset[tuple[int, int, int]]:
     """Identifiants présents dans le fichier et absents du décodage.
 
     **Le troisième silence de la chaîne, mesuré le 13/10/2026.** `cfgrib`
@@ -488,12 +490,15 @@ def champs_perdus(source: Path, jeux: tuple[xr.Dataset, ...]) -> frozenset[tuple
     jeux. La perte se produit **à l'intérieur** d'un jeu, au nommage.
     """
     decodes = {
-        code for jeu in jeux for var in jeu.data_vars.values() if (code := triplet(var)) is not None
+        code
+        for dataset in datasets
+        for var in dataset.data_vars.values()
+        if (code := triplet(var)) is not None
     }
-    return frozenset(triplets_du_fichier(source) - decodes)
+    return frozenset(file_triplets(source) - decodes)
 
 
-def check_local_tables(jeux: tuple[xr.Dataset, ...]) -> str | None:
+def check_local_tables(datasets: tuple[xr.Dataset, ...]) -> str | None:
     """Signale un paramètre de la plage locale sur un fichier qui n'en déclare aucune.
 
     **Un invariant du format, pas un cas connu.** La section 1 donne à son
@@ -516,22 +521,22 @@ def check_local_tables(jeux: tuple[xr.Dataset, ...]) -> str | None:
     exploitable pour tous ses autres champs, et c'est au contrat de sortie,
     non à ce contrôle, de refuser une donnée.
     """
-    fautifs: dict[tuple[int, int, int], str] = {}
-    for jeu in jeux:
-        for nom, var in jeu.data_vars.items():
-            locales = var.attrs.get(CLE_TABLES_LOCALES)
-            if not isinstance(locales, (int, float)) or int(locales) != 0:
+    offenders: dict[tuple[int, int, int], str] = {}
+    for dataset in datasets:
+        for name, var in dataset.data_vars.items():
+            local_tables = var.attrs.get(ATTR_LOCAL_TABLES)
+            if not isinstance(local_tables, (int, float)) or int(local_tables) != 0:
                 continue
             code = triplet(var)
-            if code is None or max(code) < PLAGE_USAGE_LOCAL:
+            if code is None or max(code) < LOCAL_USE_RANGE_START:
                 continue
-            fautifs.setdefault(code, str(nom))
-    if not fautifs:
+            offenders.setdefault(code, str(name))
+    if not offenders:
         return None
-    detail = ", ".join(f"{code} ({nom})" for code, nom in sorted(fautifs.items()))
+    detail = ", ".join(f"{code} ({name})" for code, name in sorted(offenders.items()))
     return (
         "Le granule déclare n'employer aucune table locale et porte pourtant "
-        f"{len(fautifs)} paramètre(s) de la plage réservée à l'usage local : "
+        f"{len(offenders)} paramètre(s) de la plage réservée à l'usage local : "
         f"{detail}. Aucune table ne permet de les interpréter ; leur nom et "
         "leur unité resteront indéterminés."
     )
@@ -562,10 +567,12 @@ def wind_from_direction(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
     return out
 
 
-def drop_derived_wind(jeu: xr.Dataset) -> xr.Dataset:
+def drop_derived_wind(dataset: xr.Dataset) -> xr.Dataset:
     """Retire direction et force du vent, qui se recalculent des composantes."""
-    a_retirer = [str(nom) for nom, var in jeu.data_vars.items() if triplet(var) in VENT_DERIVE]
-    return jeu.drop_vars(a_retirer) if a_retirer else jeu
+    a_retirer = [
+        str(name) for name, var in dataset.data_vars.items() if triplet(var) in DERIVED_WIND
+    ]
+    return dataset.drop_vars(a_retirer) if a_retirer else dataset
 
 
 #: Valeur de remplissage que la chaîne de décodage pose quand elle ne connaît
@@ -575,11 +582,11 @@ def drop_derived_wind(jeu: xr.Dataset) -> xr.Dataset:
 PLACEHOLDER_CF = "unknown"
 
 
-def _nom_cf_utilisable(valeur: object) -> str | None:
-    return valeur if isinstance(valeur, str) and valeur and valeur != PLACEHOLDER_CF else None
+def _usable_cf_name(value: object) -> str | None:
+    return value if isinstance(value, str) and value and value != PLACEHOLDER_CF else None
 
 
-def apply_cf_names(jeu: xr.Dataset) -> xr.Dataset:
+def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """Pose `standard_name` sur les champs que notre table couvre.
 
     Trois cas, dans cet ordre : un nom déjà posé et utilisable est conservé ;
@@ -587,53 +594,53 @@ def apply_cf_names(jeu: xr.Dataset) -> xr.Dataset:
     trois ne donne de nom, **l'attribut est retiré** plutôt que laissé à sa
     valeur de remplissage — un champ sans nom standard doit se voir comme tel.
     """
-    sortie = jeu.copy()
-    for nom, var in sortie.data_vars.items():
-        existant = _nom_cf_utilisable(var.attrs.get("standard_name"))
-        if existant:
+    out = dataset.copy()
+    for name, var in out.data_vars.items():
+        existing = _usable_cf_name(var.attrs.get("standard_name"))
+        if existing:
             continue
-        retenu = _nom_cf_utilisable(var.attrs.get("GRIB_cfName")) or CF_STANDARD_NAMES.get(
+        chosen = _usable_cf_name(var.attrs.get("GRIB_cfName")) or CF_STANDARD_NAMES.get(
             triplet(var) or (-1, -1, -1)
         )
-        if retenu:
-            sortie[nom].attrs["standard_name"] = retenu
+        if chosen:
+            out[name].attrs["standard_name"] = chosen
         else:
-            sortie[nom].attrs.pop("standard_name", None)
-    return sortie
+            out[name].attrs.pop("standard_name", None)
+    return out
 
 
-def normalise(jeu: xr.Dataset) -> xr.Dataset:
+def normalise(dataset: xr.Dataset) -> xr.Dataset:
     """Écarte le vent dérivé, puis pose les noms standards CF."""
-    return apply_cf_names(drop_derived_wind(jeu))
+    return apply_cf_names(drop_derived_wind(dataset))
 
 
 __all__ = [
+    "AMBIGUOUS_TRIPLETS",
+    "ATTR_LOCAL_TABLES",
+    "ATTR_TABLES_LATEST",
+    "ATTR_TABLES_VERSION",
     "CF_STANDARD_NAMES",
-    "CLE_TABLES_CONNUE",
-    "CLE_TABLES_DECLAREE",
-    "CLE_TABLES_LOCALES",
-    "COORD_INDEFINIE",
+    "COORD_UNDEFINED",
+    "DERIVED_WIND",
     "GEO_KEYS",
+    "LOCAL_USE_RANGE_START",
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
-    "PLAGE_USAGE_LOCAL",
     "READ_KEYS",
-    "SANS_NOM_CF",
-    "TRIPLET_AMBIGU",
     "VALUES_DTYPE",
-    "VENT_DERIVE",
-    "ChampsPerdus",
-    "GribIndisponible",
+    "WITHOUT_CF_NAME",
+    "DroppedFieldsError",
+    "GribUnavailableError",
     "apply_cf_names",
-    "champs_perdus",
     "check_local_tables",
     "check_tables_version",
     "drop_derived_wind",
+    "dropped_fields",
+    "file_triplets",
     "normalise",
     "open_granule",
     "tables_version",
     "triplet",
-    "triplets_du_fichier",
     "wind_from_direction",
     "wind_speed",
 ]

@@ -1,3 +1,9 @@
+"""Source ECMWF IFS open data — le connecteur, sans aucun accès réseau.
+
+Le client officiel est remplacé par un double : ces tests portent sur
+notre usage du client, pas sur le client.
+"""
+
 from __future__ import annotations
 
 import struct
@@ -25,19 +31,19 @@ from x10_connectors.ecmwf_ifs import (
 class _ClientSimule:
     """Remplace le client officiel : enregistre les requêtes, écrit un leurre."""
 
-    def __init__(self, taille: int = 1024, **kwargs: Any) -> None:
+    def __init__(self, size: int = 1024, **kwargs: Any) -> None:
         self.kwargs = kwargs
-        self.taille = taille
+        self.size = size
         self.requetes: list[dict[str, Any]] = []
 
     def retrieve(self, request: dict[str, Any], target: str) -> None:
         self.requetes.append(request)
-        Path(target).write_bytes(b"GRIB" + b"\x00" * (self.taille - 8) + b"7777")
+        Path(target).write_bytes(b"GRIB" + b"\x00" * (self.size - 8) + b"7777")
 
 
-def _fabrique(enregistre: list[_ClientSimule], taille: int = 1024):
+def _fabrique(enregistre: list[_ClientSimule], size: int = 1024):
     def fabrique(**kwargs: Any) -> _ClientSimule:
-        client = _ClientSimule(taille=taille, **kwargs)
+        client = _ClientSimule(size=size, **kwargs)
         enregistre.append(client)
         return client
 
@@ -150,7 +156,7 @@ def test_le_plafond_de_volume_interrompt_et_supprime_l_artefact(tmp_path):
         tmp_path,
         EcmwfIfsRequest(parameters=("2t",)),
         max_bytes=100,
-        client_factory=_fabrique([], taille=4096),
+        client_factory=_fabrique([], size=4096),
     )
     with pytest.raises(EcmwfIfsError, match="plafond"):
         connecteur.fetch()

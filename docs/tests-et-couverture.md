@@ -41,7 +41,7 @@ mis sur le compte du code.
 
 ## Les fichiers GRIB2 se fabriquent
 
-`packages/x10-connectors/tests/fixtures_grib.py` construit des messages GRIB2
+`packages/x10-connectors/tests/fixtures_grib2.py` construit des messages GRIB2
 valides **en mémoire**, par ecCodes. Sur une grille de neuf points sur cinq,
 un message pèse environ trois cents octets et un paquet multi-messages
 quelques kilo-octets — face aux 50 Mo à 3,6 Go d'un paquet réel.
@@ -193,7 +193,7 @@ ordre qu'en intégration continue — un échec local est donc un échec de CI.
 - **Un test qui atteint un service distant porte `@pytest.mark.network`.**
 - **Aucun fichier de données n'est ajouté au dépôt.** Si un cas réclame une
   forme de fichier qui n'existe pas encore, elle s'ajoute à
-  `fixtures_grib.py`.
+  `fixtures_grib2.py`.
 - **Du code atteignable seulement par le réseau porte le marqueur de
   couverture**, afin que la barrière continue de mesurer ce qu'elle prétend
   mesurer.

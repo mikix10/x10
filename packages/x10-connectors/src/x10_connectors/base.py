@@ -80,15 +80,15 @@ def safe_target(root: Path, name: str) -> Path:
 #: Suffixe des fichiers en cours d'ecriture. Le point initial les masque sur
 #: les systemes POSIX, et le suffixe les designe comme des dechets quand un
 #: processus a ete tue sans pouvoir faire son menage.
-SUFFIXE_PARTIEL = ".partiel"
+PARTIAL_SUFFIX = ".partiel"
 
 
-class AucunFichierProduit(OSError):
+class NoOutputFileError(OSError):
     """Le bloc d'écriture s'est achevé sans produire de fichier."""
 
 
 @contextmanager
-def ecriture_atomique(cible: Path) -> Iterator[Path]:
+def atomic_write(target: Path) -> Iterator[Path]:
     """Écrit sous un nom provisoire, et ne publie qu'une fois l'écriture finie.
 
     **Rien n'apparaît sous son nom définitif avant d'être complet.** Sans cela,
@@ -123,17 +123,17 @@ def ecriture_atomique(cible: Path) -> Iterator[Path]:
     provisoire en place. C'est un déchet, non un faux fichier complet, et son
     nom le désigne comme tel.
     """
-    cible.parent.mkdir(parents=True, exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
     marque = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
-    provisoire = cible.with_name(f".{cible.name}.{marque}{SUFFIXE_PARTIEL}")
+    provisoire = target.with_name(f".{target.name}.{marque}{PARTIAL_SUFFIX}")
     try:
         yield provisoire
     except BaseException:
         provisoire.unlink(missing_ok=True)
         raise
     if not provisoire.exists():
-        raise AucunFichierProduit(f"Aucun fichier produit pour {cible.name!r}.")
-    os.replace(provisoire, cible)
+        raise NoOutputFileError(f"Aucun fichier produit pour {target.name!r}.")
+    os.replace(provisoire, target)
 
 
 class BaseConnector:
@@ -148,12 +148,12 @@ class BaseConnector:
 
 __all__ = [
     "AGENT",
-    "SUFFIXE_PARTIEL",
-    "AucunFichierProduit",
+    "PARTIAL_SUFFIX",
     "BaseConnector",
     "ConnectorResult",
+    "NoOutputFileError",
     "Outcome",
     "UnsafeDestinationError",
-    "ecriture_atomique",
+    "atomic_write",
     "safe_target",
 ]

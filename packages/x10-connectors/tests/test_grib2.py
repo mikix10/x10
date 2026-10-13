@@ -1,6 +1,6 @@
-"""Tests du décodage et de la normalisation, sans aucun accès réseau.
+"""GRIB2 — décodage et normalisation, sans aucun accès réseau.
 
-Les paquets sont fabriqués en mémoire par `fixtures_grib` : quelques
+Les paquets sont fabriqués en mémoire par `fixtures_grib2` : quelques
 kilo-octets suffisent à exercer la géométrie, les valeurs manquantes, les
 cumuls et le vent.
 """
@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from fixtures_grib import GRILLE_PAR_DEFAUT, Champ, champs_vent, paquet
+from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 
-from x10_connectors.decoding import (
+from x10_connectors.grib2 import (
+    AMBIGUOUS_TRIPLETS,
     CF_STANDARD_NAMES,
+    DERIVED_WIND,
     OPTIONS_CFGRIB,
-    SANS_NOM_CF,
-    TRIPLET_AMBIGU,
-    VENT_DERIVE,
+    WITHOUT_CF_NAME,
     apply_cf_names,
     drop_derived_wind,
     normalise,
@@ -26,21 +26,21 @@ from x10_connectors.decoding import (
     wind_speed,
 )
 
-N = int(GRILLE_PAR_DEFAUT["ni"] * GRILLE_PAR_DEFAUT["nj"])
+N = int(DEFAULT_GRID["ni"] * DEFAULT_GRID["nj"])
 
 
 def _jeu_vent(tmp_path, steps=(0,)):
-    fichier = paquet(tmp_path / "vent.grib2", champs_vent(steps=steps))
-    jeux = open_granule(fichier)
-    assert len(jeux) == 1
-    return jeux[0]
+    fichier = granule(tmp_path / "vent.grib2", wind_fields(steps=steps))
+    datasets = open_granule(fichier)
+    assert len(datasets) == 1
+    return datasets[0]
 
 
 # --- Ouverture -----------------------------------------------------------------
 
 
 def test_un_paquet_fabrique_tient_en_quelques_kilo_octets(tmp_path):
-    fichier = paquet(tmp_path / "p.grib2", champs_vent(steps=(0, 1)))
+    fichier = granule(tmp_path / "p.grib2", wind_fields(steps=(0, 1)))
     assert fichier.stat().st_size < 4096
 
 
@@ -67,24 +67,24 @@ def test_un_fichier_melant_types_de_niveau_rend_plusieurs_jeux(tmp_path):
     """Un paquet réel mêle sol, hauteur et niveau de la mer ; prétendre les
     réunir dans une seule structure masquerait des champs."""
     champs = [
-        Champ(category=0, number=0, level_type=103, level=2),
-        Champ(category=3, number=1, level_type=101, level=0),
+        Field(category=0, number=0, level_type=103, level=2),
+        Field(category=3, number=1, level_type=101, level=0),
     ]
-    fichier = paquet(tmp_path / "mele.grib2", champs)
+    fichier = granule(tmp_path / "mele.grib2", champs)
     assert len(open_granule(fichier)) >= 2
 
 
 def test_les_valeurs_manquantes_sont_conservees(tmp_path):
-    champs = [Champ(category=0, number=0, manquants=7, valeurs=np.full(N, 280.0))]
-    fichier = paquet(tmp_path / "trous.grib2", champs)
+    champs = [Field(category=0, number=0, missing=7, values=np.full(N, 280.0))]
+    fichier = granule(tmp_path / "trous.grib2", champs)
     jeu = open_granule(fichier)[0]
-    valeurs = jeu["t"].values
-    assert np.isnan(valeurs).sum() == 7
+    values = jeu["t"].values
+    assert np.isnan(values).sum() == 7
 
 
 def test_un_champ_cumule_porte_son_type_de_pas(tmp_path):
-    champs = [Champ(category=1, number=52, accumulation=1, valeurs=np.zeros(N))]
-    fichier = paquet(tmp_path / "cumul.grib2", champs)
+    champs = [Field(category=1, number=52, accumulation=1, values=np.zeros(N))]
+    fichier = granule(tmp_path / "cumul.grib2", champs)
     jeu = open_granule(fichier)[0]
     nom = next(iter(jeu.data_vars))
     assert jeu[nom].attrs["GRIB_stepType"] == "accum"
@@ -122,15 +122,15 @@ def test_notre_table_comble_ce_que_la_chaine_ne_donne_pas(tmp_path):
 def test_un_champ_sans_nom_cf_connu_reste_sans_nom(tmp_path):
     """Inventer un nom standard produirait un fichier qui se dit conforme et
     ne l'est pas."""
-    champs = [Champ(category=19, number=11, valeurs=np.zeros(N))]
-    jeu = apply_cf_names(open_granule(paquet(tmp_path / "tke.grib2", champs))[0])
+    champs = [Field(category=19, number=11, values=np.zeros(N))]
+    jeu = apply_cf_names(open_granule(granule(tmp_path / "tke.grib2", champs))[0])
     nom = next(iter(jeu.data_vars))
     assert "standard_name" not in jeu[nom].attrs
 
 
 def test_les_absences_de_nom_cf_sont_declarees_et_non_subies():
-    assert (0, 19, 11) in SANS_NOM_CF
-    assert not SANS_NOM_CF & set(CF_STANDARD_NAMES)
+    assert (0, 19, 11) in WITHOUT_CF_NAME
+    assert not WITHOUT_CF_NAME & set(CF_STANDARD_NAMES)
 
 
 def test_un_code_ambigu_ne_recoit_aucun_nom(tmp_path):
@@ -141,8 +141,8 @@ def test_un_code_ambigu_ne_recoit_aucun_nom(tmp_path):
     5 et s'exprime en mètres géopotentiels : faux deux fois. Lui substituer
     une autre supposition ne vaudrait pas mieux que de n'en poser aucune.
     """
-    champs = [Champ(category=3, number=6, valeurs=np.zeros(N))]
-    jeu = apply_cf_names(open_granule(paquet(tmp_path / "h.grib2", champs))[0])
+    champs = [Field(category=3, number=6, values=np.zeros(N))]
+    jeu = apply_cf_names(open_granule(granule(tmp_path / "h.grib2", champs))[0])
     nom = next(iter(jeu.data_vars))
     assert "standard_name" not in jeu[nom].attrs
 
@@ -150,14 +150,14 @@ def test_un_code_ambigu_ne_recoit_aucun_nom(tmp_path):
 def test_les_codes_ambigus_sont_declares_et_distincts_des_absences():
     """Deux manques de nature différente : l'un se corrige en proposant un nom
     à CF, l'autre non."""
-    assert (0, 3, 6) in TRIPLET_AMBIGU
-    assert not TRIPLET_AMBIGU & set(CF_STANDARD_NAMES)
-    assert not TRIPLET_AMBIGU & SANS_NOM_CF
+    assert (0, 3, 6) in AMBIGUOUS_TRIPLETS
+    assert not AMBIGUOUS_TRIPLETS & set(CF_STANDARD_NAMES)
+    assert not AMBIGUOUS_TRIPLETS & WITHOUT_CF_NAME
 
 
 def test_le_vent_derive_est_bien_celui_qui_est_ecarte():
-    assert {(0, 2, 0), (0, 2, 1)} == VENT_DERIVE
-    assert set(CF_STANDARD_NAMES) >= VENT_DERIVE
+    assert {(0, 2, 0), (0, 2, 1)} == DERIVED_WIND
+    assert set(CF_STANDARD_NAMES) >= DERIVED_WIND
 
 
 # --- Reconstitution du vent ----------------------------------------------------
@@ -255,8 +255,8 @@ def test_la_structure_ne_depend_pas_du_nombre_d_echeances(tmp_path):
     """
     dims = []
     for n, steps in ((1, (0,)), (2, (0, 1))):
-        champs = [Champ(category=0, number=0, step=s) for s in steps]
-        jeu = normalise(open_granule(paquet(tmp_path / f"e{n}.grib2", champs))[0])
+        champs = [Field(category=0, number=0, step=s) for s in steps]
+        jeu = normalise(open_granule(granule(tmp_path / f"e{n}.grib2", champs))[0])
         dims.append(jeu["t"].dims)
     # Cinq axes, toujours les mêmes : temps, échéance et niveau vertical
     # subsistent même de longueur 1. C'est exactement la stabilité recherchée,
@@ -267,19 +267,19 @@ def test_la_structure_ne_depend_pas_du_nombre_d_echeances(tmp_path):
 def test_les_valeurs_sont_restituees_en_float32(tmp_path):
     """La donnée est quantifiée sur 12 bits ; un `float64` doublerait
     l'empreinte sans porter la moindre information de plus."""
-    jeu = normalise(open_granule(paquet(tmp_path / "d.grib2", [Champ(category=0, number=0)]))[0])
+    jeu = normalise(open_granule(granule(tmp_path / "d.grib2", [Field(category=0, number=0)]))[0])
     assert jeu["t"].dtype == "float32"
 
 
 def test_aucun_fichier_d_index_n_est_depose(tmp_path):
     """`indexpath=""` : par défaut cfgrib écrit un `.idx` à côté de la donnée."""
-    source = paquet(tmp_path / "i.grib2", [Champ(category=0, number=0)])
+    source = granule(tmp_path / "i.grib2", [Field(category=0, number=0)])
     open_granule(source)
     assert [p.name for p in tmp_path.iterdir()] == [source.name]
 
 
 def _paquet_corrompu(tmp_path):
-    sain = paquet(tmp_path / "sain.grib2", [Champ(category=0, number=0)])
+    sain = granule(tmp_path / "sain.grib2", [Field(category=0, number=0)])
     cible = tmp_path / "corrompu.grib2"
     cible.write_bytes(sain.read_bytes() + b"GRIB" + b"\x00" * 40)
     return cible
@@ -297,8 +297,8 @@ def test_un_message_illisible_interrompt_par_defaut(tmp_path):
 
 
 def test_la_tolerance_reste_accessible_a_qui_l_assume(tmp_path):
-    jeux = open_granule(_paquet_corrompu(tmp_path), errors="warn")
-    assert len(jeux) == 1
+    datasets = open_granule(_paquet_corrompu(tmp_path), errors="warn")
+    assert len(datasets) == 1
 
 
 def test_les_options_qui_decident_de_la_forme_sont_ecrites():
@@ -320,8 +320,8 @@ def test_un_ensemble_garde_son_axe_de_membre_meme_a_un_seul_membre(tmp_path):
     """
     attendu = ("number", "time", "step", "heightAboveGround", "latitude", "longitude")
     for total in (1, 3):
-        champs = [Champ(category=0, number=0, membre=m, membres=total) for m in range(total)]
-        jeu = normalise(open_granule(paquet(tmp_path / f"ens{total}.grib2", champs))[0])
+        champs = [Field(category=0, number=0, member=m, members=total) for m in range(total)]
+        jeu = normalise(open_granule(granule(tmp_path / f"ens{total}.grib2", champs))[0])
         assert jeu["t"].dims == attendu
         assert jeu["t"].sizes["number"] == total
 
@@ -329,7 +329,7 @@ def test_un_ensemble_garde_son_axe_de_membre_meme_a_un_seul_membre(tmp_path):
 def test_un_deterministe_n_a_pas_d_axe_de_membre(tmp_path):
     """La distinction doit rester lisible dans l'autre sens aussi : un champ
     déterministe ne porte pas de clé d'ensemble, donc pas d'axe."""
-    jeu = normalise(open_granule(paquet(tmp_path / "det.grib2", [Champ(category=0, number=0)]))[0])
+    jeu = normalise(open_granule(granule(tmp_path / "det.grib2", [Field(category=0, number=0)]))[0])
     assert "number" not in jeu["t"].dims
 
 
@@ -337,4 +337,4 @@ def test_cumul_et_ensemble_ne_se_combinent_pas_en_silence(tmp_path):
     """Relèverait du gabarit 4.11 ; mieux vaut refuser que produire un
     message dont la sémantique ne serait pas celle qu'on croit."""
     with pytest.raises(ValueError, match=r"4.11"):
-        paquet(tmp_path / "x.grib2", [Champ(category=0, number=0, membre=0, accumulation=1)])
+        granule(tmp_path / "x.grib2", [Field(category=0, number=0, member=0, accumulation=1)])

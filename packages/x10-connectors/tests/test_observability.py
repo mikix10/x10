@@ -1,3 +1,8 @@
+"""Journalisation — champs Elastic Common Schema et rendu JSON.
+
+Ni format ni source : la journalisation vaut pour toute la chaîne.
+"""
+
 from __future__ import annotations
 
 import json

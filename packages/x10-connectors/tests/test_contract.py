@@ -1,4 +1,4 @@
-"""Tests du contrat de sortie.
+"""Contrat de sortie d'un granule GRIB2 décodé, sans aucun accès réseau.
 
 Le contrat fige la forme et les métadonnées d'un paquet décodé. Comparé à une
 référence versionnée, il signale une dérive du producteur — ou une régression
@@ -17,17 +17,17 @@ import os
 from pathlib import Path
 
 import pytest
-from fixtures_grib import Champ, champs_vent, paquet
+from fixtures_grib2 import Field, granule, wind_fields
 
 from x10_connectors.contract import (
-    COORDS_EXCLUES,
-    SEUIL_ENUMERATION,
-    AxeCaracterise,
+    ENUMERATION_THRESHOLD,
+    EXCLUDED_COORDS,
+    AxisSummary,
     Contract,
     compare_contracts,
     output_contract,
 )
-from x10_connectors.decoding import GribIndisponible, normalise, open_granule
+from x10_connectors.grib2 import GribUnavailableError, normalise, open_granule
 
 REFERENCES = Path(__file__).parent / "references"
 
@@ -54,11 +54,11 @@ def _reference(nom: str, contrat: Contract) -> Contract:
 def _paquet_type(tmp_path: Path) -> Path:
     """Un paquet mêlant vent, cumul et niveaux — proche d'un fichier réel."""
     champs = [
-        *champs_vent(steps=(0, 1)),
-        Champ(category=0, number=0, level_type=103, level=2, step=0),
-        Champ(category=1, number=8, accumulation=1, step=1),
+        *wind_fields(steps=(0, 1)),
+        Field(category=0, number=0, level_type=103, level=2, step=0),
+        Field(category=1, number=8, accumulation=1, step=1),
     ]
-    return paquet(tmp_path / "type.grib2", champs)
+    return granule(tmp_path / "type.grib2", champs)
 
 
 # --- Construction ---------------------------------------------------------------
@@ -76,7 +76,7 @@ def test_la_date_de_reseau_est_exclue(tmp_path):
     une rupture à chaque nouveau réseau, donc un indicateur qu'on désactive."""
     contrat = _contrat(_paquet_type(tmp_path))
     for variable in contrat.variables.values():
-        assert not (set(variable.coords) & COORDS_EXCLUES)
+        assert not (set(variable.coords) & EXCLUDED_COORDS)
 
 
 def test_les_echeances_restent_au_contrat(tmp_path):
@@ -96,12 +96,12 @@ def test_les_echeances_sont_lisibles_en_secondes(tmp_path):
 def test_la_grande_coordonnee_est_caracterisee_et_la_petite_enumeree(tmp_path):
     """Figer un millier de latitudes ôterait au contrat sa seule qualité sur
     un fichier binaire : être relu."""
-    grille = {"ni": SEUIL_ENUMERATION + 10, "nj": 3, "di": 0.1, "dj": 0.1}
-    source = paquet(tmp_path / "large.grib2", [Champ(category=0, number=0)], grille)
+    grid = {"ni": ENUMERATION_THRESHOLD + 10, "nj": 3, "di": 0.1, "dj": 0.1}
+    source = granule(tmp_path / "large.grib2", [Field(category=0, number=0)], grid)
     contrat = _contrat(source)
-    assert isinstance(contrat.geometry.grille["longitude"], AxeCaracterise)
-    assert contrat.geometry.grille["longitude"].taille == SEUIL_ENUMERATION + 10
-    assert "latitude" not in contrat.geometry.grille  # 3 points : énumérée
+    assert isinstance(contrat.geometry.grid["longitude"], AxisSummary)
+    assert contrat.geometry.grid["longitude"].size == ENUMERATION_THRESHOLD + 10
+    assert "latitude" not in contrat.geometry.grid  # 3 points : énumérée
 
 
 def test_l_unite_est_celle_que_la_sortie_declare(tmp_path):
@@ -120,7 +120,7 @@ def test_l_identite_grib_accompagne_chaque_variable(tmp_path):
 
 
 def test_un_paquet_vide_est_refuse(tmp_path):
-    with pytest.raises(GribIndisponible):
+    with pytest.raises(GribUnavailableError):
         output_contract(())
 
 
@@ -141,7 +141,7 @@ def test_une_variable_disparue_est_une_rupture(tmp_path):
     )
     ecarts = compare_contracts(avant, apres)
     assert ecarts
-    assert any(d.chemin == "variables.u" for d in ecarts.ruptures)
+    assert any(d.path == "variables.u" for d in ecarts.breaking_changes)
 
 
 @pytest.mark.parametrize(
@@ -160,19 +160,19 @@ def test_un_attribut_critique_modifie_est_une_rupture(tmp_path, champ, valeur):
     apres = avant.model_copy(update={"variables": {**avant.variables, "u": modifiee}})
     ecarts = compare_contracts(avant, apres)
     assert ecarts, f"{champ} modifié devrait être une rupture"
-    assert any(d.chemin == f"variables.u.{champ}" for d in ecarts.ruptures)
+    assert any(d.path == f"variables.u.{champ}" for d in ecarts.breaking_changes)
 
 
 def test_une_grille_deplacee_a_taille_constante_est_une_rupture(tmp_path):
     """Le cas qu'une simple comparaison de tailles laisserait passer."""
-    grille = {"ni": SEUIL_ENUMERATION + 10, "nj": 3, "di": 0.1, "dj": 0.1}
-    avant = _contrat(paquet(tmp_path / "a.grib2", [Champ(category=0, number=0)], grille))
+    grid = {"ni": ENUMERATION_THRESHOLD + 10, "nj": 3, "di": 0.1, "dj": 0.1}
+    avant = _contrat(granule(tmp_path / "a.grib2", [Field(category=0, number=0)], grid))
     apres = _contrat(
-        paquet(tmp_path / "b.grib2", [Champ(category=0, number=0)], {**grille, "lon1": 300.0})
+        granule(tmp_path / "b.grib2", [Field(category=0, number=0)], {**grid, "lon1": 300.0})
     )
     ecarts = compare_contracts(avant, apres)
     assert ecarts
-    assert any(d.chemin == "geometry.grille" for d in ecarts.ruptures)
+    assert any(d.path == "geometry.grid" for d in ecarts.breaking_changes)
 
 
 def test_une_variable_apparue_est_une_nouveaute_sans_echec(tmp_path):
@@ -183,7 +183,7 @@ def test_une_variable_apparue_est_une_nouveaute_sans_echec(tmp_path):
     apres = avant.model_copy(update={"variables": {**avant.variables, "nouveau": ajoutee}})
     ecarts = compare_contracts(avant, apres)
     assert not ecarts, "une nouveauté ne doit pas faire échouer"
-    assert any(d.chemin == "variables.nouveau" for d in ecarts.nouveautes)
+    assert any(d.path == "variables.nouveau" for d in ecarts.additions)
     assert "nouveauté" in ecarts.resume()
 
 
@@ -193,7 +193,7 @@ def test_un_libelle_modifie_est_signale_sans_echec(tmp_path):
     apres = avant.model_copy(update={"variables": {**avant.variables, "u": modifiee}})
     ecarts = compare_contracts(avant, apres)
     assert not ecarts
-    assert any(d.chemin == "variables.u.long_name" for d in ecarts.nouveautes)
+    assert any(d.path == "variables.u.long_name" for d in ecarts.additions)
 
 
 # --- Référence versionnée -------------------------------------------------------
@@ -206,8 +206,8 @@ def test_la_chaine_reproduit_sa_reference(tmp_path):
     réelle. Elle fige ce que la chaîne produit aujourd'hui ; toute évolution
     volontaire se relit dans le diff au lieu de passer inaperçue.
     """
-    observe = _contrat(_paquet_type(tmp_path))
-    ecarts = compare_contracts(_reference("fixtures-surface", observe), observe)
+    observed = _contrat(_paquet_type(tmp_path))
+    ecarts = compare_contracts(_reference("fixtures-surface", observed), observed)
     assert not ecarts, ecarts.resume()
 
 
@@ -233,10 +233,12 @@ def test_le_paquet_reel_reproduit_sa_reference(tmp_path):
 
     resultat = MeteoFrancePntConnector(
         tmp_path,
-        MeteoFrancePntRequest(model="arome", grid="0025", paquets=("SP1",), tranches=("00H06H",)),
+        MeteoFrancePntRequest(
+            model="arome", grid="0025", packages=("SP1",), time_ranges=("00H06H",)
+        ),
     ).fetch()
     assert resultat.retrieval is not None
 
-    observe = _contrat(resultat.retrieval.artefacts[0])
-    ecarts = compare_contracts(_reference("meteofrance-arome-0025-SP1", observe), observe)
+    observed = _contrat(resultat.retrieval.artefacts[0])
+    ecarts = compare_contracts(_reference("meteofrance-arome-0025-SP1", observed), observed)
     assert not ecarts, ecarts.resume()

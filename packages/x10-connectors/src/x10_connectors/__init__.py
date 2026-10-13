@@ -12,30 +12,31 @@ connecteur, dont les noms sont déjà qualifiés par leur source.
 
 from __future__ import annotations
 
-from . import contract, decoding, ecmwf_ifs, meteofrance_pnt, output
+from . import contract, ecmwf_ifs, grib2, meteofrance_pnt, netcdf_cf
 from .base import (
-    AucunFichierProduit,
     BaseConnector,
     ConnectorResult,
+    NoOutputFileError,
     Outcome,
     UnsafeDestinationError,
-    ecriture_atomique,
+    atomic_write,
     safe_target,
 )
 from .contract import Contract, Divergences, compare_contracts, output_contract
-from .decoding import GribIndisponible
 from .ecmwf_ifs import (
     EcmwfIfsError,
     EcmwfIfsOpenDataConnector,
     EcmwfIfsRequest,
     OpenDataClient,
 )
+from .grib2 import GribUnavailableError
 from .meteofrance_pnt import (
     MeteoFrancePntConnector,
     MeteoFrancePntError,
     MeteoFrancePntRequest,
     Transport,
 )
+from .netcdf_cf import UnconvertibleUnitError, write_netcdf
 from .observability import (
     EVENT_CATEGORY,
     EVENT_DATASET,
@@ -46,13 +47,11 @@ from .observability import (
     fetch_finished_fields,
     fetch_started_fields,
 )
-from .output import UniteNonConvertible, write_netcdf
 
 __all__ = [
     "EVENT_CATEGORY",
     "EVENT_DATASET",
     "RESERVED_RECORD_ATTRIBUTES",
-    "AucunFichierProduit",
     "BaseConnector",
     "ConnectorResult",
     "Contract",
@@ -61,26 +60,27 @@ __all__ = [
     "EcmwfIfsOpenDataConnector",
     "EcmwfIfsRequest",
     "EcsJsonFormatter",
-    "GribIndisponible",
+    "GribUnavailableError",
     "MeteoFrancePntConnector",
     "MeteoFrancePntError",
     "MeteoFrancePntRequest",
+    "NoOutputFileError",
     "OpenDataClient",
     "Outcome",
     "Transport",
-    "UniteNonConvertible",
+    "UnconvertibleUnitError",
     "UnsafeDestinationError",
+    "atomic_write",
     "compare_contracts",
     "connector_logger",
     "contract",
-    "decoding",
     "ecmwf_ifs",
-    "ecriture_atomique",
     "failure_fields",
     "fetch_finished_fields",
     "fetch_started_fields",
+    "grib2",
     "meteofrance_pnt",
-    "output",
+    "netcdf_cf",
     "output_contract",
     "safe_target",
     "write_netcdf",

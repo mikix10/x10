@@ -85,7 +85,7 @@ def fetch_started_fields(
     il passe par ici plutôt que d'être ajouté par l'appelant, afin que la
     surface journalisée reste entièrement couverte par ses tests.
     """
-    champs: dict[str, Any] = {
+    fields: dict[str, Any] = {
         "event.kind": "event",
         "event.category": list(EVENT_CATEGORY),
         "event.dataset": EVENT_DATASET,
@@ -94,17 +94,17 @@ def fetch_started_fields(
         "x10.source": source,
     }
     if origin is not None:
-        champs["x10.origin"] = origin
+        fields["x10.origin"] = origin
     if attempt is not None:
-        champs["x10.attempt"] = attempt
+        fields["x10.attempt"] = attempt
     if details:
-        champs.update({f"x10.{cle}": valeur for cle, valeur in details.items()})
-    return champs
+        fields.update({f"x10.{key}": value for key, value in details.items()})
+    return fields
 
 
 def fetch_finished_fields(result: ConnectorResult) -> dict[str, Any]:
     """Champs ECS de la fin d'une récupération, dérivés du compte rendu."""
-    champs: dict[str, Any] = {
+    fields: dict[str, Any] = {
         "event.kind": "event",
         "event.category": list(EVENT_CATEGORY),
         "event.dataset": EVENT_DATASET,
@@ -118,12 +118,12 @@ def fetch_finished_fields(result: ConnectorResult) -> dict[str, Any]:
         "x10.artefacts": len(result.retrieval.artefacts) if result.retrieval else 0,
     }
     if result.origin is not None:
-        champs["x10.origin"] = result.origin
+        fields["x10.origin"] = result.origin
     if result.retrieval is not None:
-        champs["x10.dataset"] = result.retrieval.dataset
+        fields["x10.dataset"] = result.retrieval.dataset
         if result.retrieval.license is not None:
-            champs["x10.license"] = result.retrieval.license
-    return champs
+            fields["x10.license"] = result.retrieval.license
+    return fields
 
 
 def failure_fields(error: BaseException) -> dict[str, Any]:
@@ -149,9 +149,9 @@ class EcsJsonFormatter(logging.Formatter):
             "log.logger": record.name,
             "message": record.getMessage(),
         }
-        for cle, valeur in record.__dict__.items():
-            if cle.startswith(("event.", "error.", "trace.", "x10.", "service.")):
-                charge[cle] = valeur
+        for key, value in record.__dict__.items():
+            if key.startswith(("event.", "error.", "trace.", "x10.", "service.")):
+                charge[key] = value
         if record.exc_info:
             charge["error.stack_trace"] = self.formatException(record.exc_info)
         # Sortie purement ASCII, donc insensible à l'encodage du flux de

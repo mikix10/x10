@@ -29,8 +29,8 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .decoding import GribIndisponible, _numpy
-from .output import cell_method, grid_mapping, udunits
+from .grib2 import GribUnavailableError, _numpy
+from .netcdf_cf import cell_method, grid_mapping, udunits
 
 if TYPE_CHECKING:  # pragma: no cover
     import xarray as xr
@@ -49,12 +49,12 @@ PRECISION = 6
 #: qu'énumérée. Figer les 717 latitudes et 1121 longitudes d'AROME rendrait la
 #: référence illisible — ce qui lui ôterait sa seule qualité sur un fichier
 #: binaire.
-SEUIL_ENUMERATION = 64
+ENUMERATION_THRESHOLD = 64
 
 #: Clés GRIB retenues pour identifier un champ chez le producteur. C'est ce
 #: qui rend la localisation du fautif gratuite : une divergence sur une
 #: variable désigne du même coup les messages concernés.
-IDENTITE_GRIB = (
+GRIB_IDENTITY = (
     "discipline",
     "parameterCategory",
     "parameterNumber",
@@ -65,10 +65,10 @@ IDENTITE_GRIB = (
 #: Attributs dont une évolution est une **rupture**. Les autres écarts sont
 #: des nouveautés, signalées sans faire échouer : un indicateur qui crie à
 #: chaque ajout est désactivé au bout de trois fois.
-ATTRIBUTS_CRITIQUES = ("dims", "dtype", "units", "standard_name", "cell_methods")
+CRITICAL_ATTRIBUTES = ("dims", "dtype", "units", "standard_name", "cell_methods")
 
 #: Attributs dont une évolution est **signalée sans échec**.
-ATTRIBUTS_INFORMATIFS = ("long_name", "grib", "coords")
+INFORMATIVE_ATTRIBUTES = ("long_name", "grib", "coords")
 
 #: Coordonnées **exclues du contrat** parce qu'elles changent légitimement à
 #: chaque exécution. `time` porte la date de réseau et `valid_time` en
@@ -78,10 +78,10 @@ ATTRIBUTS_INFORMATIFS = ("long_name", "grib", "coords")
 #: `step` reste au contrat : c'est un décalage relatif, stable pour une
 #: tranche donnée, et son évolution — un passage de l'horaire au tri-horaire,
 #: par exemple — est précisément une dérive à détecter.
-COORDS_EXCLUES = frozenset({"time", "valid_time"})
+EXCLUDED_COORDS = frozenset({"time", "valid_time"})
 
 
-class AxeCaracterise(BaseModel):
+class AxisSummary(BaseModel):
     """Coordonnée trop longue pour être énumérée.
 
     Quatre nombres et une empreinte au lieu d'un millier de valeurs, sans
@@ -91,11 +91,11 @@ class AxeCaracterise(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    taille: int = Field(ge=0)
-    premier: float
-    dernier: float
-    pas: float | None = None
-    empreinte: str
+    size: int = Field(ge=0)
+    first: float
+    last: float
+    stride: float | None = None
+    fingerprint: str
 
 
 class VariableContract(BaseModel):
@@ -122,11 +122,11 @@ class GeometryContract(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    grille: dict[str, AxeCaracterise] = Field(default_factory=dict)
-    referentiel: dict[str, str] | None = None
+    grid: dict[str, AxisSummary] = Field(default_factory=dict)
+    crs: dict[str, str] | None = None
     #: Nombre de jeux rendus par la chaîne de décodage pour ce granule. Informatif : un
     #: changement signale une réorganisation sans dire laquelle.
-    jeux: int = Field(default=0, ge=0)
+    datasets: int = Field(default=0, ge=0)
 
 
 class Contract(BaseModel):
@@ -154,13 +154,13 @@ class Divergence(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    categorie: Literal["rupture", "nouveaute"]
-    chemin: str
+    category: Literal["breaking", "addition"]
+    path: str
     reference: str | None = None
-    observe: str | None = None
+    observed: str | None = None
 
     def __str__(self) -> str:
-        return f"{self.chemin} : {self.reference!r} -> {self.observe!r}"
+        return f"{self.path} : {self.reference!r} -> {self.observed!r}"
 
 
 class Divergences(BaseModel):
@@ -173,73 +173,76 @@ class Divergences(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    ruptures: tuple[Divergence, ...] = ()
-    nouveautes: tuple[Divergence, ...] = ()
+    breaking_changes: tuple[Divergence, ...] = ()
+    additions: tuple[Divergence, ...] = ()
 
     def __bool__(self) -> bool:
-        return bool(self.ruptures)
+        return bool(self.breaking_changes)
 
     def resume(self) -> str:
-        if not self.ruptures and not self.nouveautes:
+        if not self.breaking_changes and not self.additions:
             return "aucun écart"
         return "\n".join(
-            [f"RUPTURE   {d}" for d in self.ruptures] + [f"nouveauté {d}" for d in self.nouveautes]
+            [f"RUPTURE   {d}" for d in self.breaking_changes]
+            + [f"nouveauté {d}" for d in self.additions]
         )
 
 
-def _coordonnee(valeurs: object) -> AxeCaracterise | tuple[float, ...]:
+def _coordinate(values: object) -> AxisSummary | tuple[float, ...]:
     """Énumère une coordonnée courte, caractérise une longue."""
     np = _numpy()
-    brut = np.atleast_1d(np.asarray(valeurs))
+    raw = np.atleast_1d(np.asarray(values))
     # **Piège** : `numpy` range `timedelta64` parmi les entiers signés, donc
     # `issubdtype(..., number)` le laisse passer et les échéances resteraient
     # en nanosecondes — 18000000000000 pour cinq heures, illisible en revue.
     # Le genre de dtype est le seul test fiable.
-    if brut.dtype.kind in "mM":
-        brut = brut.astype("datetime64[s]" if brut.dtype.kind == "M" else "timedelta64[s]")
-        brut = brut.astype("int64")
-    elif not np.issubdtype(brut.dtype, np.number):
-        brut = brut.astype("int64")
-    arrondi = np.round(brut.astype("float64"), PRECISION)
-    if arrondi.size <= SEUIL_ENUMERATION:
-        return tuple(float(x) for x in arrondi)
-    return AxeCaracterise(
-        taille=int(arrondi.size),
-        premier=float(arrondi[0]),
-        dernier=float(arrondi[-1]),
-        pas=float(round(float(arrondi[1] - arrondi[0]), PRECISION)) if arrondi.size > 1 else None,
-        empreinte=hashlib.sha256(arrondi.tobytes()).hexdigest()[:16],
+    if raw.dtype.kind in "mM":
+        raw = raw.astype("datetime64[s]" if raw.dtype.kind == "M" else "timedelta64[s]")
+        raw = raw.astype("int64")
+    elif not np.issubdtype(raw.dtype, np.number):
+        raw = raw.astype("int64")
+    rounded = np.round(raw.astype("float64"), PRECISION)
+    if rounded.size <= ENUMERATION_THRESHOLD:
+        return tuple(float(x) for x in rounded)
+    return AxisSummary(
+        size=int(rounded.size),
+        first=float(rounded[0]),
+        last=float(rounded[-1]),
+        stride=float(round(float(rounded[1] - rounded[0]), PRECISION))
+        if rounded.size > 1
+        else None,
+        fingerprint=hashlib.sha256(rounded.tobytes()).hexdigest()[:16],
     )
 
 
-def output_contract(jeux: tuple[xr.Dataset, ...]) -> Contract:
+def output_contract(datasets: tuple[xr.Dataset, ...]) -> Contract:
     """Construit le contrat d'un granule décodé et normalisé.
 
     Prend le tuple rendu par `open_granule`, chaque jeu passé par `normalise`.
     Le contrat est bâti **avant écriture** : c'est là que se voit une dérive
     du producteur, l'écriture ayant ses propres tests.
     """
-    if not jeux:
-        raise GribIndisponible("Aucun jeu à contractualiser.")
+    if not datasets:
+        raise GribUnavailableError("Aucun jeu à contractualiser.")
 
     variables: dict[str, VariableContract] = {}
-    grille: dict[str, AxeCaracterise] = {}
-    referentiel: dict[str, str] | None = None
+    grid: dict[str, AxisSummary] = {}
+    crs: dict[str, str] | None = None
 
-    for jeu in jeux:
-        if referentiel is None and (gm := grid_mapping(jeu)) is not None:
-            referentiel = {cle: str(valeur) for cle, valeur in sorted(gm.items())}
-        for nom, var in jeu.data_vars.items():
+    for dataset in datasets:
+        if crs is None and (gm := grid_mapping(dataset)) is not None:
+            crs = {key: str(value) for key, value in sorted(gm.items())}
+        for name, var in dataset.data_vars.items():
             coords: dict[str, tuple[float, ...]] = {}
-            for axe in var.dims:
-                if str(axe) not in jeu.coords or str(axe) in COORDS_EXCLUES:
+            for axis in var.dims:
+                if str(axis) not in dataset.coords or str(axis) in EXCLUDED_COORDS:
                     continue
-                decrit = _coordonnee(jeu.coords[axe].values)
-                if isinstance(decrit, AxeCaracterise):
-                    grille.setdefault(str(axe), decrit)
+                decrit = _coordinate(dataset.coords[axis].values)
+                if isinstance(decrit, AxisSummary):
+                    grid.setdefault(str(axis), decrit)
                 else:
-                    coords[str(axe)] = decrit
-            variables[str(nom)] = VariableContract(
+                    coords[str(axis)] = decrit
+            variables[str(name)] = VariableContract(
                 dims=tuple(str(d) for d in var.dims),
                 dtype=str(var.dtype),
                 # L'unité **telle que la sortie la déclare**, donc après
@@ -250,9 +253,9 @@ def output_contract(jeux: tuple[xr.Dataset, ...]) -> Contract:
                 long_name=var.attrs.get("long_name"),
                 cell_methods=cell_method(var.attrs),
                 grib={
-                    cle: str(var.attrs[f"GRIB_{cle}"])
-                    for cle in IDENTITE_GRIB
-                    if f"GRIB_{cle}" in var.attrs
+                    key: str(var.attrs[f"GRIB_{key}"])
+                    for key in GRIB_IDENTITY
+                    if f"GRIB_{key}" in var.attrs
                 },
                 coords=coords,
             )
@@ -260,72 +263,81 @@ def output_contract(jeux: tuple[xr.Dataset, ...]) -> Contract:
     return Contract(
         variables=dict(sorted(variables.items())),
         geometry=GeometryContract(
-            grille=dict(sorted(grille.items())),
-            referentiel=referentiel,
-            jeux=len(jeux),
+            grid=dict(sorted(grid.items())),
+            crs=crs,
+            datasets=len(datasets),
         ),
     )
 
 
-def _ecart(
-    categorie: Literal["rupture", "nouveaute"], chemin: str, a: object, b: object
+def _divergence(
+    category: Literal["breaking", "addition"], path: str, a: object, b: object
 ) -> Divergence:
-    return Divergence(categorie=categorie, chemin=chemin, reference=str(a), observe=str(b))
+    return Divergence(category=category, path=path, reference=str(a), observed=str(b))
 
 
-def compare_contracts(reference: Contract, observe: Contract) -> Divergences:
+def compare_contracts(reference: Contract, observed: Contract) -> Divergences:
     """Compare deux contrats, en **classant** les écarts.
 
     Une variable disparue, une unité, une dimension ou une grille modifiées
     sont des **ruptures**. Une variable, un libellé ou une échéance qui
     s'ajoutent sont des **nouveautés**, signalées sans faire échouer.
     """
-    ruptures: list[Divergence] = []
-    nouveautes: list[Divergence] = []
+    breaking_changes: list[Divergence] = []
+    additions: list[Divergence] = []
 
-    for nom in sorted(set(reference.variables) - set(observe.variables)):
-        ruptures.append(_ecart("rupture", f"variables.{nom}", "présente", "absente"))
-    for nom in sorted(set(observe.variables) - set(reference.variables)):
-        nouveautes.append(_ecart("nouveaute", f"variables.{nom}", "absente", "apparue"))
+    for name in sorted(set(reference.variables) - set(observed.variables)):
+        breaking_changes.append(_divergence("breaking", f"variables.{name}", "présente", "absente"))
+    for name in sorted(set(observed.variables) - set(reference.variables)):
+        additions.append(_divergence("addition", f"variables.{name}", "absente", "apparue"))
 
-    for nom in sorted(set(reference.variables) & set(observe.variables)):
-        avant, apres = reference.variables[nom], observe.variables[nom]
-        for champ in ATTRIBUTS_CRITIQUES:
-            if (a := getattr(avant, champ)) != (b := getattr(apres, champ)):
-                ruptures.append(_ecart("rupture", f"variables.{nom}.{champ}", a, b))
-        for champ in ATTRIBUTS_INFORMATIFS:
-            if (a := getattr(avant, champ)) != (b := getattr(apres, champ)):
-                nouveautes.append(_ecart("nouveaute", f"variables.{nom}.{champ}", a, b))
+    for name in sorted(set(reference.variables) & set(observed.variables)):
+        avant, apres = reference.variables[name], observed.variables[name]
+        for attribute in CRITICAL_ATTRIBUTES:
+            if (a := getattr(avant, attribute)) != (b := getattr(apres, attribute)):
+                breaking_changes.append(
+                    _divergence("breaking", f"variables.{name}.{attribute}", a, b)
+                )
+        for attribute in INFORMATIVE_ATTRIBUTES:
+            if (a := getattr(avant, attribute)) != (b := getattr(apres, attribute)):
+                additions.append(_divergence("addition", f"variables.{name}.{attribute}", a, b))
 
-    if reference.geometry.grille != observe.geometry.grille:
-        ruptures.append(
-            _ecart("rupture", "geometry.grille", reference.geometry.grille, observe.geometry.grille)
-        )
-    if reference.geometry.referentiel != observe.geometry.referentiel:
-        ruptures.append(
-            _ecart(
-                "rupture",
-                "geometry.referentiel",
-                reference.geometry.referentiel,
-                observe.geometry.referentiel,
+    if reference.geometry.grid != observed.geometry.grid:
+        breaking_changes.append(
+            _divergence(
+                "breaking", "geometry.grid", reference.geometry.grid, observed.geometry.grid
             )
         )
-    if reference.geometry.jeux != observe.geometry.jeux:
-        nouveautes.append(
-            _ecart("nouveaute", "geometry.jeux", reference.geometry.jeux, observe.geometry.jeux)
+    if reference.geometry.crs != observed.geometry.crs:
+        breaking_changes.append(
+            _divergence(
+                "breaking",
+                "geometry.crs",
+                reference.geometry.crs,
+                observed.geometry.crs,
+            )
+        )
+    if reference.geometry.datasets != observed.geometry.datasets:
+        additions.append(
+            _divergence(
+                "addition",
+                "geometry.datasets",
+                reference.geometry.datasets,
+                observed.geometry.datasets,
+            )
         )
 
-    return Divergences(ruptures=tuple(ruptures), nouveautes=tuple(nouveautes))
+    return Divergences(breaking_changes=tuple(breaking_changes), additions=tuple(additions))
 
 
 __all__ = [
-    "ATTRIBUTS_CRITIQUES",
-    "ATTRIBUTS_INFORMATIFS",
-    "COORDS_EXCLUES",
-    "IDENTITE_GRIB",
+    "CRITICAL_ATTRIBUTES",
+    "ENUMERATION_THRESHOLD",
+    "EXCLUDED_COORDS",
+    "GRIB_IDENTITY",
+    "INFORMATIVE_ATTRIBUTES",
     "PRECISION",
-    "SEUIL_ENUMERATION",
-    "AxeCaracterise",
+    "AxisSummary",
     "Contract",
     "Divergence",
     "Divergences",
