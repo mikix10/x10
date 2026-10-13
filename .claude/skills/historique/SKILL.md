@@ -72,6 +72,22 @@ hypothèses fausses, et tout ce que la règle de confidentialité des tiers
 écarte. Le dossier daté est un plan de travail, pas une publication. Seule
 la **synthèse** peut être reprise, après relecture.
 
+### Le dossier hors dépôt appartient à celui qui l'exploite
+
+`<dépôt>-hors-depot` n'est **pas** une ressource partagée, et rien ici ne le
+provisionne. **Il revient à chaque utilisateur de s'assurer que le sien
+existe, qu'il est accessible en écriture, et qu'il lui est propre.** Son
+contenu n'a de sens que pour lui : relevés de transcrit, et archives locales
+des plans produits lors d'un travail assisté par agent.
+
+Trois conséquences à tenir, quel que soit le dépôt :
+
+- **ne jamais le supposer présent** — le résoudre, et le créer au besoin ;
+- **ne jamais y écrire ce qui concerne un tiers** sans y avoir appliqué les
+  règles de confidentialité du dépôt d'origine ;
+- **ne jamais le partager ni le synchroniser** vers un emplacement collectif :
+  ce qu'il contient n'a été relu par personne.
+
 ## La démarche, en cinq temps
 
 ```bash
@@ -118,6 +134,22 @@ tranche.
 
 **Le contenu d'un message est tantôt une chaîne, tantôt une liste de blocs**
 typés `text`, `tool_use`, `tool_result`, `thinking`. Ne prendre que `text`.
+
+**Corollaire : `extraire.py` ne voit pas les plans, et c'est normal.** Un
+plan soumis en mode plan voyage dans un bloc `tool_use`, pas dans un bloc
+`text` — le filtre ci-dessus l'écarte donc, à juste titre pour l'usage
+visé. Vérifié le 13/10/2026 : le fichier de plan de session est un brouillon
+que l'outil réutilise, de sorte qu'un plan écrase le précédent et que le
+transcrit en est la **seule** trace. Les retrouver tous demande une
+recherche distincte :
+
+```bash
+grep -c ExitPlanMode "<le transcrit>.jsonl"   # puis lire input.plan
+```
+
+La réponse à chaque appel dit son sort, et trois formes existent —
+approbation, refus, et erreur « you are not in plan mode ». Les distinguer
+évite d'archiver comme retenu ce qui a été écarté.
 
 ## Les deux angles morts de la méthode
 
