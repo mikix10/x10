@@ -76,6 +76,11 @@ class Champ:
     #: qu'aucune donnée réelle ne nous offre aujourd'hui, et qui ne lève
     #: pourtant rien.
     tables: int | None = None
+    #: Version des tables **locales**, octet 11 de la section 1. L'échantillon
+    #: d'ecCodes la laisse à zéro, ce qui est la valeur des fichiers réels du
+    #: producteur ; la fixer permet de construire le cas conforme, où un code
+    #: de la plage locale s'accompagne bien d'une table locale déclarée.
+    tables_locales: int | None = None
     accumulation: int | None = None
     #: Type de traitement statistique, table 4.10 du format GRIB2. N'a de sens
     #: qu'avec `accumulation`, qui ouvre le gabarit `4.8`. Défaut : 1, le
@@ -115,6 +120,8 @@ def message(champ: Champ, grille: dict[str, float] | None = None) -> bytes:
         # façon dont ecCodes les résout.
         if champ.tables is not None:
             eccodes.codes_set(h, "tablesVersion", champ.tables)
+        if champ.tables_locales is not None:
+            eccodes.codes_set(h, "localTablesVersion", champ.tables_locales)
         eccodes.codes_set(h, "Ni", ni)
         eccodes.codes_set(h, "Nj", nj)
         eccodes.codes_set(h, "latitudeOfFirstGridPointInDegrees", g["lat1"])

@@ -15,6 +15,7 @@ from x10_connectors.decoding import (
     CF_STANDARD_NAMES,
     OPTIONS_CFGRIB,
     SANS_NOM_CF,
+    TRIPLET_AMBIGU,
     VENT_DERIVE,
     apply_cf_names,
     drop_derived_wind,
@@ -130,6 +131,28 @@ def test_un_champ_sans_nom_cf_connu_reste_sans_nom(tmp_path):
 def test_les_absences_de_nom_cf_sont_declarees_et_non_subies():
     assert (0, 19, 11) in SANS_NOM_CF
     assert not SANS_NOM_CF & set(CF_STANDARD_NAMES)
+
+
+def test_un_code_ambigu_ne_recoit_aucun_nom(tmp_path):
+    """`(0, 3, 6)` porte deux champs différents chez un même producteur.
+
+    L'OMM le dit elle-même en note 124, et recommande les numéros 33 et 34 à
+    sa place. Notre table posait `geopotential_height`, qui désigne l'entrée
+    5 et s'exprime en mètres géopotentiels : faux deux fois. Lui substituer
+    une autre supposition ne vaudrait pas mieux que de n'en poser aucune.
+    """
+    champs = [Champ(category=3, number=6, valeurs=np.zeros(N))]
+    jeu = apply_cf_names(open_granule(paquet(tmp_path / "h.grib2", champs))[0])
+    nom = next(iter(jeu.data_vars))
+    assert "standard_name" not in jeu[nom].attrs
+
+
+def test_les_codes_ambigus_sont_declares_et_distincts_des_absences():
+    """Deux manques de nature différente : l'un se corrige en proposant un nom
+    à CF, l'autre non."""
+    assert (0, 3, 6) in TRIPLET_AMBIGU
+    assert not TRIPLET_AMBIGU & set(CF_STANDARD_NAMES)
+    assert not TRIPLET_AMBIGU & SANS_NOM_CF
 
 
 def test_le_vent_derive_est_bien_celui_qui_est_ecarte():

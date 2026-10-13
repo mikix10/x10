@@ -132,11 +132,10 @@ fichiers déclarant une version de table locale nulle, ils n'indiquent pas
 quelle table appliquer.
 
 **Le producteur publie la table manquante.** Un jeu de données dédié met à
-disposition une archive de définitions ecCodes, à désarchiver et à désigner par
-la variable d'environnement `ECCODES_DEFINITION_PATH`. Le recours à cette table
-n'est pas une astuce de contournement : c'est la réponse que le producteur
-apporte lui-même aux utilisateurs signalant des champs non reconnus, à deux
-reprises au moins dans les discussions publiques du jeu de données.
+disposition une archive de définitions ecCodes. Le recours à cette table n'est
+pas une astuce de contournement : c'est la réponse que le producteur apporte
+lui-même aux utilisateurs signalant des champs non reconnus, à deux reprises au
+moins dans les discussions publiques du jeu de données.
 
 Cette table résout bien les six codes :
 
@@ -153,6 +152,37 @@ Cette table résout bien les six codes :
 environ 1 100 définitions de noms courts, et seulement deux entrées de nom long
 et deux d'unité, toutes relatives à la grêle. **Aucun nom standard CF n'y
 figure.**
+
+### Correction du 13/10/2026 : ne pas l'installer telle quelle
+
+Une version antérieure de cette note conseillait de désigner l'archive par la
+variable d'environnement `ECCODES_DEFINITION_PATH`. **La mesure montre que
+c'est une perte nette**, et le conseil est retiré.
+
+L'archive n'est pas un complément : elle porte à sa racine un
+`grib2/shortName.def` de **753 entrées** qui **masque** celui d'ecCodes, bien
+plus fourni, puisque le chemin du producteur est consulté en premier. Relevé
+sur 33 codes, à `tablesVersion = 15` et centre `lfpw` :
+
+| | Sans l'archive | Avec l'archive |
+|---|---|---|
+| `(0, 1, 64)`, `(0, 1, 75)`, `(0, 1, 201)`, `(0, 6, 1)`, `(0, 16, 192)` | `unknown` | **résolus** |
+| `(0, 0, 10)`, `(0, 0, 11)`, `(0, 1, 52)`, `(0, 3, 5)`, `(0, 3, 34)`, `(0, 19, 0)` | `slhtf`, `ishf`, `tprate`, `orog`, `h`, `vis` | **`unknown`** |
+| `(0, 7, 6)` | unité `m**2 s**-2` | unité **`unknown`** |
+
+Cinq codes gagnés, six perdus, et une unité perdue — qui ferait d'ailleurs
+lever notre table UDUNITS fermée trois étapes plus loin. L'archive se consulte
+donc **comme référence** pour les codes qu'ecCodes ne résout pas ; elle ne
+s'installe pas dans la chaîne de décodage.
+
+Deux détails relevés au passage. L'archive livre `grib2/tables/15/4.5.table`,
+une table **maîtresse**, et un dossier `grib2/tables/local/lfpw` **vide** : le
+producteur diffuse des concepts, pas des tables locales — ce qui est cohérent
+avec le `localTablesVersion = 0` de ses fichiers, et laisse le consommateur
+sans moyen normalisé de trouver ces définitions. Et le séparateur de chemins
+est celui du système : la roue Python ajoute d'elle-même `/MEMFS/definitions`
+à la suite du chemin fourni, avec un `;` sous Windows — y écrire un `:` fait
+échouer ecCodes au démarrage, le `D:` d'un chemin absolu étant alors coupé.
 
 La chaîne complète est donc :
 
