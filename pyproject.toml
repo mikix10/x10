@@ -87,7 +87,14 @@ filterwarnings = [
 [tool.coverage.run]
 # `source_pkgs` et non `source` : vise le paquet installe, qui retrouve seul
 # ses sources sous `src/`.
-source_pkgs = ["x10_models", "x10_catalog", "x10_connectors", "x10_storage", "x10_api"]
+source_pkgs = [
+  "x10_models",
+  "x10_catalog",
+  "x10_connectors",
+  "x10_storage",
+  "x10_api",
+  "x10_client",
+]
 branch = true
 
 [tool.coverage.report]
