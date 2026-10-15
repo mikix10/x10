@@ -100,10 +100,16 @@ class MeteoFrancePntError(RuntimeError):
 
 @dataclass(frozen=True)
 class RemoteObject:
-    """Un paquet disponible sur le stockage objet."""
+    """Un paquet nommé du producteur, disponible sur le stockage objet.
+
+    Le champ s'appelle `package` et non `granule` : il porte le nom que le
+    producteur donne à son produit — SP1, HP2 —, là où un granule est le
+    fichier que l'on rapporte. Voir la décision sur le vocabulaire dans
+    `CLAUDE.md`.
+    """
 
     key: str
-    granule: str
+    package: str
     time_range: str
     size_bytes: int
 
@@ -240,10 +246,10 @@ class MeteoFrancePntConnector(BaseConnector):
             time_range = name.split("__")[-2] if name.count("__") >= 3 else ""
             out.append(
                 RemoteObject(
-                    key=key, granule=parts[-2], time_range=time_range, size_bytes=int(size)
+                    key=key, package=parts[-2], time_range=time_range, size_bytes=int(size)
                 )
             )
-        return tuple(sorted(out, key=lambda o: (o.granule, o.time_range)))
+        return tuple(sorted(out, key=lambda o: (o.package, o.time_range)))
 
     def _selection(self) -> tuple[str, tuple[RemoteObject, ...]]:
         """Résout le réseau et les objets à prendre.
@@ -263,10 +269,10 @@ class MeteoFrancePntConnector(BaseConnector):
             retenus = tuple(
                 o
                 for o in disponibles
-                if o.granule in self.request.packages
+                if o.package in self.request.packages
                 and (not self.request.time_ranges or o.time_range in self.request.time_ranges)
             )
-            missing = set(self.request.packages) - {o.granule for o in retenus}
+            missing = set(self.request.packages) - {o.package for o in retenus}
             if retenus and not missing:
                 return run, retenus
 

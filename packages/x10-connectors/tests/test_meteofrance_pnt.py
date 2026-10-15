@@ -28,9 +28,9 @@ from x10_connectors.meteofrance_pnt import (
 RESEAUX = ("2026-10-05T00:00:00Z", "2026-10-05T03:00:00Z")
 
 
-def _cle(run: str, modele: str, grid: str, granule: str, time_range: str) -> str:
-    nom = f"{modele}__{grid}__{granule}__{time_range}__{run}.grib2"
-    return f"pnt/{run}/{modele}/{grid}/{granule}/{nom}"
+def _cle(run: str, modele: str, grid: str, package: str, time_range: str) -> str:
+    nom = f"{modele}__{grid}__{package}__{time_range}__{run}.grib2"
+    return f"pnt/{run}/{modele}/{grid}/{package}/{nom}"
 
 
 def _xml_prefixes(runs: tuple[str, ...]) -> str:
@@ -73,8 +73,8 @@ class _TransportSimule:
 def _catalogue_complet() -> dict[str, dict[str, int]]:
     return {
         run: {
-            _cle(run, "arome", "0025", granule, time_range): 1000
-            for granule in ("SP1", "SP2")
+            _cle(run, "arome", "0025", package, time_range): 1000
+            for package in ("SP1", "SP2")
             for time_range in ("00H06H", "07H12H")
         }
         for run in RESEAUX
@@ -94,7 +94,7 @@ def test_les_objets_portent_paquet_tranche_et_taille(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)
     objets = connecteur.objects(RESEAUX[0])
-    assert {o.granule for o in objets} == {"SP1", "SP2"}
+    assert {o.package for o in objets} == {"SP1", "SP2"}
     assert {o.time_range for o in objets} == {"00H06H", "07H12H"}
     assert all(o.size_bytes == 1000 for o in objets)
 
@@ -171,7 +171,7 @@ def test_le_nom_local_est_portable():
     Windows refuse dans un nom de fichier."""
     objet = RemoteObject(
         key=_cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H"),
-        granule="SP1",
+        package="SP1",
         time_range="00H06H",
         size_bytes=1,
     )
