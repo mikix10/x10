@@ -23,6 +23,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "x10-catalog",
   "x10-connectors",
   "x10-models",
 ]
@@ -39,6 +40,7 @@ Homepage = "https://github.com/mikix10/x10"
 Repository = "https://github.com/mikix10/x10"
 
 [tool.uv.sources]
+x10-catalog = { workspace = true }
 x10-connectors = { workspace = true }
 x10-models = { workspace = true }
 
