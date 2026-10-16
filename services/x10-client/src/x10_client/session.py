@@ -27,7 +27,7 @@ import json
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,6 +36,7 @@ from x10_connectors.contract import output_contract
 from x10_models import Retrieval
 
 from .config import Settings
+from .credentials import Credentials
 from .options import DEFAULT_OPTIONS, NormaliseOptions
 from .report import (
     ErrorType,
@@ -125,10 +126,17 @@ class Session:
     """Une configuration résolue, et les opérations qu'elle permet."""
 
     settings: Settings
+    #: Identifiants des sources authentifiees. **Separes des reglages** : la
+    #: configuration s'affiche sans risque, et l'objet qui franchit le plus de
+    #: frontieres est celui qui ne porte aucun secret.
+    credentials: Credentials = field(default_factory=Credentials)
 
     @classmethod
     def from_env(cls, environment: dict[str, str] | None = None) -> Session:
-        return cls(settings=Settings.from_env(environment))
+        return cls(
+            settings=Settings.from_env(environment),
+            credentials=Credentials.from_env(environment),
+        )
 
     # --- Acquisition ---------------------------------------------------------
 
