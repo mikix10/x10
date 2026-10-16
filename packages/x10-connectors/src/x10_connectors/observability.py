@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -126,12 +127,37 @@ def fetch_finished_fields(result: ConnectorResult) -> dict[str, Any]:
     return fields
 
 
+#: Motif d'une URL dans un texte libre, chaîne de requête comprise. Volontairement
+#: large : il vaut mieux rédiger un peu trop que laisser passer un jeton.
+_URL_AVEC_REQUETE = re.compile(r"(https?://[^\s'\"<>]*?)\?[^\s'\"<>]*")
+
+
+def redact(message: str) -> str:
+    """Retire la chaîne de requête des URL d'un message.
+
+    **Le seul chemin par lequel un secret pouvait atteindre le journal.** Une
+    bibliothèque HTTP met volontiers l'adresse complète dans son message
+    d'exception, et `failure_fields` la recopiait telle quelle dans
+    `error.message` ; un jeton passé en paramètre d'URL s'y retrouvait.
+
+    Le **chemin** suffit au diagnostic — il dit quel objet était demandé. La
+    chaîne de requête, elle, ne sert qu'à fuir. Elle est donc remplacée par
+    un marqueur plutôt que supprimée, pour que la relecture sache qu'il y
+    avait quelque chose là.
+
+    Cela ne dispense pas de la règle de fond : **un secret ne voyage jamais
+    en paramètre d'URL quand un en-tête existe.** Cette fonction est le
+    filet, pas la méthode.
+    """
+    return _URL_AVEC_REQUETE.sub(r"\1?<redacted>", message)
+
+
 def failure_fields(error: BaseException) -> dict[str, Any]:
     """Champs ECS d'un échec, pour distinguer une source indisponible d'un défaut interne."""
     return {
         "event.outcome": "failure",
         "error.type": type(error).__name__,
-        "error.message": str(error),
+        "error.message": redact(str(error)),
     }
 
 
@@ -170,4 +196,5 @@ __all__ = [
     "failure_fields",
     "fetch_finished_fields",
     "fetch_started_fields",
+    "redact",
 ]

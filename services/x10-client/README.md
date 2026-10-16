@@ -65,6 +65,77 @@ Lue de l'environnement, jamais codée en dur.
 | `X10_MAX_BYTES` | plafond de volume par acquisition | celui du connecteur |
 | `X10_STATE` | où accumuler les comptes rendus | `<destination>/.x10` |
 
+## Secrets
+
+**C'est ici, et nulle part ailleurs, qu'un identifiant a sa place.** La règle
+du dépôt — « X10 ne porte aucun secret » — veut dire que les *paquets* n'en
+détiennent aucun : le client résout, le connecteur reçoit une valeur déjà
+résolue en paramètre. Un test interdit à tout fichier de `packages/` de lire
+l'environnement.
+
+| Variable | Source |
+|---|---|
+| `X10_MF_APPLICATION_ID` | identifiant d'application Météo-France |
+| `X10_CDS_TOKEN` | jeton d'accès personnel du CDS |
+| `X10_ADS_TOKEN` | jeton d'accès personnel de l'ADS |
+
+**Une variable par part et par source.** Certains services demandent deux
+valeurs — un `login` et un mot de passe —, et `Credentials` porte donc des
+**parts nommées** plutôt qu'une valeur unique. Les entasser dans une seule
+variable avec un séparateur les mélangerait au premier identifiant contenant
+ce séparateur.
+
+```python
+session = Session.from_env()
+session.credentials.available  # ('cds',) — les sources utilisables
+session.credentials.incomplete  # celles dont il manque une part
+session.credentials.require("cds")  # le jeu complet, ou une erreur qui nomme
+```
+
+Un identifiant posé à moitié n'est **pas** « disponible » : le dire serait un
+mensonge qui se paierait au moment de la requête.
+
+### Ce qui protège réellement ces valeurs — et qu'il ne faut pas casser
+
+**Ce sont l'annotation de type et Pydantic qui protègent les secrets, et non
+du code propre à X10.** Les parts sont déclarées ainsi :
+
+```python
+parts: dict[str, dict[str, SecretStr]]
+```
+
+Le type `SecretStr` affiche `**********` partout où la valeur serait rendue —
+dans un affichage, un message, une sérialisation JSON —, y compris lorsqu'il
+est imbriqué dans un dictionnaire. Seul un appel explicite à
+`get_secret_value()` donne la valeur réelle.
+
+**Il est donc proscrit de simplifier ces annotations.** Écrire
+`dict[str, dict[str, str]]` à la place suffirait à faire apparaître les
+secrets en clair dans les journaux et dans l'historique d'exécutions, qui est
+permanent — et sans aucun signe : rien ne tomberait en panne.
+
+Par sécurité supplémentaire, X10 embarque deux tests :
+
+- l'un **vérifie que la conversion automatique en `SecretStr` a bien lieu**,
+  y compris quand une valeur est fournie en texte brut ;
+- l'autre **parcourt toute la surface publique** de l'objet au lieu
+  d'énumérer les accès connus, de sorte qu'un accès ajouté plus tard soit
+  couvert sans qu'on ait à y penser.
+
+Une seconde protection vit côté `x10-connectors` : `observability.redact`
+retire la chaîne de requête des URL avant qu'elles n'atteignent le journal,
+car une bibliothèque HTTP met volontiers l'adresse complète dans son message
+d'erreur. **C'est le filet, pas la méthode** — un secret ne voyage jamais en
+paramètre d'URL quand un en-tête existe.
+
+### Un identifiant de longue durée, jamais un jeton
+
+Le jeton de Météo-France vaut **une heure**. Le poser en variable
+d'environnement condamnerait toute exécution plus longue, et toute exécution
+lancée une heure plus tard. C'est donc l'identifiant de longue durée qui se
+configure ici, et le connecteur — seul à connaître le protocole de sa
+source — qui fait l'échange.
+
 ## Options de traitement
 
 `NormaliseOptions` rend explicites cinq décisions que la chaîne prenait en

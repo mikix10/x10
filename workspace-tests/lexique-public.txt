@@ -4,10 +4,12 @@ x10_catalog.CatalogEntry.distributions
 x10_catalog.CatalogEntry.tags
 x10_catalog.__all__: CatalogEntry
 x10_client.__all__: Availability
+x10_client.__all__: Credentials
 x10_client.__all__: DEFAULT_OPTIONS
 x10_client.__all__: ErrorType
 x10_client.__all__: GranuleReport
 x10_client.__all__: MissingConfiguration
+x10_client.__all__: MissingCredential
 x10_client.__all__: NormaliseOptions
 x10_client.__all__: PipelineReport
 x10_client.__all__: Session
@@ -31,6 +33,10 @@ x10_client.config.Settings.state
 x10_client.config.__all__: DEFAULT_STATE_DIR
 x10_client.config.__all__: MissingConfiguration
 x10_client.config.__all__: Settings
+x10_client.credentials.Credentials.parts
+x10_client.credentials.__all__: Credentials
+x10_client.credentials.__all__: ENVIRONMENT
+x10_client.credentials.__all__: MissingCredential
 x10_client.options.NormaliseOptions.compress
 x10_client.options.NormaliseOptions.dropped_fields
 x10_client.options.NormaliseOptions.errors
@@ -79,6 +85,7 @@ x10_client.report.__all__: GranuleReport
 x10_client.report.__all__: PipelineReport
 x10_client.report.__all__: Verdict
 x10_client.report.__all__: contract_fingerprint
+x10_client.session.Session.credentials
 x10_client.session.Session.settings
 x10_client.session.__all__: Session
 x10_client.session.__all__: UnknownRequest
@@ -284,6 +291,7 @@ x10_connectors.observability.__all__: connector_logger
 x10_connectors.observability.__all__: failure_fields
 x10_connectors.observability.__all__: fetch_finished_fields
 x10_connectors.observability.__all__: fetch_started_fields
+x10_connectors.observability.__all__: redact
 x10_models.Agent.name
 x10_models.Agent.roles
 x10_models.Agent.url
