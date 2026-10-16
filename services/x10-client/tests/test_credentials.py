@@ -339,3 +339,85 @@ def test_la_valeur_reste_accessible_malgre_tout(creds):
     """La contrepartie : rédiger partout ne doit pas rendre le secret
     inutilisable. Une seule porte, et il faut l'ouvrir exprès."""
     assert creds.require("cds")["token"].get_secret_value() == FACTICE
+
+
+# --- Contre la malveillance, pas seulement contre l'erreur --------------------
+#
+# Trois trous mesurés le 16/10/2026, dont un qui ne demande aucune
+# malveillance. Ils avaient tous la même cause : la protection reposait sur
+# le **type de la feuille**, et rien ne tenait au niveau du conteneur.
+
+
+def test_muter_le_dictionnaire_interne_ne_fait_rien_fuir(creds):
+    """**Le trou principal.** Un modèle gelé interdit de réaffecter le champ,
+    mais pas de muter le dictionnaire qu'il contient. Avant correction, une
+    seule ligne faisait fuir cinq chemins de rendu.
+
+    Ce n'est pas qu'un scénario de malveillance : du code qui « met à jour »
+    un jeton en place produirait le même effet.
+    """
+    creds.parts["cds"]["token"] = FACTICE  # une chaine nue, sans validation
+
+    for nom, rendu in [
+        ("repr", repr(creds)),
+        ("str", str(creds)),
+        ("f-string", f"{creds}"),
+        ("model_dump", str(creds.model_dump())),
+        ("model_dump_json", creds.model_dump_json()),
+    ]:
+        assert FACTICE not in rendu, f"fuite par {nom} apres mutation"
+
+
+def test_une_source_ajoutee_apres_coup_ne_fuit_pas(creds):
+    """Même chose en ajoutant une entrée entière, et non en remplaçant."""
+    creds.parts["intrus"] = {"x": FACTICE}
+    assert FACTICE not in creds.model_dump_json()
+    assert FACTICE not in repr(creds)
+
+
+def test_le_rendu_reste_utile_malgre_la_redaction(creds):
+    """Rédiger ne doit pas rendre le diagnostic impossible : on veut savoir
+    **quelles sources et quelles parts** sont posées."""
+    rendu = repr(creds)
+    assert "cds" in rendu and "token" in rendu
+    assert "meteofrance" in rendu and "application_id" in rendu
+    assert FACTICE not in rendu
+
+
+def test_une_erreur_de_validation_ne_montre_pas_l_entree():
+    """**Le trou qui ne demande aucune malveillance.** Sans
+    `hide_input_in_errors`, Pydantic écrit « input_value=… » en clair — et
+    c'est justement une entrée mal formée qui finit journalisée.
+    """
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError) as capture:
+        Credentials(parts={"cds": {"token": {"imbrique": FACTICE}}})
+    assert FACTICE not in str(capture.value)
+
+
+def test_la_serialisation_binaire_est_interdite(creds):
+    """Les octets d'un `pickle.dumps` portent le secret **en clair**, le type
+    `SecretStr` n'y changeant rien. Un objet d'identifiants n'a aucune raison
+    d'être pickle."""
+    import pickle
+
+    with pytest.raises(TypeError, match="must not be pickled"):
+        pickle.dumps(creds)
+
+
+def test_une_copie_conserve_la_protection(creds):
+    """La copie est un usage légitime — elle ne doit ni fuir ni casser."""
+    import copy
+
+    for copie in (creds.model_copy(deep=True), copy.deepcopy(creds)):
+        assert FACTICE not in repr(copie)
+        assert copie.require("cds")["token"].get_secret_value() == FACTICE
+
+
+def test_la_protection_ne_depend_plus_du_seul_type_de_la_feuille():
+    """Défense en profondeur : même construit avec des chaînes nues partout,
+    l'objet ne laisse rien sortir. L'annotation reste, en seconde ligne."""
+    brut = Credentials.model_construct(parts={"cds": {"token": FACTICE}})
+    assert FACTICE not in repr(brut)
+    assert FACTICE not in brut.model_dump_json()

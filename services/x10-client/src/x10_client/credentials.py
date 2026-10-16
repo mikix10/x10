@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import os
 
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, SecretStr, field_serializer
 
 #: Par source, les **parts** attendues et la variable d'environnement de
 #: chacune. Vocabulaire **fermé** : une source inconnue lève plutôt que de
@@ -87,11 +87,59 @@ class Credentials(BaseModel):
     au niveau du compte, et le lire ici contournerait ce garde-fou.
     """
 
-    model_config = ConfigDict(frozen=True)
+    #: `hide_input_in_errors` est **indispensable, pas une précaution**.
+    #: Mesuré le 16/10/2026 : sans lui, une valeur mal formée ressort en
+    #: clair dans le `ValidationError` — « input_value={'x': 'le-secret'} » —,
+    #: et c'est justement une entrée mal formée qui finit journalisée.
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
 
     #: Les parts posées, par source. Absente de ce dictionnaire, une source
     #: n'a simplement aucun identifiant configuré.
     parts: dict[str, dict[str, SecretStr]] = {}
+
+    # --- La rédaction tient au conteneur, pas seulement à la feuille --------
+    #
+    # Mesuré le 16/10/2026 : un modèle **gelé** interdit de réaffecter le
+    # champ, mais **pas de muter le dictionnaire** qu'il contient. Une seule
+    # ligne — `creds.parts[source][part] = "en-clair"` — suffisait à faire
+    # fuir cinq chemins de rendu, parce que la protection reposait alors sur
+    # le seul type de la feuille.
+    #
+    # Les trois membres ci-dessous rendent la fuite impossible **quel que
+    # soit le contenu** : ils ne lisent jamais une valeur. Le type `SecretStr`
+    # reste déclaré, en défense supplémentaire et non en défense unique.
+
+    @field_serializer("parts", when_used="always")
+    def _jamais_de_valeur_serialisee(
+        self, parts: dict[str, dict[str, SecretStr]]
+    ) -> dict[str, dict[str, str]]:
+        """Sérialise la **forme**, jamais le contenu."""
+        return {source: dict.fromkeys(p, "**********") for source, p in parts.items()}
+
+    def __repr__(self) -> str:
+        """Dit quelles sources et quelles parts sont posées, jamais leur valeur.
+
+        Utile et sûr : `Credentials(parts={'cds': ['token']})` suffit à
+        diagnostiquer une configuration sans rien révéler.
+        """
+        detail = {source: sorted(p) for source, p in sorted(self.parts.items())}
+        return f"{type(self).__name__}(parts={detail})"
+
+    __str__ = __repr__
+
+    def __reduce__(self) -> str | tuple[object, ...]:
+        """Interdit la sérialisation binaire.
+
+        Mesuré : les octets d'un `pickle.dumps` contiennent le secret **en
+        clair**, `SecretStr` n'y changeant rien. Un objet d'identifiants n'a
+        aucune raison d'être pickle — ni cache, ni file de travail, ni
+        multiprocessing — et l'interdire vaut mieux que de compter sur le
+        fait que personne n'essaiera.
+        """
+        raise TypeError(
+            f"{type(self).__name__} must not be pickled: the bytes would carry the "
+            "secret in clear. Pass the resolved value to the connector instead."
+        )
 
     @classmethod
     def from_env(cls, environment: dict[str, str] | None = None) -> Credentials:

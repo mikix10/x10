@@ -1,0 +1,15 @@
+mypy.override [cfgrib.*, eccodes.*, gribapi.*] -> ignore_missing_imports=True
+mypy.override [ecmwf.opendata.*, multiurl.*] -> ignore_missing_imports=True
+mypy.strict = True
+noqa packages/x10-connectors/src/x10_connectors/netcdf_cf.py -> F401
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
+type:ignore services/x10-client/src/x10_client/report.py -> prop-decorator
