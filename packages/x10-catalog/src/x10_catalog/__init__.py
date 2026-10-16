@@ -39,7 +39,7 @@ class CatalogEntry(BaseModel):
         )
         if etrangeres:
             raise ValueError(
-                f"Distributions ne se rapportant pas à {self.dataset.identifier!r} : "
+                f"Distributions that do not refer to {self.dataset.identifier!r}: "
                 f"{', '.join(etrangeres)}"
             )
         return self
@@ -49,7 +49,7 @@ class CatalogEntry(BaseModel):
         """Deux distributions de même origine rendraient l'ordre ambigu."""
         origines = [d.origin for d in self.distributions]
         if len(set(origines)) != len(origines):
-            raise ValueError("Deux distributions ne peuvent pas partager la même origine.")
+            raise ValueError("Two distributions cannot share the same origin.")
         return self
 
     def resolution_order(self) -> tuple[Distribution, ...]:

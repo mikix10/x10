@@ -157,7 +157,7 @@ def _cfgrib() -> ModuleType:
         import cfgrib
     except ImportError as exc:  # pragma: no cover - depend de l'extra
         raise GribUnavailableError(
-            "La pile de décodage GRIB est absente. Installer l'extra : "
+            "The GRIB decoding stack is missing. Install the extra: "
             "uv sync --all-packages --extra grib"
         ) from exc
     # `cfgrib` n'embarque pas de marqueur de typage : son import vaut `Any`.
@@ -172,7 +172,7 @@ def _eccodes() -> ModuleType:
         import eccodes
     except ImportError as exc:  # pragma: no cover - depend de l'extra
         raise GribUnavailableError(
-            "La pile de décodage GRIB est absente. Installer l'extra : "
+            "The GRIB decoding stack is missing. Install the extra: "
             "uv sync --all-packages --extra grib"
         ) from exc
     module: ModuleType = eccodes
@@ -184,7 +184,7 @@ def _numpy() -> ModuleType:
         import numpy
     except ImportError as exc:  # pragma: no cover - depend de l'extra
         raise GribUnavailableError(
-            "La pile de décodage GRIB est absente. Installer l'extra : "
+            "The GRIB decoding stack is missing. Install the extra: "
             "uv sync --all-packages --extra grib"
         ) from exc
     return numpy
@@ -326,9 +326,9 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     if dropped := dropped_fields(source, granule):
         detail = ", ".join(str(code) for code in sorted(dropped))
         message = (
-            f"{len(dropped)} paramètre(s) du granule n'apparaissent pas au "
-            f"décodage : {detail}. Deux paramètres portant le même nom court "
-            "se recouvrent dans un jeu, et le second écrase le premier."
+            f"{len(dropped)} parameter(s) of the granule do not appear in the "
+            f"decoded output: {detail}. Two parameters sharing a short name "
+            "overlap within a dataset, and the second overwrites the first."
         )
         if errors == "raise":
             raise DroppedFieldsError(message)
@@ -415,10 +415,10 @@ def check_tables_version(datasets: tuple[xr.Dataset, ...]) -> str | None:
     if declared <= known:
         return None
     return (
-        f"Le producteur déclare la version de tables {declared}, au-delà de la "
-        f"version {known} que connaît notre ecCodes. Les paramètres introduits "
-        "depuis sortiront en 'unknown' ; ceux dont la définition a changé seront "
-        "résolus contre l'ancienne, sans que rien ne le signale."
+        f"The producer declares tables version {declared}, beyond version "
+        f"{known} known to our ecCodes. Parameters introduced since will "
+        "come out as 'unknown'; those whose definition changed will be "
+        "resolved against the older one, with nothing to signal it."
     )
 
 
@@ -535,10 +535,10 @@ def check_local_tables(datasets: tuple[xr.Dataset, ...]) -> str | None:
         return None
     detail = ", ".join(f"{code} ({name})" for code, name in sorted(offenders.items()))
     return (
-        "Le granule déclare n'employer aucune table locale et porte pourtant "
-        f"{len(offenders)} paramètre(s) de la plage réservée à l'usage local : "
-        f"{detail}. Aucune table ne permet de les interpréter ; leur nom et "
-        "leur unité resteront indéterminés."
+        "The granule declares it uses no local table, yet carries "
+        f"{len(offenders)} parameter(s) from the local-use range: "
+        f"{detail}. No table allows interpreting them; their name and "
+        "their unit will stay undetermined."
     )
 
 

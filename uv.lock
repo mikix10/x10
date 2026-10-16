@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "x10-api",
     "x10-catalog",
+    "x10-client",
     "x10-connectors",
     "x10-models",
     "x10-storage",
@@ -1104,6 +1105,28 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7.0" },
     { name = "x10-models", editable = "packages/x10-models" },
 ]
+
+[[package]]
+name = "x10-client"
+version = "0.1.0"
+source = { editable = "services/x10-client" }
+dependencies = [
+    { name = "x10-connectors" },
+    { name = "x10-models" },
+]
+
+[package.optional-dependencies]
+grib = [
+    { name = "x10-connectors", extra = ["grib"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "x10-connectors", editable = "packages/x10-connectors" },
+    { name = "x10-connectors", extras = ["grib"], marker = "extra == 'grib'", editable = "packages/x10-connectors" },
+    { name = "x10-models", editable = "packages/x10-models" },
+]
+provides-extras = ["grib"]
 
 [[package]]
 name = "x10-connectors"

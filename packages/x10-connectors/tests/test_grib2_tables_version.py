@@ -90,7 +90,7 @@ def test_le_message_nomme_le_cas_dangereux(tmp_path):
     ecart = grib2.check_tables_version(grib2.open_granule(chemin))
     assert ecart is not None
     assert "unknown" in ecart
-    assert "définition a changé" in ecart
+    assert "definition changed" in ecart
 
 
 def test_les_deux_versions_sont_rendues(tmp_path):

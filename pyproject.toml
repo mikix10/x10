@@ -52,7 +52,7 @@ members = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages", "services"]
+testpaths = ["packages", "services", "workspace-tests"]
 # Les tests reseau sont exclus par defaut : l'integration continue n'a pas a
 # dependre d'un service tiers. Les lancer par `uv run pytest -m network`.
 addopts = "-q -m 'not network'"
@@ -87,7 +87,14 @@ filterwarnings = [
 [tool.coverage.run]
 # `source_pkgs` et non `source` : vise le paquet installe, qui retrouve seul
 # ses sources sous `src/`.
-source_pkgs = ["x10_models", "x10_catalog", "x10_connectors", "x10_storage", "x10_api"]
+source_pkgs = [
+  "x10_models",
+  "x10_catalog",
+  "x10_connectors",
+  "x10_storage",
+  "x10_api",
+  "x10_client",
+]
 branch = true
 
 [tool.coverage.report]
@@ -102,7 +109,11 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
+# Les suites de tests des membres, et celle qui porte sur le workspace
+# entier. Les deux entrees sont explicites : un motif attrape-tout du
+# genre `**/*tests/**` couvrirait aussi un dossier qu'on n'a pas voulu.
 "**/tests/**" = ["ANN"]
+"workspace-tests/**" = ["ANN"]
 
 [tool.ruff.lint.isort]
 known-first-party = [

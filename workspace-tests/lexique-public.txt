@@ -1,0 +1,337 @@
+x10_api.__all__: hello
+x10_catalog.CatalogEntry.dataset
+x10_catalog.CatalogEntry.distributions
+x10_catalog.CatalogEntry.tags
+x10_catalog.__all__: CatalogEntry
+x10_client.__all__: Availability
+x10_client.__all__: DEFAULT_OPTIONS
+x10_client.__all__: ErrorType
+x10_client.__all__: GranuleReport
+x10_client.__all__: MissingConfiguration
+x10_client.__all__: NormaliseOptions
+x10_client.__all__: PipelineReport
+x10_client.__all__: Session
+x10_client.__all__: Settings
+x10_client.__all__: UnknownRequest
+x10_client.__all__: Verdict
+x10_client.__all__: contract_fingerprint
+x10_client.__all__: observe
+x10_client.availability.Availability.bytes_total
+x10_client.availability.Availability.last_run
+x10_client.availability.Availability.median_duration_ms
+x10_client.availability.Availability.runs
+x10_client.availability.Availability.source
+x10_client.availability.Availability.successes
+x10_client.availability.Availability.usable
+x10_client.availability.__all__: Availability
+x10_client.availability.__all__: observe
+x10_client.config.Settings.destination
+x10_client.config.Settings.max_bytes
+x10_client.config.Settings.state
+x10_client.config.__all__: DEFAULT_STATE_DIR
+x10_client.config.__all__: MissingConfiguration
+x10_client.config.__all__: Settings
+x10_client.options.NormaliseOptions.compress
+x10_client.options.NormaliseOptions.dropped_fields
+x10_client.options.NormaliseOptions.errors
+x10_client.options.NormaliseOptions.strict_units
+x10_client.options.NormaliseOptions.write
+x10_client.options.__all__: DEFAULT_OPTIONS
+x10_client.options.__all__: NormaliseOptions
+x10_client.report.ErrorType.CELL_METHODS = 'cell_methods'
+x10_client.report.ErrorType.DECODE = 'decode'
+x10_client.report.ErrorType.INTERVAL = 'interval'
+x10_client.report.ErrorType.OTHER = 'other'
+x10_client.report.ErrorType.UNITS = 'units'
+x10_client.report.ErrorType.WRITE = 'write'
+x10_client.report.GranuleReport.contract
+x10_client.report.GranuleReport.dropped
+x10_client.report.GranuleReport.error_type
+x10_client.report.GranuleReport.fields_out
+x10_client.report.GranuleReport.outputs
+x10_client.report.GranuleReport.parameters_in
+x10_client.report.GranuleReport.reason
+x10_client.report.GranuleReport.source
+x10_client.report.GranuleReport.verdict
+x10_client.report.PipelineReport.acquisition
+x10_client.report.PipelineReport.complete_count
+x10_client.report.PipelineReport.dropped
+x10_client.report.PipelineReport.failed_count
+x10_client.report.PipelineReport.fields_out
+x10_client.report.PipelineReport.finished_at
+x10_client.report.PipelineReport.granule_count
+x10_client.report.PipelineReport.granules
+x10_client.report.PipelineReport.license
+x10_client.report.PipelineReport.outputs
+x10_client.report.PipelineReport.parameters_in
+x10_client.report.PipelineReport.partial_count
+x10_client.report.PipelineReport.run_id
+x10_client.report.PipelineReport.selection
+x10_client.report.PipelineReport.source
+x10_client.report.PipelineReport.started_at
+x10_client.report.PipelineReport.verdict
+x10_client.report.Verdict.COMPLETE = 'complete'
+x10_client.report.Verdict.FAILED = 'failed'
+x10_client.report.Verdict.NOT_ASSESSED = 'not_assessed'
+x10_client.report.Verdict.PARTIAL = 'partial'
+x10_client.report.__all__: ErrorType
+x10_client.report.__all__: GranuleReport
+x10_client.report.__all__: PipelineReport
+x10_client.report.__all__: Verdict
+x10_client.report.__all__: contract_fingerprint
+x10_client.session.Session.settings
+x10_client.session.__all__: Session
+x10_client.session.__all__: UnknownRequest
+x10_connectors.__all__: BaseConnector
+x10_connectors.__all__: ConnectorResult
+x10_connectors.__all__: Contract
+x10_connectors.__all__: Divergences
+x10_connectors.__all__: EVENT_CATEGORY
+x10_connectors.__all__: EVENT_DATASET
+x10_connectors.__all__: EcmwfIfsError
+x10_connectors.__all__: EcmwfIfsOpenDataConnector
+x10_connectors.__all__: EcmwfIfsRequest
+x10_connectors.__all__: EcsJsonFormatter
+x10_connectors.__all__: GribUnavailableError
+x10_connectors.__all__: MeteoFrancePntConnector
+x10_connectors.__all__: MeteoFrancePntError
+x10_connectors.__all__: MeteoFrancePntRequest
+x10_connectors.__all__: NoOutputFileError
+x10_connectors.__all__: OpenDataClient
+x10_connectors.__all__: Outcome
+x10_connectors.__all__: RESERVED_RECORD_ATTRIBUTES
+x10_connectors.__all__: Transport
+x10_connectors.__all__: UnconvertibleUnitError
+x10_connectors.__all__: UnsafeDestinationError
+x10_connectors.__all__: atomic_write
+x10_connectors.__all__: compare_contracts
+x10_connectors.__all__: connector_logger
+x10_connectors.__all__: contract
+x10_connectors.__all__: ecmwf_ifs
+x10_connectors.__all__: failure_fields
+x10_connectors.__all__: fetch_finished_fields
+x10_connectors.__all__: fetch_started_fields
+x10_connectors.__all__: grib2
+x10_connectors.__all__: meteofrance_pnt
+x10_connectors.__all__: netcdf_cf
+x10_connectors.__all__: output_contract
+x10_connectors.__all__: safe_target
+x10_connectors.__all__: write_netcdf
+x10_connectors.base.ConnectorResult.bytes_downloaded
+x10_connectors.base.ConnectorResult.duration_ns
+x10_connectors.base.ConnectorResult.message
+x10_connectors.base.ConnectorResult.origin
+x10_connectors.base.ConnectorResult.outcome
+x10_connectors.base.ConnectorResult.retrieval
+x10_connectors.base.ConnectorResult.run_id
+x10_connectors.base.ConnectorResult.source
+x10_connectors.base.ConnectorResult.started_at
+x10_connectors.base.__all__: AGENT
+x10_connectors.base.__all__: BaseConnector
+x10_connectors.base.__all__: ConnectorResult
+x10_connectors.base.__all__: NoOutputFileError
+x10_connectors.base.__all__: Outcome
+x10_connectors.base.__all__: PARTIAL_SUFFIX
+x10_connectors.base.__all__: UnsafeDestinationError
+x10_connectors.base.__all__: atomic_write
+x10_connectors.base.__all__: safe_target
+x10_connectors.contract.AxisSummary.fingerprint
+x10_connectors.contract.AxisSummary.first
+x10_connectors.contract.AxisSummary.last
+x10_connectors.contract.AxisSummary.size
+x10_connectors.contract.AxisSummary.stride
+x10_connectors.contract.Contract.geometry
+x10_connectors.contract.Contract.variables
+x10_connectors.contract.Divergence.category
+x10_connectors.contract.Divergence.observed
+x10_connectors.contract.Divergence.path
+x10_connectors.contract.Divergence.reference
+x10_connectors.contract.Divergences.additions
+x10_connectors.contract.Divergences.breaking_changes
+x10_connectors.contract.GeometryContract.crs
+x10_connectors.contract.GeometryContract.datasets
+x10_connectors.contract.GeometryContract.grid
+x10_connectors.contract.VariableContract.cell_methods
+x10_connectors.contract.VariableContract.coords
+x10_connectors.contract.VariableContract.dims
+x10_connectors.contract.VariableContract.dtype
+x10_connectors.contract.VariableContract.grib
+x10_connectors.contract.VariableContract.long_name
+x10_connectors.contract.VariableContract.standard_name
+x10_connectors.contract.VariableContract.units
+x10_connectors.contract.__all__: AxisSummary
+x10_connectors.contract.__all__: CRITICAL_ATTRIBUTES
+x10_connectors.contract.__all__: Contract
+x10_connectors.contract.__all__: Divergence
+x10_connectors.contract.__all__: Divergences
+x10_connectors.contract.__all__: ENUMERATION_THRESHOLD
+x10_connectors.contract.__all__: EXCLUDED_COORDS
+x10_connectors.contract.__all__: GRIB_IDENTITY
+x10_connectors.contract.__all__: GeometryContract
+x10_connectors.contract.__all__: INFORMATIVE_ATTRIBUTES
+x10_connectors.contract.__all__: PRECISION
+x10_connectors.contract.__all__: VariableContract
+x10_connectors.contract.__all__: compare_contracts
+x10_connectors.contract.__all__: output_contract
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.date
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.origins
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.parameters
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.step
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.time
+x10_connectors.ecmwf_ifs.__all__: AGENT
+x10_connectors.ecmwf_ifs.__all__: DEFAULT_MAX_BYTES
+x10_connectors.ecmwf_ifs.__all__: DEFAULT_PARAMETERS
+x10_connectors.ecmwf_ifs.__all__: EcmwfIfsError
+x10_connectors.ecmwf_ifs.__all__: EcmwfIfsOpenDataConnector
+x10_connectors.ecmwf_ifs.__all__: EcmwfIfsRequest
+x10_connectors.ecmwf_ifs.__all__: NOT_RETRYABLE
+x10_connectors.ecmwf_ifs.__all__: ORIGINS
+x10_connectors.ecmwf_ifs.__all__: OpenDataClient
+x10_connectors.ecmwf_ifs.__all__: SOURCE_FORMAT
+x10_connectors.ecmwf_ifs.__all__: SOURCE_KIND
+x10_connectors.ecmwf_ifs.__all__: SOURCE_LICENSE
+x10_connectors.ecmwf_ifs.__all__: SOURCE_NAME
+x10_connectors.ecmwf_ifs.__all__: SOURCE_PROVIDER
+x10_connectors.ecmwf_ifs.__all__: SOURCE_URL
+x10_connectors.grib2.__all__: AMBIGUOUS_TRIPLETS
+x10_connectors.grib2.__all__: ATTR_LOCAL_TABLES
+x10_connectors.grib2.__all__: ATTR_TABLES_LATEST
+x10_connectors.grib2.__all__: ATTR_TABLES_VERSION
+x10_connectors.grib2.__all__: CF_STANDARD_NAMES
+x10_connectors.grib2.__all__: COORD_UNDEFINED
+x10_connectors.grib2.__all__: DERIVED_WIND
+x10_connectors.grib2.__all__: DroppedFieldsError
+x10_connectors.grib2.__all__: GEO_KEYS
+x10_connectors.grib2.__all__: GribUnavailableError
+x10_connectors.grib2.__all__: LOCAL_USE_RANGE_START
+x10_connectors.grib2.__all__: OPTIONS_CFGRIB
+x10_connectors.grib2.__all__: PLACEHOLDER_CF
+x10_connectors.grib2.__all__: READ_KEYS
+x10_connectors.grib2.__all__: VALUES_DTYPE
+x10_connectors.grib2.__all__: WITHOUT_CF_NAME
+x10_connectors.grib2.__all__: apply_cf_names
+x10_connectors.grib2.__all__: check_local_tables
+x10_connectors.grib2.__all__: check_tables_version
+x10_connectors.grib2.__all__: drop_derived_wind
+x10_connectors.grib2.__all__: dropped_fields
+x10_connectors.grib2.__all__: file_triplets
+x10_connectors.grib2.__all__: normalise
+x10_connectors.grib2.__all__: open_granule
+x10_connectors.grib2.__all__: tables_version
+x10_connectors.grib2.__all__: triplet
+x10_connectors.grib2.__all__: wind_from_direction
+x10_connectors.grib2.__all__: wind_speed
+x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.grid
+x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.model
+x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.packages
+x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.run
+x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.time_ranges
+x10_connectors.meteofrance_pnt.RemoteObject.key
+x10_connectors.meteofrance_pnt.RemoteObject.package
+x10_connectors.meteofrance_pnt.RemoteObject.size_bytes
+x10_connectors.meteofrance_pnt.RemoteObject.time_range
+x10_connectors.meteofrance_pnt.__all__: AGENT
+x10_connectors.meteofrance_pnt.__all__: BASE_URL
+x10_connectors.meteofrance_pnt.__all__: DEFAULT_MAX_BYTES
+x10_connectors.meteofrance_pnt.__all__: MeteoFrancePntConnector
+x10_connectors.meteofrance_pnt.__all__: MeteoFrancePntError
+x10_connectors.meteofrance_pnt.__all__: MeteoFrancePntRequest
+x10_connectors.meteofrance_pnt.__all__: ORIGIN
+x10_connectors.meteofrance_pnt.__all__: PREFIX
+x10_connectors.meteofrance_pnt.__all__: RemoteObject
+x10_connectors.meteofrance_pnt.__all__: SOURCE_FORMAT
+x10_connectors.meteofrance_pnt.__all__: SOURCE_HARVESTER
+x10_connectors.meteofrance_pnt.__all__: SOURCE_KIND
+x10_connectors.meteofrance_pnt.__all__: SOURCE_LICENSE
+x10_connectors.meteofrance_pnt.__all__: SOURCE_NAME
+x10_connectors.meteofrance_pnt.__all__: SOURCE_PRODUCER
+x10_connectors.meteofrance_pnt.__all__: SOURCE_URL
+x10_connectors.meteofrance_pnt.__all__: Transport
+x10_connectors.meteofrance_pnt.__all__: TransportHttp
+x10_connectors.meteofrance_pnt.__all__: VALID_KEY
+x10_connectors.netcdf_cf.__all__: BOUNDS_SUFFIX
+x10_connectors.netcdf_cf.__all__: CELL_METHODS
+x10_connectors.netcdf_cf.__all__: COMPRESSION
+x10_connectors.netcdf_cf.__all__: CONVENTIONS
+x10_connectors.netcdf_cf.__all__: CRS_VARIABLE
+x10_connectors.netcdf_cf.__all__: DECLARABLE_AXES
+x10_connectors.netcdf_cf.__all__: ECCODES_MISSING
+x10_connectors.netcdf_cf.__all__: INTERVAL_UNITS
+x10_connectors.netcdf_cf.__all__: LENGTH_ATTRS
+x10_connectors.netcdf_cf.__all__: PROCESS_TYPE
+x10_connectors.netcdf_cf.__all__: PRODUCTION_STATUS
+x10_connectors.netcdf_cf.__all__: TIME_ENCODING
+x10_connectors.netcdf_cf.__all__: UDUNITS
+x10_connectors.netcdf_cf.__all__: UnconvertibleUnitError
+x10_connectors.netcdf_cf.__all__: UnknownStatisticalProcessingError
+x10_connectors.netcdf_cf.__all__: UnrepresentableIntervalError
+x10_connectors.netcdf_cf.__all__: WITHOUT_CELL_METHOD
+x10_connectors.netcdf_cf.__all__: cell_method
+x10_connectors.netcdf_cf.__all__: cell_methods
+x10_connectors.netcdf_cf.__all__: cf_shape
+x10_connectors.netcdf_cf.__all__: convert_units
+x10_connectors.netcdf_cf.__all__: global_attributes
+x10_connectors.netcdf_cf.__all__: grid_mapping
+x10_connectors.netcdf_cf.__all__: production_source
+x10_connectors.netcdf_cf.__all__: time_bounds
+x10_connectors.netcdf_cf.__all__: udunits
+x10_connectors.netcdf_cf.__all__: write_netcdf
+x10_connectors.observability.__all__: EVENT_CATEGORY
+x10_connectors.observability.__all__: EVENT_DATASET
+x10_connectors.observability.__all__: EcsJsonFormatter
+x10_connectors.observability.__all__: RESERVED_RECORD_ATTRIBUTES
+x10_connectors.observability.__all__: connector_logger
+x10_connectors.observability.__all__: failure_fields
+x10_connectors.observability.__all__: fetch_finished_fields
+x10_connectors.observability.__all__: fetch_started_fields
+x10_models.Agent.name
+x10_models.Agent.roles
+x10_models.Agent.url
+x10_models.Dataset.domain
+x10_models.Dataset.identifier
+x10_models.Dataset.producer
+x10_models.Dataset.publisher
+x10_models.Dataset.title
+x10_models.Dataset.variables
+x10_models.Distribution.access_rights
+x10_models.Distribution.access_url
+x10_models.Distribution.dataset
+x10_models.Distribution.license
+x10_models.Distribution.media_type
+x10_models.Distribution.origin
+x10_models.Distribution.priority
+x10_models.Distribution.provider
+x10_models.GeoPoint.elevation_m
+x10_models.GeoPoint.latitude
+x10_models.GeoPoint.longitude
+x10_models.Observation.location
+x10_models.Observation.provenance
+x10_models.Observation.timestamp
+x10_models.Observation.unit
+x10_models.Observation.value
+x10_models.Observation.variable
+x10_models.Provenance.license
+x10_models.Provenance.retrieval_time
+x10_models.Provenance.source_name
+x10_models.Provenance.source_url
+x10_models.Retrieval.agent
+x10_models.Retrieval.artefacts
+x10_models.Retrieval.dataset
+x10_models.Retrieval.license
+x10_models.Retrieval.origin
+x10_models.Retrieval.retrieved_at
+x10_models.Retrieval.selection
+x10_models.__all__: AccessRights
+x10_models.__all__: Agent
+x10_models.__all__: AgentRole
+x10_models.__all__: Dataset
+x10_models.__all__: Distribution
+x10_models.__all__: GeoPoint
+x10_models.__all__: Observation
+x10_models.__all__: PhysicalDomain
+x10_models.__all__: Provenance
+x10_models.__all__: Retrieval
+x10_storage.StorageRecord.key
+x10_storage.StorageRecord.payload
+x10_storage.__all__: StorageAdapter
+x10_storage.__all__: StorageRecord

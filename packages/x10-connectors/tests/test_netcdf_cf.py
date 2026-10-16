@@ -82,7 +82,7 @@ def test_une_unite_sans_sens_ne_produit_rien(grib):
 
 
 def test_une_unite_inconnue_fait_echouer_plutot_que_deviner():
-    with pytest.raises(UnconvertibleUnitError, match="sans correspondance"):
+    with pytest.raises(UnconvertibleUnitError, match="no known UDUNITS counterpart"):
         udunits("parsecs par fortnight")
 
 
@@ -491,7 +491,7 @@ def test_un_traitement_inconnu_interrompt_plutot_que_de_se_taire(tmp_path):
     jeu = _jeu(tmp_path)
     for var in jeu.data_vars.values():
         var.attrs["GRIB_stepType"] = "sorcellerie"
-    with pytest.raises(UnknownStatisticalProcessingError, match="inconnu"):
+    with pytest.raises(UnknownStatisticalProcessingError, match="Unknown GRIB"):
         cell_methods(jeu)
 
 
@@ -678,7 +678,7 @@ def test_des_unites_melees_interrompent(tmp_path):
     for i, var in enumerate(jeu.data_vars.values()):
         var.attrs["GRIB_indicatorOfUnitForTimeRange"] = (1, 0)[i % 2]
     if len(jeu.data_vars) > 1:
-        with pytest.raises(UnrepresentableIntervalError, match="mêlées"):
+        with pytest.raises(UnrepresentableIntervalError, match="Mixed interval units"):
             time_bounds(jeu)
 
 

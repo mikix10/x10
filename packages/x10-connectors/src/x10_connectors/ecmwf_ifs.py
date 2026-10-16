@@ -108,18 +108,18 @@ class EcmwfIfsRequest:
 
     def __post_init__(self) -> None:
         if not self.parameters:
-            raise ValueError("Au moins un paramètre est requis.")
+            raise ValueError("At least one parameter is required.")
         if not self.origins:
-            raise ValueError("Au moins une origine est requise.")
+            raise ValueError("At least one origin is required.")
         inconnues = sorted(set(self.origins) - set(ORIGINS))
         if inconnues:
             raise ValueError(
-                f"Origine(s) inconnue(s) : {', '.join(inconnues)}. Attendu parmi {ORIGINS}."
+                f"Unknown origin(s): {', '.join(inconnues)}. Expected one of {ORIGINS}."
             )
         if len(set(self.origins)) != len(self.origins):
-            raise ValueError("Une origine ne peut pas figurer deux fois dans l'ordre de repli.")
+            raise ValueError("An origin cannot appear twice in the fallback order.")
         if self.step < 0:
-            raise ValueError("L'échéance ne peut pas être négative.")
+            raise ValueError("The forecast step cannot be negative.")
 
 
 class EcmwfIfsOpenDataConnector(BaseConnector):
@@ -164,7 +164,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             from ecmwf.opendata import Client
         except ImportError as exc:  # pragma: no cover - depend de l'extra
             raise EcmwfIfsError(
-                "Le client officiel est absent. Installer l'extra : "
+                "The official client is missing. Install the extra: "
                 "uv sync --all-packages --extra ecmwf"
             ) from exc
         client: OpenDataClient = Client(
@@ -202,13 +202,13 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 client.retrieve(request=self._mars_request(parameter), target=str(provisoire))
 
                 if not provisoire.exists():
-                    raise EcmwfIfsError(f"Aucun fichier produit pour le paramètre {parameter!r}.")
+                    raise EcmwfIfsError(f"No file produced for parameter {parameter!r}.")
                 size = provisoire.stat().st_size
                 if downloaded + size > self.max_bytes:
                     raise EcmwfIfsError(
-                        f"Volume téléchargé au-delà du plafond de {self.max_bytes} octets. "
-                        "Le contrôle est effectué après écriture : le client n'expose pas "
-                        "le flux, il n'est donc pas interrompible en cours de transfert."
+                        f"Downloaded volume above the {self.max_bytes} byte ceiling. "
+                        "The check runs after the write: the client does not expose the "
+                        "stream, so the transfer cannot be interrupted midway."
                     )
             downloaded += size
             artefacts.append(target)
@@ -249,7 +249,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         retenue = ""
         for rang, origin in enumerate(origins, start=1):
             _log.info(
-                "Récupération ECMWF IFS démarrée",
+                "ECMWF IFS retrieval started",
                 extra=self._start_fields(origin, rang),
             )
             try:
@@ -258,7 +258,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 # Un défaut de notre fait ou de la requête : une autre origine
                 # servirait la même donnée et échouerait de la même manière.
                 _log.error(
-                    "Récupération ECMWF IFS en échec, sans repli",
+                    "ECMWF IFS retrieval failed, no fallback",
                     extra={
                         **self._start_fields(origin, rang),
                         **failure_fields(error),
@@ -291,8 +291,8 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
             source=SOURCE_NAME,
             outcome="success",
             message=(
-                f"{len(artefacts)} message(s) GRIB2 récupéré(s) depuis l'origine "
-                f"{retenue!r}, {downloaded} octets."
+                f"{len(artefacts)} GRIB2 message(s) retrieved from origin "
+                f"{retenue!r}, {downloaded} bytes."
             ),
             run_id=self.run_id,
             origin=retenue,
@@ -314,7 +314,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 license=SOURCE_LICENSE,
             ),
         )
-        _log.info("Récupération ECMWF IFS terminée", extra=fetch_finished_fields(result))
+        _log.info("ECMWF IFS retrieval finished", extra=fetch_finished_fields(result))
         return result
 
 
