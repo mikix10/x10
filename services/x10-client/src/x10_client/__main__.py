@@ -21,70 +21,70 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .availability import constater
-from .config import ConfigurationManquante, Settings
+from .availability import observe
+from .config import MissingConfiguration, Settings
 from .report import Verdict
-from .session import RequeteInconnue, Session
+from .session import Session, UnknownRequest
 
 
-def _requete(args: argparse.Namespace) -> object:
+def _request(args: argparse.Namespace) -> object:
     from x10_connectors import MeteoFrancePntRequest
 
     return MeteoFrancePntRequest(
-        model=args.modele,
-        grid=args.grille,
-        packages=tuple(args.paquet),
-        time_ranges=tuple(args.tranche),
+        model=args.model,
+        grid=args.grid,
+        packages=tuple(args.package),
+        time_ranges=tuple(args.time_range),
     )
 
 
 def main(argv: list[str] | None = None) -> int:
-    analyseur = argparse.ArgumentParser(prog="x10_client", description=__doc__.splitlines()[0])
-    sous = analyseur.add_subparsers(dest="commande")
+    parser = argparse.ArgumentParser(prog="x10_client", description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command")
 
-    p = sous.add_parser("run", help="acquiert et normalise une sélection")
-    p.add_argument("--modele", default="arome")
-    p.add_argument("--grille", default="0025")
-    p.add_argument("--paquet", action="append", required=True)
-    p.add_argument("--tranche", action="append", default=[])
+    p = sub.add_parser("run", help="acquiert et normalise une sélection")
+    p.add_argument("--model", default="arome")
+    p.add_argument("--grid", default="0025")
+    p.add_argument("--package", action="append", required=True)
+    p.add_argument("--time-range", action="append", default=[])
 
-    sous.add_parser("constater", help="ce que le trafic passé dit des sources")
+    sub.add_parser("observe", help="ce que le trafic passé dit des sources")
 
-    args = analyseur.parse_args(argv)
-    if args.commande is None:
-        analyseur.print_help()
+    args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help()
         return 2
 
     try:
         settings = Settings.from_env()
-    except ConfigurationManquante as exc:
+    except MissingConfiguration as exc:
         print(f"Configuration : {exc}", file=sys.stderr)
         return 2
 
-    if args.commande == "constater":
-        constats = constater(settings.etat)
-        if not constats:
+    if args.command == "observe":
+        observed = observe(settings.state)
+        if not observed:
             print("Aucune exécution enregistrée — rien à constater.")
             return 0
-        for c in constats:
-            taux = "—" if c.taux_de_succes is None else f"{c.taux_de_succes:.0%}"
-            duree = "—" if c.duree_mediane_ms is None else f"{c.duree_mediane_ms:.0f} ms"
+        for c in observed:
+            rate = "—" if c.success_rate is None else f"{c.success_rate:.0%}"
+            duration = "—" if c.median_duration_ms is None else f"{c.median_duration_ms:.0f} ms"
             print(
-                f"{c.source:28} {c.executions:4} exécution(s), succès {taux}, "
-                f"médiane {duree}, {c.octets_total / 1024 / 1024:.0f} Mio"
+                f"{c.source:28} {c.runs:4} exécution(s), succès {rate}, "
+                f"médiane {duration}, {c.bytes_total / 1024 / 1024:.0f} Mio"
             )
         return 0
 
     try:
-        rapport = Session(settings).run(_requete(args))
-    except RequeteInconnue as exc:
+        report = Session(settings).run(_request(args))
+    except UnknownRequest as exc:
         print(f"Requête : {exc}", file=sys.stderr)
         return 2
 
-    print(rapport.resume())
-    if rapport.acquisition.outcome != "success":
+    print(report.summary())
+    if report.acquisition.outcome != "success":
         return 1
-    return 3 if rapport.verdict is Verdict.AMPUTE else 0
+    return 3 if report.verdict is Verdict.PARTIAL else 0
 
 
 if __name__ == "__main__":

@@ -177,13 +177,13 @@ class _TransportQuiLache:
 
     def telecharger(self, url: str, cible: Path, plafond: int) -> int:
         cible.write_bytes(b"\x00" * self.ecrit)
-        raise MeteoFrancePntError("Connexion interrompue en cours de transfert.")
+        raise MeteoFrancePntError("Connection interrupted mid-transfer.")
 
 
 def test_meteofrance_un_transfert_coupe_ne_laisse_aucun_residu(tmp_path):
     from x10_connectors import MeteoFrancePntConnector, MeteoFrancePntRequest
 
-    with pytest.raises(MeteoFrancePntError, match="interrompue"):
+    with pytest.raises(MeteoFrancePntError, match="interrupted"):
         MeteoFrancePntConnector(
             destination=tmp_path,
             request=MeteoFrancePntRequest(run=RESEAU),
@@ -210,7 +210,7 @@ def test_ecmwf_un_depassement_de_plafond_ne_laisse_aucun_residu(tmp_path):
     Le dépassement est une erreur **de notre fait**, donc non réessayable :
     elle remonte, sans repli sur une autre origine qui échouerait pareil.
     """
-    with pytest.raises(EcmwfIfsError, match="après écriture"):
+    with pytest.raises(EcmwfIfsError, match="after the write"):
         EcmwfIfsOpenDataConnector(
             destination=tmp_path,
             request=EcmwfIfsRequest(parameters=("2t",)),

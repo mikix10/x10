@@ -14,7 +14,7 @@ qui manque. Un producteur qui corrigerait son paquet demain ne ferait pas
 from __future__ import annotations
 
 import pytest
-from x10_client import Session, Verdict, constater
+from x10_client import Session, Verdict, observe
 
 pytest.importorskip("cfgrib")
 pytest.importorskip("netCDF4")
@@ -22,14 +22,14 @@ pytest.importorskip("netCDF4")
 
 @pytest.mark.network
 @pytest.mark.parametrize(
-    ("modele", "paquet", "tranche"),
+    ("model", "package", "time_range"),
     [
         ("arome", "SP1", "00H06H"),
         ("arpege", "SP3", "049H072H"),
     ],
     ids=["surface AROME, attendu complet", "SP3 ARPEGE, amputé au 13/10/2026"],
 )
-def test_la_chaine_entiere_sur_un_granule_reel(tmp_path, monkeypatch, modele, paquet, tranche):
+def test_la_chaine_entiere_sur_un_granule_reel(tmp_path, monkeypatch, model, package, time_range):
     """Acquérir, décoder, normaliser, écrire, contracter, rendre compte.
 
     **La mesure du 13/10/2026, qui est la raison de ce test.** Sur ARPEGE
@@ -44,33 +44,35 @@ def test_la_chaine_entiere_sur_un_granule_reel(tmp_path, monkeypatch, modele, pa
     monkeypatch.setenv("X10_DESTINATION", str(tmp_path))
     session = Session.from_env()
 
-    rapport = session.run(
-        MeteoFrancePntRequest(model=modele, grid="0025", packages=(paquet,), time_ranges=(tranche,))
+    report = session.run(
+        MeteoFrancePntRequest(
+            model=model, grid="0025", packages=(package,), time_ranges=(time_range,)
+        )
     )
 
-    assert rapport.acquisition.outcome == "success"
-    assert rapport.granules, "une acquisition réussie doit produire au moins un granule"
+    assert report.acquisition.outcome == "success"
+    assert report.granules, "une acquisition réussie doit produire au moins un granule"
 
-    for granule in rapport.granules:
+    for granule in report.granules:
         # L'invariant : ce qui manque est **nommé**, et le verdict le dit.
-        assert (granule.verdict is Verdict.AMPUTE) == bool(granule.perdus)
-        assert granule.champs_en_sortie > 0
-        assert granule.champs_en_sortie <= granule.parametres_en_entree
-        assert granule.contrat is not None
-        assert all(sortie.is_file() for sortie in granule.sorties)
+        assert (granule.verdict is Verdict.PARTIAL) == bool(granule.dropped)
+        assert granule.fields_out > 0
+        assert granule.fields_out <= granule.parameters_in
+        assert granule.contract is not None
+        assert all(output.is_file() for output in granule.outputs)
 
-    assert rapport.verdict is not Verdict.NON_EVALUE
+    assert report.verdict is not Verdict.NOT_ASSESSED
 
     # La licence suit la donnée jusque dans le fichier écrit : une sortie qui
     # la perd n'est pas exploitable par qui la reçoit.
     import netCDF4
 
-    with netCDF4.Dataset(rapport.granules[0].sorties[0]) as fichier:
-        assert getattr(fichier, "license", ""), "la licence doit atteindre le fichier"
-        assert "CF-" in fichier.Conventions
+    with netCDF4.Dataset(report.granules[0].outputs[0]) as handle:
+        assert getattr(handle, "license", ""), "la licence doit atteindre le fichier"
+        assert "CF-" in handle.Conventions
 
     # L'exécution s'est accumulée, et se relit sans émettre une seule requête.
-    (constat,) = constater(session.settings.etat)
-    assert constat.executions == 1
-    assert constat.taux_de_succes == 1.0
-    assert constat.octets_total == rapport.acquisition.bytes_downloaded
+    (availability,) = observe(session.settings.state)
+    assert availability.runs == 1
+    assert availability.success_rate == 1.0
+    assert availability.bytes_total == report.acquisition.bytes_downloaded

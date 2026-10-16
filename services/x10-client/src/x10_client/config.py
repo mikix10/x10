@@ -13,14 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-class ConfigurationManquante(RuntimeError):
+class MissingConfiguration(RuntimeError):
     """Un réglage obligatoire n'est pas dans l'environnement."""
 
 
 #: Sous-dossier où s'accumulent les comptes rendus, sous la destination.
 #: Un point en tête : ce n'est pas de la donnée, et cela ne doit pas se
 #: confondre avec ce que l'utilisateur est venu chercher.
-ETAT_PAR_DEFAUT = ".x10"
+DEFAULT_STATE_DIR = ".x10"
 
 
 @dataclass(frozen=True)
@@ -36,43 +36,43 @@ class Settings:
     destination: Path
 
     #: Où accumuler les comptes rendus, pour en déduire la disponibilité.
-    etat: Path
+    state: Path
 
     #: Plafond de volume par acquisition. `None` laisse celui du connecteur,
     #: qui en a un : ne pas en imposer un ici évite d'en avoir deux.
     max_bytes: int | None = None
 
     @classmethod
-    def from_env(cls, environnement: dict[str, str] | None = None) -> Settings:
+    def from_env(cls, environment: dict[str, str] | None = None) -> Settings:
         """Résout les réglages depuis l'environnement.
 
         `environnement` sert aux tests ; en usage normal on lit `os.environ`.
         """
-        env = os.environ if environnement is None else environnement
+        env = os.environ if environment is None else environment
 
-        brut = env.get("X10_DESTINATION", "").strip()
-        if not brut:
-            raise ConfigurationManquante(
-                "X10_DESTINATION n'est pas définie. Le client ne choisit pas "
-                "où écrire à votre place."
+        raw = env.get("X10_DESTINATION", "").strip()
+        if not raw:
+            raise MissingConfiguration(
+                "X10_DESTINATION is not set. The client does not choose where to "
+                "write on your behalf."
             )
-        destination = Path(brut).expanduser().resolve()
+        destination = Path(raw).expanduser().resolve()
 
-        etat_brut = env.get("X10_ETAT", "").strip()
-        etat = (
-            Path(etat_brut).expanduser().resolve() if etat_brut else destination / ETAT_PAR_DEFAUT
+        raw_state = env.get("X10_STATE", "").strip()
+        state = (
+            Path(raw_state).expanduser().resolve() if raw_state else destination / DEFAULT_STATE_DIR
         )
 
-        plafond = env.get("X10_MAX_BYTES", "").strip()
-        max_bytes = int(plafond) if plafond else None
+        ceiling = env.get("X10_MAX_BYTES", "").strip()
+        max_bytes = int(ceiling) if ceiling else None
         if max_bytes is not None and max_bytes <= 0:
-            raise ConfigurationManquante(
-                f"X10_MAX_BYTES vaut {max_bytes}, ce qui n'autoriserait aucun "
-                "téléchargement. Retirer la variable pour laisser le plafond "
-                "du connecteur."
+            raise MissingConfiguration(
+                f"X10_MAX_BYTES is {max_bytes}, which would allow no download at "
+                "all. Remove the variable to keep the connector's own "
+                "ceiling."
             )
 
-        return cls(destination=destination, etat=etat, max_bytes=max_bytes)
+        return cls(destination=destination, state=state, max_bytes=max_bytes)
 
 
-__all__ = ["ETAT_PAR_DEFAUT", "ConfigurationManquante", "Settings"]
+__all__ = ["DEFAULT_STATE_DIR", "MissingConfiguration", "Settings"]

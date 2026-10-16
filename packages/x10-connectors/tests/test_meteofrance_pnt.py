@@ -64,7 +64,7 @@ class _TransportSimule:
         self.telecharges.append(url)
         if self.taille_ecrite > plafond:
             raise MeteoFrancePntError(
-                f"Volume au-delà du plafond de {plafond} octets pour {cible.name!r}."
+                f"Volume above the {plafond} byte ceiling for {cible.name!r}."
             )
         cible.write_bytes(b"\x00" * self.taille_ecrite)
         return self.taille_ecrite
@@ -131,7 +131,7 @@ def test_une_selection_introuvable_echoue_clairement(tmp_path):
     connecteur = MeteoFrancePntConnector(
         tmp_path, MeteoFrancePntRequest(packages=("IP9",)), transport=transport
     )
-    with pytest.raises(MeteoFrancePntError, match="Aucun réseau ne porte la sélection"):
+    with pytest.raises(MeteoFrancePntError, match="No model run carries the requested selection"):
         connecteur.fetch()
 
 
@@ -182,7 +182,7 @@ def test_le_nom_local_est_portable():
 def test_un_nom_local_qui_remonte_l_arborescence_est_refuse(tmp_path):
     from x10_connectors.base import safe_target
 
-    with pytest.raises(UnsafeDestinationError, match="hors de la racine"):
+    with pytest.raises(UnsafeDestinationError, match="outside the intended root"):
         safe_target(tmp_path, "../evade.grib2")
 
 
@@ -191,7 +191,7 @@ def test_le_plafond_de_volume_interrompt_et_nettoie(tmp_path):
     connecteur = MeteoFrancePntConnector(
         tmp_path, MeteoFrancePntRequest(packages=("SP1",)), max_bytes=100, transport=transport
     )
-    with pytest.raises(MeteoFrancePntError, match="plafond"):
+    with pytest.raises(MeteoFrancePntError, match="ceiling"):
         connecteur.fetch()
     assert list(tmp_path.glob("*.grib2")) == []
 
@@ -206,7 +206,7 @@ def test_le_plafond_porte_sur_le_cumul_et_non_sur_chaque_fichier(tmp_path):
         max_bytes=100,
         transport=transport,
     )
-    with pytest.raises(MeteoFrancePntError, match="plafond"):
+    with pytest.raises(MeteoFrancePntError, match="ceiling"):
         connecteur.fetch()
 
 
@@ -249,12 +249,12 @@ def test_le_compte_rendu_fait_l_aller_retour_json(tmp_path):
 
 
 def test_une_requete_sans_paquet_est_refusee():
-    with pytest.raises(ValueError, match="Au moins un paquet"):
+    with pytest.raises(ValueError, match="At least one package"):
         MeteoFrancePntRequest(packages=())
 
 
 def test_un_paquet_en_double_est_refuse():
-    with pytest.raises(ValueError, match="deux fois"):
+    with pytest.raises(ValueError, match="twice"):
         MeteoFrancePntRequest(packages=("SP1", "SP1"))
 
 

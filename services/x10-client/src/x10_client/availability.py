@@ -25,76 +25,101 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class Constat:
+class Availability:
     """Ce que le trafic passé dit d'une source. Jamais plus que cela."""
 
     source: str
-    executions: int
-    succes: int
-    derniere: datetime | None
-    duree_mediane_ms: float | None
-    octets_total: int
+    runs: int
+
+    #: Exécutions où **la source a répondu**. C'est la disponibilité au sens
+    #: strict : elle ne dit rien de ce que nous avons su faire de la donnée.
+    successes: int
+
+    #: Exécutions où la donnée est ressortie **complète**. Toujours inférieur
+    #: ou égal à `successes` : une source peut très bien répondre et nous
+    #: livrer de l'inexploitable, et confondre les deux masquerait exactement
+    #: cette situation.
+    usable: int
+
+    last_run: datetime | None
+    median_duration_ms: float | None
+    bytes_total: int
 
     @property
-    def taux_de_succes(self) -> float | None:
-        """`None` quand rien n'a été observé — et non zéro.
+    def success_rate(self) -> float | None:
+        """Part des exécutions où la source a répondu.
 
-        Rendre zéro ferait passer une absence de mesure pour un échec
-        complet, ce qui est exactement le genre de silence que X10 traque
-        ailleurs.
+        `None` quand rien n'a été observé — et non zéro. Rendre zéro ferait
+        passer une absence de mesure pour un échec complet, ce qui est
+        exactement le genre de silence que X10 traque ailleurs.
         """
-        return self.succes / self.executions if self.executions else None
+        return self.successes / self.runs if self.runs else None
+
+    @property
+    def usable_rate(self) -> float | None:
+        """Part des exécutions dont la donnée est sortie complète.
+
+        L'écart avec `success_rate` est le signal intéressant : il mesure ce
+        qui échoue **chez nous** une fois la source servie.
+        """
+        return self.usable / self.runs if self.runs else None
 
 
-def _lignes(etat: Path) -> list[dict[str, Any]]:
-    cible = etat / "executions.jsonl"
-    if not cible.is_file():
+def _lines(state: Path) -> list[dict[str, Any]]:
+    target = state / "runs.jsonl"
+    if not target.is_file():
         return []
-    retenues = []
-    for ligne in cible.read_text(encoding="utf-8").splitlines():
-        if not ligne.strip():
+    kept = []
+    for line in target.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
             continue
         try:
-            retenues.append(json.loads(ligne))
+            kept.append(json.loads(line))
         except json.JSONDecodeError:
             # Une ligne tronquee — ecriture interrompue — ne disqualifie pas
             # les autres. On la passe plutot que de perdre tout l'historique.
             continue
-    return retenues
+    return kept
 
 
-def constater(etat: Path, source: str | None = None) -> tuple[Constat, ...]:
+def observe(state: Path, source: str | None = None) -> tuple[Availability, ...]:
     """Ce que l'historique accumulé dit, source par source.
 
     Ne lit que des fichiers locaux. Aucun appel réseau, par construction.
     """
-    par_source: dict[str, list[dict[str, Any]]] = {}
-    for ligne in _lignes(etat):
-        nom = str(ligne.get("source", "?"))
-        if source is not None and nom != source:
+    by_source: dict[str, list[dict[str, Any]]] = {}
+    for line in _lines(state):
+        name = str(line.get("source", "?"))
+        if source is not None and name != source:
             continue
-        par_source.setdefault(nom, []).append(ligne)
+        by_source.setdefault(name, []).append(line)
 
-    constats = []
-    for nom, executions in sorted(par_source.items()):
-        acquisitions = [e.get("acquisition") or {} for e in executions]
-        durees = sorted(
+    observed = []
+    for name, runs in sorted(by_source.items()):
+        acquisitions = [e.get("acquisition") or {} for e in runs]
+        durations = sorted(
             float(a["duration_ns"]) / 1e6
             for a in acquisitions
             if isinstance(a.get("duration_ns"), (int, float))
         )
-        horodatages = sorted(str(e["finished_at"]) for e in executions if e.get("finished_at"))
-        constats.append(
-            Constat(
-                source=nom,
-                executions=len(executions),
-                succes=sum(1 for a in acquisitions if a.get("outcome") == "success"),
-                derniere=(datetime.fromisoformat(horodatages[-1]) if horodatages else None),
-                duree_mediane_ms=(durees[len(durees) // 2] if durees else None),
-                octets_total=sum(int(a.get("bytes_downloaded") or 0) for a in acquisitions),
+        timestamps = sorted(str(e["finished_at"]) for e in runs if e.get("finished_at"))
+        observed.append(
+            Availability(
+                source=name,
+                runs=len(runs),
+                successes=sum(1 for a in acquisitions if a.get("outcome") == "success"),
+                # Le verdict est sérialisé depuis le 16/10/2026 ; avant, il
+                # fallait le recalculer depuis les granules, donc connaître
+                # notre découpage. Un historique antérieur n'en porte pas, et
+                # `"complete"` absent compte alors comme inexploitable — ce
+                # qui est le bon défaut : on ne sait pas, donc on n'affirme pas.
+                usable=sum(1 for e in runs if e.get("verdict") == "complete"),
+                last_run=(datetime.fromisoformat(timestamps[-1]) if timestamps else None),
+                median_duration_ms=(durations[len(durations) // 2] if durations else None),
+                bytes_total=sum(int(a.get("bytes_downloaded") or 0) for a in acquisitions),
             )
         )
-    return tuple(constats)
+    return tuple(observed)
 
 
-__all__ = ["Constat", "constater"]
+__all__ = ["Availability", "observe"]

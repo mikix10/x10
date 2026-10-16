@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from fixtures_min import granule_minimal
+from fixtures_grib2_min import minimal_granule
 from x10_client import PipelineReport, Session, Verdict
 from x10_client import session as module_session
 
@@ -25,11 +25,11 @@ pytest.importorskip("cfgrib")
 pytest.importorskip("netCDF4")
 
 
-class RequeteFactice:
+class FakeRequest:
     """Une requête que seul le connecteur factice sait traiter."""
 
 
-def _resultat(artefacts: tuple[Path, ...]) -> ConnectorResult:
+def _result(artefacts: tuple[Path, ...]) -> ConnectorResult:
     return ConnectorResult(
         source="source-factice",
         outcome="success",
@@ -51,40 +51,40 @@ def _resultat(artefacts: tuple[Path, ...]) -> ConnectorResult:
 
 @pytest.fixture
 def session(tmp_path, monkeypatch):
-    monkeypatch.setenv("X10_DESTINATION", str(tmp_path / "sortie"))
+    monkeypatch.setenv("X10_DESTINATION", str(tmp_path / "output"))
     return Session.from_env()
 
 
-def _brancher(monkeypatch, artefacts: tuple[Path, ...]) -> None:
+def _wire(monkeypatch, artefacts: tuple[Path, ...]) -> None:
     """Remplace la résolution de connecteur par un double qui ne télécharge rien."""
 
-    class ConnecteurFactice:
-        def __init__(self, destination, requete, **_):
+    class FakeConnector:
+        def __init__(self, destination, request, **_):
             self.destination = destination
 
         def fetch(self):
-            return _resultat(artefacts)
+            return _result(artefacts)
 
-    monkeypatch.setattr(module_session, "_connecteur_pour", lambda _r: ConnecteurFactice)
+    monkeypatch.setattr(module_session, "_connector_for", lambda _r: FakeConnector)
 
 
 # --- Le chemin nominal --------------------------------------------------------
 
 
 def test_un_granule_sain_est_enchaine_jusqu_a_la_sortie(session, tmp_path, monkeypatch):
-    source = granule_minimal(tmp_path / "sain.grib2", ((0, 0), (2, 2)))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "healthy.grib2", ((0, 0), (2, 2)))
+    _wire(monkeypatch, (source,))
 
-    rapport = session.run(RequeteFactice())
+    report = session.run(FakeRequest())
 
-    assert rapport.verdict is Verdict.COMPLET
-    assert len(rapport.granules) == 1
-    granule = rapport.granules[0]
-    assert granule.parametres_en_entree == 2
-    assert granule.champs_en_sortie == 2
-    assert granule.perdus == ()
-    assert granule.sorties, "la chaîne doit avoir écrit quelque chose"
-    assert all(p.exists() for p in granule.sorties)
+    assert report.verdict is Verdict.COMPLETE
+    assert len(report.granules) == 1
+    granule = report.granules[0]
+    assert granule.parameters_in == 2
+    assert granule.fields_out == 2
+    assert granule.dropped == ()
+    assert granule.outputs, "la chaîne doit avoir écrit quelque chose"
+    assert all(p.exists() for p in granule.outputs)
 
 
 def test_le_compte_rendu_reference_le_contrat_sans_le_contenir(session, tmp_path, monkeypatch):
@@ -92,25 +92,25 @@ def test_le_compte_rendu_reference_le_contrat_sans_le_contenir(session, tmp_path
 
     Elle protège l'invariance du contrat, qui est ce qui en fait un
     indicateur de dérive."""
-    source = granule_minimal(tmp_path / "ref.grib2", ((0, 0),))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "ref.grib2", ((0, 0),))
+    _wire(monkeypatch, (source,))
 
-    granule = session.run(RequeteFactice()).granules[0]
+    granule = session.run(FakeRequest()).granules[0]
 
-    assert granule.contrat is not None
-    assert len(granule.contrat) == 12, "une empreinte courte, pas un document"
-    serialise = granule.model_dump_json()
-    assert "variables" not in serialise, "le contrat ne doit pas y être recopié"
+    assert granule.contract is not None
+    assert len(granule.contract) == 12, "une empreinte courte, pas un document"
+    serialised = granule.model_dump_json()
+    assert "variables" not in serialised, "le contrat ne doit pas y être recopié"
 
 
 def test_deux_executions_du_meme_granule_rendent_la_meme_reference(session, tmp_path, monkeypatch):
     """Sinon la référence ne vaudrait rien comme point de comparaison."""
-    source = granule_minimal(tmp_path / "stable.grib2", ((0, 0),))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "stable.grib2", ((0, 0),))
+    _wire(monkeypatch, (source,))
 
-    premier = session.run(RequeteFactice()).granules[0].contrat
-    second = session.run(RequeteFactice()).granules[0].contrat
-    assert premier == second
+    first = session.run(FakeRequest()).granules[0].contract
+    second = session.run(FakeRequest()).granules[0].contract
+    assert first == second
 
 
 # --- Le chemin amputé ---------------------------------------------------------
@@ -123,72 +123,72 @@ def test_un_granule_ampute_est_rapporte_et_non_refuse(session, tmp_path, monkeyp
     le grain de l'arbitrage appartient à l'appelant, et ici l'appelant a pour
     métier de dire ce qui s'est passé.
     """
-    source = granule_minimal(tmp_path / "ampute.grib2", ((16, 192), (16, 193)))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "partial.grib2", ((16, 192), (16, 193)))
+    _wire(monkeypatch, (source,))
 
-    rapport = session.run(RequeteFactice())
-    granule = rapport.granules[0]
+    report = session.run(FakeRequest())
+    granule = report.granules[0]
 
-    assert rapport.verdict is Verdict.AMPUTE
-    assert granule.parametres_en_entree == 2
-    assert granule.champs_en_sortie == 1
-    assert granule.perdus == ("(0, 16, 193)",)
-    assert "nom court" in granule.motif
-    assert granule.sorties, "ce qui reste est écrit : amputé n'est pas perdu"
+    assert report.verdict is Verdict.PARTIAL
+    assert granule.parameters_in == 2
+    assert granule.fields_out == 1
+    assert granule.dropped == ("(0, 16, 193)",)
+    assert "short name" in granule.reason
+    assert granule.outputs, "ce qui reste est écrit : amputé n'est pas perdu"
 
 
 def test_un_seul_granule_ampute_ampute_l_execution(session, tmp_path, monkeypatch):
     """Rendre « complet » parce que la majorité l'est serait le silence même
     que ce compte rendu existe pour fermer."""
-    sain = granule_minimal(tmp_path / "a.grib2", ((0, 0),))
-    ampute = granule_minimal(tmp_path / "b.grib2", ((16, 192), (16, 193)))
-    _brancher(monkeypatch, (sain, ampute))
+    healthy = minimal_granule(tmp_path / "a.grib2", ((0, 0),))
+    partial = minimal_granule(tmp_path / "b.grib2", ((16, 192), (16, 193)))
+    _wire(monkeypatch, (healthy, partial))
 
-    rapport = session.run(RequeteFactice())
-    assert {g.verdict for g in rapport.granules} == {Verdict.COMPLET, Verdict.AMPUTE}
-    assert rapport.verdict is Verdict.AMPUTE
+    report = session.run(FakeRequest())
+    assert {g.verdict for g in report.granules} == {Verdict.COMPLETE, Verdict.PARTIAL}
+    assert report.verdict is Verdict.PARTIAL
 
 
 # --- L'accumulation, qui n'émet aucune requête --------------------------------
 
 
 def test_chaque_execution_s_ajoute_a_l_etat(session, tmp_path, monkeypatch):
-    source = granule_minimal(tmp_path / "trace.grib2", ((0, 0),))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "trace.grib2", ((0, 0),))
+    _wire(monkeypatch, (source,))
 
-    session.run(RequeteFactice())
-    session.run(RequeteFactice())
+    session.run(FakeRequest())
+    session.run(FakeRequest())
 
-    journal = session.settings.etat / "executions.jsonl"
-    lignes = [json.loads(x) for x in journal.read_text(encoding="utf-8").splitlines()]
-    assert len(lignes) == 2
-    assert all(x["source"] == "source-factice" for x in lignes)
-    assert PipelineReport.model_validate(lignes[0]).verdict is Verdict.COMPLET
+    journal = session.settings.state / "runs.jsonl"
+    lines = [json.loads(x) for x in journal.read_text(encoding="utf-8").splitlines()]
+    assert len(lines) == 2
+    assert all(x["source"] == "source-factice" for x in lines)
+    assert PipelineReport.model_validate(lines[0]).verdict is Verdict.COMPLETE
 
 
 def test_l_etat_se_pose_sous_la_destination_par_defaut(tmp_path, monkeypatch):
     monkeypatch.setenv("X10_DESTINATION", str(tmp_path / "ici"))
-    monkeypatch.delenv("X10_ETAT", raising=False)
-    assert Session.from_env().settings.etat == (tmp_path / "ici" / ".x10").resolve()
+    monkeypatch.delenv("X10_STATE", raising=False)
+    assert Session.from_env().settings.state == (tmp_path / "ici" / ".x10").resolve()
 
 
 # --- Ce que le client refuse de faire ------------------------------------------
 
 
 def test_une_requete_sans_connecteur_leve_clairement(session):
-    with pytest.raises(module_session.RequeteInconnue, match="aucun connecteur"):
-        session.acquire(RequeteFactice())
+    with pytest.raises(module_session.UnknownRequest, match="no known connector"):
+        session.acquire(FakeRequest())
 
 
 def test_le_client_n_est_importe_par_aucun_paquet():
     """La règle de dépendance : `services/` consomme, il n'est jamais consommé."""
-    racine = Path(__file__).resolve().parents[3] / "packages"
-    fautifs = [
+    root = Path(__file__).resolve().parents[3] / "packages"
+    offenders = [
         p
-        for p in racine.rglob("*.py")
+        for p in root.rglob("*.py")
         if "__pycache__" not in p.parts and "x10_client" in p.read_text(encoding="utf-8")
     ]
-    assert fautifs == [], f"un paquet importe le client : {fautifs}"
+    assert offenders == [], f"un paquet importe le client : {offenders}"
 
 
 def test_la_resolution_de_connecteur_se_fait_sans_reseau():
@@ -197,7 +197,7 @@ def test_la_resolution_de_connecteur_se_fait_sans_reseau():
     client officiel ECMWF."""
     from x10_connectors import MeteoFrancePntConnector, MeteoFrancePntRequest
 
-    assert module_session._connecteur_pour(MeteoFrancePntRequest()) is MeteoFrancePntConnector
+    assert module_session._connector_for(MeteoFrancePntRequest()) is MeteoFrancePntConnector
 
 
 def test_l_enchainement_n_ajoute_aucune_requete(session, tmp_path, monkeypatch):
@@ -210,13 +210,13 @@ def test_l_enchainement_n_ajoute_aucune_requete(session, tmp_path, monkeypatch):
     """
     import socket
 
-    source = granule_minimal(tmp_path / "muet.grib2", ((0, 0),))
-    _brancher(monkeypatch, (source,))
+    source = minimal_granule(tmp_path / "muet.grib2", ((0, 0),))
+    _wire(monkeypatch, (source,))
 
-    def interdit(*_args, **_kwargs):
+    def forbidden(*_args, **_kwargs):
         raise AssertionError("l'enchaînement a ouvert une connexion")
 
-    monkeypatch.setattr(socket.socket, "connect", interdit)
-    monkeypatch.setattr(socket, "create_connection", interdit)
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr(socket, "create_connection", forbidden)
 
-    assert session.run(RequeteFactice()).verdict is Verdict.COMPLET
+    assert session.run(FakeRequest()).verdict is Verdict.COMPLETE

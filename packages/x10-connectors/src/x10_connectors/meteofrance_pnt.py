@@ -169,9 +169,9 @@ class TransportHttp:  # couvert par les tests reseau
                     out.close()
                     target.unlink(missing_ok=True)
                     raise MeteoFrancePntError(
-                        f"Volume au-delà du plafond de {ceiling} octets pour {target.name!r}. "
-                        "Le transfert a été interrompu. Relever `max_bytes` si la prise "
-                        "d'un paquet de niveaux est délibérée."
+                        f"Volume above the {ceiling} byte ceiling for {target.name!r}. "
+                        "The transfer was interrupted. Raise `max_bytes` if taking a "
+                        "level package is deliberate."
                     )
                 out.write(morceau)
         return received
@@ -193,11 +193,11 @@ class MeteoFrancePntRequest:
 
     def __post_init__(self) -> None:
         if not self.model or not self.grid:
-            raise ValueError("Le modèle et la grille sont requis.")
+            raise ValueError("The model and the grid are required.")
         if not self.packages:
-            raise ValueError("Au moins un paquet est requis.")
+            raise ValueError("At least one package is required.")
         if len(set(self.packages)) != len(self.packages):
-            raise ValueError("Un paquet ne peut pas figurer deux fois dans la sélection.")
+            raise ValueError("A package cannot appear twice in the selection.")
 
 
 class MeteoFrancePntConnector(BaseConnector):
@@ -260,7 +260,7 @@ class MeteoFrancePntConnector(BaseConnector):
         """
         candidats = [self.request.run] if self.request.run else list(reversed(self.reseaux()))
         if not candidats:
-            raise MeteoFrancePntError("Aucun réseau disponible sur le stockage objet.")
+            raise MeteoFrancePntError("No model run available on the object store.")
 
         for run in candidats:
             if run is None:  # pragma: no cover - garde de typage
@@ -277,8 +277,8 @@ class MeteoFrancePntConnector(BaseConnector):
                 return run, retenus
 
         raise MeteoFrancePntError(
-            f"Aucun réseau ne porte la sélection demandée : modèle {self.request.model!r}, "
-            f"grille {self.request.grid!r}, paquets {', '.join(sorted(self.request.packages))}."
+            f"No model run carries the requested selection: model {self.request.model!r}, "
+            f"grid {self.request.grid!r}, packages {', '.join(sorted(self.request.packages))}."
         )
 
     # --- Récupération ---------------------------------------------------------
@@ -307,7 +307,7 @@ class MeteoFrancePntConnector(BaseConnector):
             run, objects = self._selection()
         except Exception as error:
             _log.error(
-                "Sélection Météo-France impossible",
+                "Meteo-France selection impossible",
                 extra={
                     **fetch_started_fields(source=SOURCE_NAME, run_id=self.run_id, origin=ORIGIN),
                     **failure_fields(error),
@@ -316,7 +316,7 @@ class MeteoFrancePntConnector(BaseConnector):
             )
             raise
 
-        _log.info("Récupération Météo-France démarrée", extra=self._start_fields(run))
+        _log.info("Meteo-France retrieval started", extra=self._start_fields(run))
 
         artefacts: list[Path] = []
         received = 0
@@ -335,7 +335,7 @@ class MeteoFrancePntConnector(BaseConnector):
             for fait in artefacts:
                 fait.unlink(missing_ok=True)
             _log.error(
-                "Récupération Météo-France en échec",
+                "Meteo-France retrieval failed",
                 extra={
                     **self._start_fields(run),
                     **failure_fields(error),
@@ -348,8 +348,8 @@ class MeteoFrancePntConnector(BaseConnector):
             source=SOURCE_NAME,
             outcome="success",
             message=(
-                f"{len(artefacts)} paquet(s) GRIB2 récupéré(s) pour le réseau "
-                f"{run}, {received} octets."
+                f"{len(artefacts)} GRIB2 package(s) retrieved for model run "
+                f"{run}, {received} bytes."
             ),
             run_id=self.run_id,
             origin=ORIGIN,
@@ -372,7 +372,7 @@ class MeteoFrancePntConnector(BaseConnector):
                 license=SOURCE_LICENSE,
             ),
         )
-        _log.info("Récupération Météo-France terminée", extra=fetch_finished_fields(result))
+        _log.info("Meteo-France retrieval finished", extra=fetch_finished_fields(result))
         return result
 
 

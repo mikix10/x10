@@ -58,7 +58,7 @@ def test_un_numero_de_la_plage_locale_sans_table_locale_est_signale(tmp_path):
     ecart = grib2.check_local_tables(grib2.open_granule(chemin))
     assert ecart is not None
     assert "(0, 16, 192)" in ecart
-    assert "aucune table locale" in ecart
+    assert "no local table" in ecart
 
 
 def test_une_categorie_de_la_plage_locale_est_signalee_aussi(tmp_path):
@@ -98,7 +98,7 @@ def test_le_signalement_compte_les_codes_sans_les_repeter(tmp_path):
     )
     ecart = grib2.check_local_tables(grib2.open_granule(chemin, errors="ignore"))
     assert ecart is not None
-    assert "2 paramètre(s)" in ecart
+    assert "2 parameter(s)" in ecart
 
 
 def test_un_granule_vide_ne_declenche_rien():
@@ -115,7 +115,7 @@ def test_l_ouverture_journalise_l_ecart_une_fois(tmp_path, caplog):
     )
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
         grib2.open_granule(chemin)
-    alertes = [e for e in caplog.records if "plage réservée à l'usage local" in e.getMessage()]
+    alertes = [e for e in caplog.records if "local-use range" in e.getMessage()]
     assert len(alertes) == 1, "une seule fois par granule, pas une fois par hypercube"
     assert alertes[0].__dict__["x10.granule"] == str(chemin)
 
@@ -124,7 +124,7 @@ def test_l_ouverture_ne_journalise_rien_sur_un_granule_conforme(tmp_path, caplog
     chemin = granule(tmp_path / "granule.grib2", [Field(category=0, number=0)])
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
         grib2.open_granule(chemin)
-    assert not [e for e in caplog.records if "plage réservée à l'usage local" in e.getMessage()]
+    assert not [e for e in caplog.records if "local-use range" in e.getMessage()]
 
 
 # --- L'écart ne refuse pas de servir ------------------------------------------

@@ -12,20 +12,30 @@ socle se viderait sans que personne le décide.
 
 from __future__ import annotations
 
-from .availability import Constat, constater
-from .config import ConfigurationManquante, Settings
-from .report import GranuleReport, PipelineReport, Verdict, empreinte_de_contrat
-from .session import RequeteInconnue, Session
+from .availability import Availability, observe
+from .config import MissingConfiguration, Settings
+from .options import DEFAULT_OPTIONS, NormaliseOptions
+from .report import (
+    ErrorType,
+    GranuleReport,
+    PipelineReport,
+    Verdict,
+    contract_fingerprint,
+)
+from .session import Session, UnknownRequest
 
 __all__ = [
-    "ConfigurationManquante",
-    "Constat",
+    "DEFAULT_OPTIONS",
+    "Availability",
+    "ErrorType",
     "GranuleReport",
+    "MissingConfiguration",
+    "NormaliseOptions",
     "PipelineReport",
-    "RequeteInconnue",
     "Session",
     "Settings",
+    "UnknownRequest",
     "Verdict",
-    "constater",
-    "empreinte_de_contrat",
+    "contract_fingerprint",
+    "observe",
 ]

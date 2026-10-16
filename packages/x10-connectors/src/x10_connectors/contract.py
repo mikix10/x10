@@ -181,10 +181,10 @@ class Divergences(BaseModel):
 
     def resume(self) -> str:
         if not self.breaking_changes and not self.additions:
-            return "aucun écart"
+            return "no divergence"
         return "\n".join(
-            [f"RUPTURE   {d}" for d in self.breaking_changes]
-            + [f"nouveauté {d}" for d in self.additions]
+            [f"BREAKING {d}" for d in self.breaking_changes]
+            + [f"addition {d}" for d in self.additions]
         )
 
 
@@ -223,7 +223,7 @@ def output_contract(datasets: tuple[xr.Dataset, ...]) -> Contract:
     du producteur, l'écriture ayant ses propres tests.
     """
     if not datasets:
-        raise GribUnavailableError("Aucun jeu à contractualiser.")
+        raise GribUnavailableError("No dataset to build a contract from.")
 
     variables: dict[str, VariableContract] = {}
     grid: dict[str, AxisSummary] = {}
@@ -287,9 +287,9 @@ def compare_contracts(reference: Contract, observed: Contract) -> Divergences:
     additions: list[Divergence] = []
 
     for name in sorted(set(reference.variables) - set(observed.variables)):
-        breaking_changes.append(_divergence("breaking", f"variables.{name}", "présente", "absente"))
+        breaking_changes.append(_divergence("breaking", f"variables.{name}", "present", "absent"))
     for name in sorted(set(observed.variables) - set(reference.variables)):
-        additions.append(_divergence("addition", f"variables.{name}", "absente", "apparue"))
+        additions.append(_divergence("addition", f"variables.{name}", "absent", "appeared"))
 
     for name in sorted(set(reference.variables) & set(observed.variables)):
         avant, apres = reference.variables[name], observed.variables[name]

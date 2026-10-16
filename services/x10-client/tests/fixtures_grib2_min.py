@@ -11,6 +11,12 @@ tests d'un autre membre, et aucun `conftest.py` ni réglage `pythonpath` ne
 les met sur le chemin d'import. Elles ne sont atteignables d'ici que par un
 effet d'ordre de collecte — donc plus du tout dès qu'on lance
 `pytest services/x10-client` seul. La suite d'un membre doit tenir seule.
+
+**Et pourquoi `_min` plutôt que `fixtures_grib2`** : pytest ajoute chaque
+dossier de tests au chemin d'import, faute d'`__init__.py`. Deux modules
+`fixtures_grib2` s'y trouveraient alors en même temps lors d'une exécution
+complète, et le second serait simplement masqué. Le suffixe n'est pas une
+coquetterie, c'est ce qui évite la collision.
 """
 
 from __future__ import annotations
@@ -23,10 +29,10 @@ eccodes = pytest.importorskip("eccodes")
 np = pytest.importorskip("numpy")
 
 
-def granule_minimal(cible: Path, parametres: tuple[tuple[int, int], ...]) -> Path:
+def minimal_granule(target: Path, parameters: tuple[tuple[int, int], ...]) -> Path:
     """Écrit un granule portant un message par `(catégorie, numéro)` donné."""
-    octets = b""
-    for categorie, numero in parametres:
+    size_bytes = b""
+    for category, number in parameters:
         h = eccodes.codes_grib_new_from_samples("regular_ll_sfc_grib2")
         try:
             eccodes.codes_set(h, "centre", 85)
@@ -39,15 +45,15 @@ def granule_minimal(cible: Path, parametres: tuple[tuple[int, int], ...]) -> Pat
             eccodes.codes_set(h, "iDirectionIncrementInDegrees", 1.0)
             eccodes.codes_set(h, "jDirectionIncrementInDegrees", 1.0)
             eccodes.codes_set(h, "discipline", 0)
-            eccodes.codes_set(h, "parameterCategory", categorie)
-            eccodes.codes_set(h, "parameterNumber", numero)
+            eccodes.codes_set(h, "parameterCategory", category)
+            eccodes.codes_set(h, "parameterNumber", number)
             eccodes.codes_set_values(h, np.linspace(0.0, 1.0, 24))
-            octets += bytes(eccodes.codes_get_message(h))
+            size_bytes += bytes(eccodes.codes_get_message(h))
         finally:
             eccodes.codes_release(h)
-    cible.parent.mkdir(parents=True, exist_ok=True)
-    cible.write_bytes(octets)
-    return cible
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(size_bytes)
+    return target
 
 
-__all__ = ["granule_minimal"]
+__all__ = ["minimal_granule"]
