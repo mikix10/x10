@@ -172,6 +172,10 @@ jobs:
 
       # Le code des tests de la base ecrase celui de la demande. Les `.txt`
       # de reference restent ceux de la demande, voir le commentaire du job.
+      #
+      # `git checkout <ref> -- <chemins>` ne **supprime pas** un fichier absent
+      # de la reference : un fichier de tests ajoute par la demande reste donc
+      # en place, et c'est voulu -- il eprouve le code qu'elle apporte.
       - name: Restore base test code
         if: >-
           github.event_name == 'pull_request' &&
@@ -181,11 +185,20 @@ jobs:
             'packages/*/tests/*.py' 'services/*/tests/*.py' 'workspace-tests/*.py'
           git status --short
 
+      # L'inventaire des tests est **sans objet ici**, et echouerait sur toute
+      # demande qui ajoute un test. Ce job execute un ensemble hybride -- code
+      # de la base pour les fichiers existants, fichiers neufs de la demande --
+      # qui ne correspond a l'inventaire d'aucun des deux cotes. Le comparer
+      # ne dirait rien du code propose, et transformerait l'ajout d'un test en
+      # echec. Les autres references, derivees des `src/`, restent coherentes
+      # avec la demande et sont donc verifiees normalement.
       - name: Run base tests against proposed code
         if: >-
           github.event_name == 'pull_request' &&
           !contains(github.event.pull_request.labels.*.name, 'refonte-api')
-        run: uv run pytest -q
+        run: >-
+          uv run pytest -q --deselect
+          workspace-tests/test_inventaire.py::test_l_inventaire_des_tests_est_celui_de_la_reference
 
       # Le job conclut quand meme en succes, pour que le contexte requis
       # soit rapporte. Sans cette etape il n'y aurait rien a executer.
