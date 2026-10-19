@@ -29,8 +29,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from x10_models import SourceTerms, Variable
+
 from .grib2 import GribUnavailableError, _numpy
 from .netcdf_cf import cell_method, grid_mapping, udunits
+from .observability import connector_logger
+
+_log = connector_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     import xarray as xr
@@ -330,13 +335,160 @@ def compare_contracts(reference: Contract, observed: Contract) -> Divergences:
     return Divergences(breaking_changes=tuple(breaking_changes), additions=tuple(additions))
 
 
+# --- Inventaire : du contrat au catalogue -------------------------------------
+#
+# Le contrat porte déjà, par variable, le nom standard CF, l'unité canonique,
+# la méthode de cellule, l'identité GRIB et les coordonnées propres. Dériver
+# un inventaire de catalogue n'est donc pas une lecture de plus des fichiers :
+# c'est une **traduction** de ce qui a déjà été lu.
+#
+# La frontière est celle du vocabulaire. `inventory` ne rend que du normalisé
+# — ce que X10 expose et dont il répond. `source_terms` rend les termes du
+# producteur, qui ne promettent **rien, par construction, puisqu'ils suivent
+# le producteur**. Les deux sortent de la même passe parce que décoder est
+# l'étape coûteuse, jamais du même objet parce que l'un engage et l'autre non.
+
+#: `typeOfLevel` d'ecCodes vers la référence verticale **normalisée** : nom
+#: standard CF, et unité des valeurs telles que le producteur les donne.
+#:
+#: Table **close**, chaque nom vérifié présent au tableau CF. Un type absent
+#: d'ici ne produit **pas** de référence verticale plutôt qu'une supposition —
+#: même règle que `grib2.CF_STANDARD_NAMES`, et même raison : un nom inventé
+#: produit une métadonnée qui se dit normalisée sans l'être.
+CF_VERTICAL: dict[str, tuple[str, str]] = {
+    "heightAboveGround": ("height", "m"),
+    "heightAboveSea": ("altitude", "m"),
+    "isobaricInhPa": ("air_pressure", "hPa"),
+    "depthBelowLandLayer": ("depth", "m"),
+}
+
+#: Types de niveau que CF ne décrit par **aucune coordonnée verticale**, et
+#: c'est correct : un champ de surface n'en porte pas, la convention étant
+#: son absence. Les recenser évite de les confondre avec un trou de table.
+WITHOUT_VERTICAL_REFERENCE = frozenset(
+    {
+        "surface",
+        "meanSea",
+        "entireAtmosphere",
+        "cloudBase",
+        "cloudTop",
+        "isothermZero",
+        "nominalTop",
+    }
+)
+
+#: Nom de la coordonnée d'échéance posée par la chaîne de décodage, en
+#: **secondes**.
+STEP_COORD = "step"
+
+SECONDS_PER_HOUR = 3600
+
+
+def inventory(contract: Contract) -> tuple[Variable, ...]:
+    """L'inventaire **normalisé** d'un granule, pour le catalogue.
+
+    Ne rend que du vocabulaire que X10 engage : noms CF, unités UDUNITS,
+    méthodes de cellule CF, référence verticale par son nom standard. Rien du
+    producteur — c'est `source_terms` qui le porte.
+
+    Une grandeur sans nom standard est **rendue quand même**, avec
+    `standard_name=None`. CF ne couvre pas tout, et la règle arrêtée est
+    retirer plutôt que renommer : sans cette soupape, un seul code exotique
+    rendrait un granule entier inexposable.
+    """
+    variables = []
+    for nom in sorted(contract.variables):
+        fiche = contract.variables[nom]
+        type_niveau = fiche.grib.get("typeOfLevel")
+        reference, unite = _vertical(type_niveau)
+        # Sans référence verticale, **pas de niveaux**. La chaîne de décodage
+        # pose une coordonnée `surface = 0.0` sur les champs de surface ; la
+        # rendre ici produirait un niveau sans référence ni unité, qu'une
+        # facette ferait correspondre à tout champ de surface du catalogue.
+        niveaux = fiche.coords.get(type_niveau or "", ()) if reference is not None else ()
+        variables.append(
+            Variable(
+                standard_name=fiche.standard_name,
+                units=fiche.units,
+                cell_methods=fiche.cell_methods,
+                level_reference=reference,
+                levels=niveaux,
+                level_units=unite if reference is not None else None,
+            )
+        )
+    return tuple(variables)
+
+
+def source_terms(contract: Contract) -> tuple[SourceTerms, ...]:
+    """Les mêmes grandeurs **dans les termes du producteur**, même ordre.
+
+    > Cette vue ne promet rien, par construction, puisqu'elle suit le
+    > producteur. Si le nom court change chez lui, elle change ici.
+
+    Rendue dans l'ordre d'`inventory`, de sorte que l'indice d'une grandeur
+    désigne la même dans les deux vues.
+    """
+    termes = []
+    for nom in sorted(contract.variables):
+        fiche = contract.variables[nom]
+        termes.append(
+            SourceTerms(
+                short_name=nom,
+                level_type=fiche.grib.get("typeOfLevel"),
+                grib=dict(fiche.grib),
+            )
+        )
+    return tuple(termes)
+
+
+def max_step_hours(contract: Contract) -> int | None:
+    """Échéance maximale servie par le granule, en heures entières.
+
+    C'est une **capacité** du jeu, pas une disponibilité : elle dit jusqu'où
+    la source sait aller, jamais si un réseau donné est présent à l'instant
+    où l'on demande. Cette seconde question se lit dans l'historique
+    d'exécution.
+
+    `None` quand aucune variable ne porte d'échéance — un champ constant, par
+    exemple. Ne pas savoir n'est pas zéro.
+    """
+    echeances = [
+        valeur
+        for fiche in contract.variables.values()
+        for valeur in fiche.coords.get(STEP_COORD, ())
+    ]
+    if not echeances:
+        return None
+    return int(max(echeances) // SECONDS_PER_HOUR)
+
+
+def _vertical(type_niveau: str | None) -> tuple[str | None, str | None]:
+    """Référence verticale normalisée, ou `None` quand il n'y en a pas."""
+    if type_niveau is None or type_niveau in WITHOUT_VERTICAL_REFERENCE:
+        return None, None
+    if (connu := CF_VERTICAL.get(type_niveau)) is None:
+        # Un type que nous n'avons pas rencontré. On ne devine pas : la
+        # grandeur reste exposable, sans référence verticale, et l'absence
+        # se voit.
+        _log.warning(
+            "Vertical level type without a known CF reference",
+            extra={"x10.level_type": type_niveau},
+        )
+        return None, None
+    return connu
+
+
 __all__ = [
+    "CF_VERTICAL",
     "CRITICAL_ATTRIBUTES",
     "ENUMERATION_THRESHOLD",
     "EXCLUDED_COORDS",
     "GRIB_IDENTITY",
     "INFORMATIVE_ATTRIBUTES",
     "PRECISION",
+    "SECONDS_PER_HOUR",
+    "STEP_COORD",
+    "WITHOUT_VERTICAL_REFERENCE",
     "AxisSummary",
     "Contract",
     "Divergence",
@@ -344,5 +496,8 @@ __all__ = [
     "GeometryContract",
     "VariableContract",
     "compare_contracts",
+    "inventory",
+    "max_step_hours",
     "output_contract",
+    "source_terms",
 ]

@@ -2,7 +2,15 @@ x10_api.__all__: hello
 x10_catalog.CatalogEntry.dataset
 x10_catalog.CatalogEntry.distributions
 x10_catalog.CatalogEntry.tags
+x10_catalog.Query.domain
+x10_catalog.Query.level
+x10_catalog.Query.level_reference
+x10_catalog.Query.standard_name
+x10_catalog.Query.step_hours
+x10_catalog.Registry.entries
 x10_catalog.__all__: CatalogEntry
+x10_catalog.__all__: Query
+x10_catalog.__all__: Registry
 x10_client.__all__: Availability
 x10_client.__all__: Credentials
 x10_client.__all__: DEFAULT_OPTIONS
@@ -167,6 +175,7 @@ x10_connectors.contract.VariableContract.long_name
 x10_connectors.contract.VariableContract.standard_name
 x10_connectors.contract.VariableContract.units
 x10_connectors.contract.__all__: AxisSummary
+x10_connectors.contract.__all__: CF_VERTICAL
 x10_connectors.contract.__all__: CRITICAL_ATTRIBUTES
 x10_connectors.contract.__all__: Contract
 x10_connectors.contract.__all__: Divergence
@@ -177,9 +186,15 @@ x10_connectors.contract.__all__: GRIB_IDENTITY
 x10_connectors.contract.__all__: GeometryContract
 x10_connectors.contract.__all__: INFORMATIVE_ATTRIBUTES
 x10_connectors.contract.__all__: PRECISION
+x10_connectors.contract.__all__: SECONDS_PER_HOUR
+x10_connectors.contract.__all__: STEP_COORD
 x10_connectors.contract.__all__: VariableContract
+x10_connectors.contract.__all__: WITHOUT_VERTICAL_REFERENCE
 x10_connectors.contract.__all__: compare_contracts
+x10_connectors.contract.__all__: inventory
+x10_connectors.contract.__all__: max_step_hours
 x10_connectors.contract.__all__: output_contract
+x10_connectors.contract.__all__: source_terms
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.date
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.origins
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.parameters
@@ -297,8 +312,11 @@ x10_models.Agent.roles
 x10_models.Agent.url
 x10_models.Dataset.domain
 x10_models.Dataset.identifier
+x10_models.Dataset.inventory_source
+x10_models.Dataset.max_step_hours
 x10_models.Dataset.producer
 x10_models.Dataset.publisher
+x10_models.Dataset.source_terms
 x10_models.Dataset.title
 x10_models.Dataset.variables
 x10_models.Distribution.access_rights
@@ -312,6 +330,10 @@ x10_models.Distribution.provider
 x10_models.GeoPoint.elevation_m
 x10_models.GeoPoint.latitude
 x10_models.GeoPoint.longitude
+x10_models.InventorySource.derived_at
+x10_models.InventorySource.granules
+x10_models.InventorySource.tables_version
+x10_models.InventorySource.toolchain
 x10_models.Observation.location
 x10_models.Observation.provenance
 x10_models.Observation.timestamp
@@ -329,16 +351,28 @@ x10_models.Retrieval.license
 x10_models.Retrieval.origin
 x10_models.Retrieval.retrieved_at
 x10_models.Retrieval.selection
+x10_models.SourceTerms.grib
+x10_models.SourceTerms.level_type
+x10_models.SourceTerms.short_name
+x10_models.Variable.cell_methods
+x10_models.Variable.level_reference
+x10_models.Variable.level_units
+x10_models.Variable.levels
+x10_models.Variable.standard_name
+x10_models.Variable.units
 x10_models.__all__: AccessRights
 x10_models.__all__: Agent
 x10_models.__all__: AgentRole
 x10_models.__all__: Dataset
 x10_models.__all__: Distribution
 x10_models.__all__: GeoPoint
+x10_models.__all__: InventorySource
 x10_models.__all__: Observation
 x10_models.__all__: PhysicalDomain
 x10_models.__all__: Provenance
 x10_models.__all__: Retrieval
+x10_models.__all__: SourceTerms
+x10_models.__all__: Variable
 x10_storage.StorageRecord.key
 x10_storage.StorageRecord.payload
 x10_storage.__all__: StorageAdapter
