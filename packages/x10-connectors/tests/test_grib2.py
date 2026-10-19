@@ -16,6 +16,7 @@ from x10_connectors.grib2 import (
     CF_STANDARD_NAMES,
     DERIVED_WIND,
     OPTIONS_CFGRIB,
+    TEMPLATE_RESTRICTED,
     WITHOUT_CF_NAME,
     apply_cf_names,
     drop_derived_wind,
@@ -338,3 +339,129 @@ def test_cumul_et_ensemble_ne_se_combinent_pas_en_silence(tmp_path):
     message dont la sémantique ne serait pas celle qu'on croit."""
     with pytest.raises(ValueError, match=r"4.11"):
         granule(tmp_path / "x.grib2", [Field(category=0, number=0, member=0, accumulation=1)])
+
+
+# --- Vagues : un triplet pour sept champs -------------------------------------
+
+
+def test_la_hauteur_significative_totale_est_nommee(tmp_path):
+    """Gabarit 4.0 : c'est bien la hauteur significative, et CF la nomme."""
+    champs = [Field(discipline=10, category=0, number=3, level_type=1, level=0, values=np.zeros(N))]
+    jeu = apply_cf_names(open_granule(granule(tmp_path / "swh.grib2", champs))[0])
+    nom = next(iter(jeu.data_vars))
+    assert jeu[nom].attrs["standard_name"] == "sea_surface_wave_significant_height"
+
+
+def test_le_meme_triplet_sous_un_autre_gabarit_n_est_pas_nomme(tmp_path):
+    """Sept messages d'ECMWF portent `(10, 0, 3)`, relevé le 19/10/2026.
+
+    Un seul, de gabarit 4.0, est la hauteur significative totale ; les six
+    autres, de gabarit 4.104, sont des hauteurs par bande de période. Les
+    nommer comme le total serait faux **et dangereux** : des hauteurs par
+    bande se composent en somme quadratique, de sorte qu'un consommateur les
+    additionnant sous un même nom obtiendrait une valeur sans signification.
+    """
+    champs = [Field(discipline=10, category=0, number=3, level_type=1, level=0, values=np.zeros(N))]
+    jeu = open_granule(granule(tmp_path / "bande.grib2", champs))[0]
+    nom = next(iter(jeu.data_vars))
+    jeu[nom].attrs["GRIB_productDefinitionTemplateNumber"] = 104
+
+    assert "standard_name" not in apply_cf_names(jeu)[nom].attrs
+
+
+def test_un_gabarit_illisible_ne_fait_poser_aucun_nom(tmp_path):
+    """Mieux vaut un champ sans nom qu'un champ mal nommé."""
+    champs = [Field(discipline=10, category=0, number=3, level_type=1, level=0, values=np.zeros(N))]
+    jeu = open_granule(granule(tmp_path / "sans.grib2", champs))[0]
+    nom = next(iter(jeu.data_vars))
+    jeu[nom].attrs.pop("GRIB_productDefinitionTemplateNumber", None)
+
+    assert "standard_name" not in apply_cf_names(jeu)[nom].attrs
+
+
+def test_seuls_les_triplets_de_la_table_sont_restreints():
+    """Une restriction qui ne porte sur aucun nom serait sans effet."""
+    assert set(TEMPLATE_RESTRICTED) <= set(CF_STANDARD_NAMES)
+
+
+def test_le_coefficient_de_trainee_des_vagues_reste_sans_nom():
+    """CF a bien un coefficient de traînée de surface, mais il ne dit rien
+    des vagues — or c'est la distinction que trace le code de l'OMM."""
+    assert (10, 0, 16) in WITHOUT_CF_NAME
+
+
+def test_la_bathymetrie_est_ambigue_et_non_absente():
+    """CF offre cinq profondeurs de fond selon le niveau de référence, et le
+    message n'en déclare aucun. Rien à proposer à CF : un choix à ne pas
+    faire."""
+    assert (10, 4, 7) in AMBIGUOUS_TRIPLETS
+
+
+# --- Le tableau CF officiel, à la demande --------------------------------------
+
+#: Le tableau des noms standards, forme XML. C'est la source normative de CF,
+#: et la seule façon de vérifier un nom autrement qu'en l'affirmant.
+CF_TABLE_URL = (
+    "https://cfconventions.org/Data/cf-standard-names/current/src/cf-standard-name-table.xml"
+)
+
+
+@pytest.mark.network
+def test_chaque_nom_cf_emis_existe_au_tableau_officiel():
+    """Rend automatique ce que `CLAUDE.md` exigeait à la main.
+
+    **Un nom inventé produirait un fichier qui se dit conforme sans
+    l'être** — le défaut le plus coûteux de notre correspondance, puisqu'il
+    ne casse rien et ne se voit pas. La table est bâtie par nous, faute
+    d'autorité exploitable par programme côté OMM ; la contrepartie est de la
+    confronter au tableau que CF, lui, publie.
+
+    Marqué `network` : la suite hors ligne ne télécharge rien, et le tableau
+    pèse 4,4 Mio.
+    """
+    import urllib.request
+    from xml.etree import ElementTree
+
+    with urllib.request.urlopen(CF_TABLE_URL, timeout=120) as reponse:
+        racine = ElementTree.parse(reponse).getroot()
+
+    officiels = {e.get("id") for e in racine.iter("entry")}
+    alias = {e.get("id") for e in racine.iter("alias")}
+    assert len(officiels) > 4000, "tableau CF inattendu : trop peu d'entrées"
+
+    inconnus = sorted(set(CF_STANDARD_NAMES.values()) - officiels)
+    perimes = sorted(set(CF_STANDARD_NAMES.values()) & alias)
+    assert inconnus == [], (
+        f"Nom(s) absent(s) du tableau CF {racine.findtext('version_number')} : "
+        f"{inconnus}. Un nom inventé rend un fichier non conforme en silence."
+    )
+    assert perimes == [], (
+        f"Nom(s) devenus des alias, donc dépréciés par CF : {perimes}. "
+        "Reprendre le nom courant que le tableau désigne."
+    )
+
+
+def test_la_direction_des_vagues_est_nommee_et_non_ecartee(tmp_path):
+    """Contrairement à celle du vent, elle est conservée.
+
+    La règle des composantes ne change pas ; son application dépend de ce que
+    CF offre. Il existe des noms pour les composantes du vent, aucun pour
+    celles d'une direction de vagues, et ECMWF n'en publie pas. En inventer
+    deux serait la faute que la table entière évite.
+    """
+    champs = [
+        Field(discipline=10, category=0, number=14, level_type=1, level=0, values=np.zeros(N))
+    ]
+    jeu = apply_cf_names(open_granule(granule(tmp_path / "mwd.grib2", champs))[0])
+    nom = next(iter(jeu.data_vars))
+
+    assert jeu[nom].attrs["standard_name"] == "sea_surface_wave_from_direction"
+    assert (10, 0, 14) not in DERIVED_WIND
+
+
+def test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale():
+    """`sea_surface_wave_mean_from_direction` serait le choix naïf, et il est
+    faux : CF en fait « the wave direction in each frequency band », grandeur
+    spectrale que sa description distingue du paramètre global. `mwd` est
+    global."""
+    assert CF_STANDARD_NAMES[(10, 0, 14)] == "sea_surface_wave_from_direction"

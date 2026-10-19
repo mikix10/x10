@@ -65,6 +65,15 @@ GRIB_IDENTITY = (
     "parameterNumber",
     "typeOfLevel",
     "stepType",
+    # **Le triplet ne suffit pas à identifier un champ**, et ce n'est pas une
+    # précaution : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, sept
+    # messages portent `(10, 0, 3)` et seul le gabarit les sépare.
+    "productDefinitionTemplateNumber",
+    # Taille de l'ensemble déclarée par le message. Elle est ici pour deux
+    # raisons : elle discrimine un axe de membres réel, et son évolution --
+    # cinquante membres devenus cent -- est une dérive du producteur que le
+    # contrat doit montrer.
+    "numberOfForecastsInEnsemble",
 )
 
 #: Attributs dont une évolution est une **rupture**. Les autres écarts sont
@@ -386,7 +395,31 @@ STEP_COORD = "step"
 #: vocabulaire normalisé.
 ENSEMBLE_COORD = "number"
 
+#: Clé GRIB qui dit si l'axe des membres en est vraiment un.
+#:
+#: **La présence de l'axe ne suffit pas**, et c'est une correction. Mesuré le
+#: 19/10/2026 sur trois gabarits : un déterministe `4.0` ne porte aucune de
+#: ces clés ; un ensemble `4.1` déclare dix prévisions et un numéro de
+#: perturbation ; et le gabarit `4.104` des hauteurs de vagues par bande de
+#: période **remplit les octets d'ensemble de zéros**, de sorte que `number`
+#: et `perturbationNumber` y valent 0 sur une prévision pourtant
+#: déterministe. `cfgrib` en tire un axe `number` de longueur 1, et le
+#: compte de membres valait 1 là où il doit valoir « aucun ».
+#:
+#: Le discriminant retenu est donc la taille déclarée, strictement positive.
+#: Il ne suppose aucune liste de gabarits — énumérer ceux qui portent un
+#: ensemble reviendrait à redériver une table de l'OMM de mémoire.
+ENSEMBLE_SIZE = "numberOfForecastsInEnsemble"
+
 SECONDS_PER_HOUR = 3600
+
+
+def _declared_ensemble(entry: VariableContract) -> bool:
+    """Le message déclare-t-il un ensemble de taille non nulle ?"""
+    try:
+        return int(entry.grib.get(ENSEMBLE_SIZE, "0")) > 0
+    except ValueError:
+        return False
 
 
 def _realizations(entry: VariableContract, geometry: GeometryContract) -> int | None:
@@ -400,7 +433,7 @@ def _realizations(entry: VariableContract, geometry: GeometryContract) -> int | 
     second, et ne lire que `coords` rendrait `None` précisément sur
     l'ensemble le plus volumineux.
     """
-    if ENSEMBLE_COORD not in entry.dims:
+    if ENSEMBLE_COORD not in entry.dims or not _declared_ensemble(entry):
         return None
     if (enumerated := entry.coords.get(ENSEMBLE_COORD)) is not None:
         return len(enumerated)
@@ -510,6 +543,7 @@ __all__ = [
     "CF_VERTICAL",
     "CRITICAL_ATTRIBUTES",
     "ENSEMBLE_COORD",
+    "ENSEMBLE_SIZE",
     "ENUMERATION_THRESHOLD",
     "EXCLUDED_COORDS",
     "GRIB_IDENTITY",
