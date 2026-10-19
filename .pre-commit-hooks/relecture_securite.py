@@ -99,8 +99,7 @@ def main(argv: list[str]) -> int:
         "Relire le skill `security`, verifier que la protection tient toujours,\n"
         "puis ajouter au message de commit une ligne :\n\n"
         "    Security-Review: <date>\n\n"
-        "Ce hook ne verifie pas que la relecture a eu lieu -- il exige qu'elle\n"
-        "soit affirmee, et laisse cette affirmation dans l'historique.",
+        "L'affirmation reste dans l'historique du depot.",
         file=sys.stderr,
     )
     return 1
