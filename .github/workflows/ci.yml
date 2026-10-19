@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -114,10 +114,73 @@ jobs:
 
       - name: Upload coverage report
         if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-html
           path: htmlcov/
+
+  anterieurs:
+    # Les tests de `main`, rejoues contre le code propose.
+    #
+    # La regression a l'infini du « qui garde les gardiens » n'a qu'une
+    # sortie connue : celui qui propose un changement ecrit les nouveaux
+    # tests, il n'ecrit pas les anciens. Un test affaibli ou vide de sa
+    # substance sans changer de nom echoue donc ici, la ou l'inventaire
+    # commite ne verrait rien.
+    #
+    # **Ce job doit figurer aux verifications obligatoires**, et c'est ce qui
+    # le protege : un contexte requis sans job correspondant bloque la fusion
+    # definitivement. Le retirer du workflow est donc auto-destructeur.
+    #
+    # Seul le **code** des tests est restaure, jamais les fichiers de
+    # reference : une demande qui ajoute legitimement du vocabulaire public
+    # ferait sinon echouer le job a chaque fois, et un job qui crie toujours
+    # est un job qu'on desactive.
+    name: Tests de la base
+    runs-on: ubuntu-latest
+    # Le job s'execute **toujours**, et c'est l'etape qui se conditionne. Un
+    # job escamote par `if:` rapporte « skipped », et un contexte requis qui
+    # ne rapporte pas un succes franc bloquerait la fusion -- l'echappatoire
+    # deviendrait un piege. Ici le job conclut toujours en succes, et seule
+    # l'execution des tests depend de l'etiquette.
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --frozen
+
+      # Le code des tests de la base ecrase celui de la demande. Les `.txt`
+      # de reference restent ceux de la demande, voir le commentaire du job.
+      - name: Restore base test code
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'refonte-api')
+        run: |
+          git checkout "origin/${{ github.base_ref }}" -- \
+            'packages/*/tests/*.py' 'services/*/tests/*.py' 'workspace-tests/*.py'
+          git status --short
+
+      - name: Run base tests against proposed code
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'refonte-api')
+        run: uv run pytest -q
+
+      # Le job conclut quand meme en succes, pour que le contexte requis
+      # soit rapporte. Sans cette etape il n'y aurait rien a executer.
+      - name: Base tests skipped by label
+        if: contains(github.event.pull_request.labels.*.name, 'refonte-api')
+        run: echo "Label refonte-api set, base tests deliberately skipped."
+
 
   portability:
     # Windows et macOS ne sont pas la plateforme de reference, mais une
@@ -156,7 +219,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -174,7 +237,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -186,7 +249,7 @@ jobs:
       - name: Check distribution metadata
         run: uv run --with twine --no-project twine check dist/*
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: dist/
