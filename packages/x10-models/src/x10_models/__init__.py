@@ -91,6 +91,97 @@ class Agent(BaseModel):
     url: str | None = None
 
 
+class Variable(BaseModel):
+    """Une grandeur d'un jeu, **dans le vocabulaire normalisé et lui seul**.
+
+    C'est la vue que X10 engage : les noms viennent de CF, les unités de la
+    forme canonique d'UDUNITS. Rien du producteur n'entre ici — ni nom court,
+    ni `typeOfLevel` d'ecCodes, ni triplet GRIB. Ces termes-là vivent dans
+    `SourceTerms`, et un test interdit leur présence ici.
+
+    **La raison tient en une phrase** : un consommateur qui s'accroche à un
+    nom de producteur hérite de notre couplage à ce producteur. La vue
+    normalisée existe pour qu'il n'ait pas à le faire.
+
+    `standard_name` peut valoir `None`, et c'est assumé. CF ne couvre pas
+    tout — `grib2.WITHOUT_CF_NAME` recense ce qui lui échappe —, et la règle
+    arrêtée est **retirer plutôt que renommer** : une grandeur sans nom
+    standard se voit comme telle, au lieu de porter une supposition. Sans
+    cette soupape, un seul code exotique rendrait un jeu entier inexposable.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    #: Nom standard CF. `None` quand CF ne couvre pas la grandeur.
+    standard_name: str | None = None
+    #: Unité sous la forme canonique d'UDUNITS — `m s-1`, pas `m s**-1`.
+    units: str | None = None
+    #: Traitement statistique, vocabulaire CF — `time: sum`, `time: maximum`.
+    cell_methods: str | None = None
+    #: Référence verticale par son **nom standard CF** — `height`,
+    #: `air_pressure` —, et non par le `typeOfLevel` du producteur.
+    level_reference: str | None = None
+    levels: tuple[float, ...] = ()
+    level_units: str | None = None
+
+
+class SourceTerms(BaseModel):
+    """Les termes du producteur pour une grandeur. **Aucune stabilité promise.**
+
+    > Cette vue ne promet **rien, par construction, puisqu'elle suit le
+    > producteur**. Si Météo-France renomme `t2m`, elle change — c'est son
+    > objet. Qui l'interroge accepte ce régime en l'interrogeant.
+
+    Elle existe pour l'usage expert : savoir demander « `t2m` d'AROME 0,025° »
+    quand on connaît déjà la source. Elle n'est **pas encore exposée** par une
+    interface d'interrogation ; les termes sont dérivés et rangés dès la
+    première passe parce que décoder le corpus est l'étape coûteuse, et la
+    refaire plus tard pour cela seul serait du gâchis.
+
+    À ne pas confondre avec le contrat de sortie de `x10-connectors`, qui
+    porte aussi l'identité GRIB : celui-là est une **trace** qui constate
+    qu'une source a changé, celui-ci un **vocabulaire d'interrogation**.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    #: Nom court tel que le producteur le donne — `t2m`, `u10`.
+    short_name: str = Field(min_length=1)
+    #: Type de niveau dans le vocabulaire d'ecCodes — `heightAboveGround`.
+    level_type: str | None = None
+    #: Identité du champ chez le producteur, reprise telle quelle.
+    grib: dict[str, str] = Field(default_factory=dict)
+
+
+class InventorySource(BaseModel):
+    """Sous quoi un inventaire a été dérivé. **Datée, et c'est le point.**
+
+    À ne pas confondre avec `Retrieval`, qui dit d'où vient la **donnée**.
+    Celle-ci dit d'où vient notre **lecture** de la donnée.
+
+    Un inventaire dérivé de fichiers vaut pour une version d'outillage, une
+    version de tables déclarée par le producteur, et un état du jeu à une
+    date. Les standards bougent — l'OMM a réécrit quatre entrées en place en
+    mai 2025, sans mécanisme de dépréciation — et les producteurs ne les
+    suivent pas au même rythme : notre ecCodes connaît les tables jusqu'à la
+    37 quand AROME en déclare 15.
+
+    Sans ces quatre champs, une divergence future serait **inattribuable** :
+    impossible de dire si le producteur a bougé ou si notre outillage a
+    changé.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    derived_at: datetime
+    #: La chaîne qui a lu — `"eccodes 2.49.0"`.
+    toolchain: str = Field(min_length=1)
+    #: Version de tables maîtresses **déclarée par le producteur**.
+    tables_version: int | None = None
+    #: Empreintes des granules dérivés, pour pouvoir rejouer à l'identique.
+    granules: tuple[str, ...] = ()
+
+
 class Dataset(BaseModel):
     """Information logique, indépendante de tout moyen d'accès.
 
@@ -108,7 +199,17 @@ class Dataset(BaseModel):
     #: ressource, donc ici et non sur la distribution. Souvent le producteur.
     publisher: Agent | None = None
     domain: PhysicalDomain
-    variables: tuple[str, ...] = ()
+    #: L'inventaire **normalisé**, celui qu'on expose.
+    variables: tuple[Variable, ...] = ()
+    #: Les mêmes grandeurs dans les termes du producteur, dans l'ordre de
+    #: `variables`. Vide tant que la vue source n'est pas dérivée.
+    source_terms: tuple[SourceTerms, ...] = ()
+    #: Échéance maximale servie, en heures. **Capacité du jeu**, statique —
+    #: à ne pas confondre avec la présence d'un réseau donné, que dit
+    #: l'historique d'exécution et non le catalogue.
+    max_step_hours: int | None = Field(default=None, ge=0)
+    #: Sous quoi l'inventaire a été dérivé. `None` quand il est saisi à la main.
+    inventory_source: InventorySource | None = None
 
 
 class Distribution(BaseModel):
@@ -225,8 +326,11 @@ __all__ = [
     "Dataset",
     "Distribution",
     "GeoPoint",
+    "InventorySource",
     "Observation",
     "PhysicalDomain",
     "Provenance",
     "Retrieval",
+    "SourceTerms",
+    "Variable",
 ]

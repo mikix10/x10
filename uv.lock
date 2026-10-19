@@ -1111,6 +1111,7 @@ name = "x10-client"
 version = "0.1.0"
 source = { editable = "services/x10-client" }
 dependencies = [
+    { name = "x10-catalog" },
     { name = "x10-connectors" },
     { name = "x10-models" },
 ]
@@ -1122,6 +1123,7 @@ grib = [
 
 [package.metadata]
 requires-dist = [
+    { name = "x10-catalog", editable = "packages/x10-catalog" },
     { name = "x10-connectors", editable = "packages/x10-connectors" },
     { name = "x10-connectors", extras = ["grib"], marker = "extra == 'grib'", editable = "packages/x10-connectors" },
     { name = "x10-models", editable = "packages/x10-models" },

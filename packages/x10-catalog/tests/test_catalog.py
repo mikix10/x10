@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from x10_catalog import CatalogEntry
-from x10_models import Agent, Dataset, Distribution
+from x10_models import Agent, Dataset, Distribution, Variable
 
 ECMWF = Agent(name="ECMWF", roles=("producer", "licensor"), url="https://www.ecmwf.int")
 
@@ -13,7 +13,37 @@ JEU = Dataset(
     title="IFS HRES, champs de surface, 0.25 degre",
     producer=ECMWF,
     domain="meteo",
-    variables=("2t", "2d", "10u", "10v"),
+    variables=(
+        Variable(
+            standard_name="air_temperature",
+            units="K",
+            level_reference="height",
+            levels=(2.0,),
+            level_units="m",
+        ),
+        Variable(
+            standard_name="dew_point_temperature",
+            units="K",
+            level_reference="height",
+            levels=(2.0,),
+            level_units="m",
+        ),
+        Variable(
+            standard_name="eastward_wind",
+            units="m s-1",
+            level_reference="height",
+            levels=(10.0,),
+            level_units="m",
+        ),
+        Variable(
+            standard_name="northward_wind",
+            units="m s-1",
+            level_reference="height",
+            levels=(10.0,),
+            level_units="m",
+        ),
+    ),
+    max_step_hours=240,
 )
 
 

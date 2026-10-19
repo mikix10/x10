@@ -1,0 +1,1509 @@
+{
+  "entries": [
+    {
+      "dataset": {
+        "domain": "meteo",
+        "identifier": "meteofrance-arome-0025",
+        "inventory_source": {
+          "derived_at": "2026-10-16T15:02:51.939126Z",
+          "granules": [
+            "arome__0025__SP1__00H06H__2026-10-08T12-00-00Z.grib2:1845f6394970be3e",
+            "arome__0025__HP2__49H51H__2026-10-12T06-00-00Z.grib2:2ab1ef0dca0edcb7",
+            "arome__0025__HP3__00H06H__2026-10-12T06-00-00Z.grib2:f09aa2d6aaae9da7",
+            "arome__0025__SP2__00H06H__2026-10-12T06-00-00Z.grib2:64d02b8dcec5808d",
+            "arome__0025__SP3__00H06H__2026-10-12T06-00-00Z.grib2:2a7b92e5633c423f"
+          ],
+          "tables_version": 15,
+          "toolchain": "eccodes 2.49.0"
+        },
+        "max_step_hours": 51,
+        "producer": {
+          "name": "Météo-France",
+          "roles": [
+            "producer",
+            "licensor"
+          ],
+          "url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
+        },
+        "publisher": {
+          "name": "data.gouv.fr",
+          "roles": [
+            "harvester",
+            "distributor"
+          ],
+          "url": null
+        },
+        "source_terms": [
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "7",
+              "parameterNumber": "6",
+              "stepType": "instant"
+            },
+            "level_type": null,
+            "short_name": "CAPE_INS"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "3",
+              "parameterNumber": "18",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "blh"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "6",
+              "parameterNumber": "32",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "cc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "84",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "ciwc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "83",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "clwc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "85",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "crwc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "86",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "cswc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "6",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "d2m"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "6",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "dpt"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "23",
+              "stepType": "max",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "efg10"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "22",
+              "stepType": "max",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "fg10"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "3",
+              "parameterNumber": "6",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "h"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "6",
+              "parameterNumber": "5",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "hcc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "38",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "iews"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "37",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "inss"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "6",
+              "parameterNumber": "3",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "lcc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "6",
+              "parameterNumber": "4",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "mcc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "0",
+              "stepType": "min",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "mn2t"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "0",
+              "stepType": "max",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "mx2t"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "24",
+              "stepType": "max",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "nfg10"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "3",
+              "parameterNumber": "1",
+              "stepType": "instant",
+              "typeOfLevel": "meanSea"
+            },
+            "level_type": "meanSea",
+            "short_name": "prmsl"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "0",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "q"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "1",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "r2"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "0",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "sh2"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "10",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "slhf"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "3",
+              "parameterNumber": "0",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "sp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "11",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "sshf"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "4",
+              "parameterNumber": "9",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ssr"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "4",
+              "parameterNumber": "11",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ssrc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "4",
+              "parameterNumber": "7",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ssrd"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "5",
+              "parameterNumber": "5",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "str"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "5",
+              "parameterNumber": "6",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "strc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "5",
+              "parameterNumber": "3",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "strd"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "0",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "t"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "0",
+              "parameterNumber": "0",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "t2m"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "75",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tgrp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "65",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tirf"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "19",
+              "parameterNumber": "11",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "tke"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "52",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "66",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tsnowp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "2",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "u10"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "16",
+              "parameterNumber": "192",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "unknown"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "6",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "unknown"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "2",
+              "parameterNumber": "3",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "v10"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "3",
+              "parameterNumber": "4",
+              "stepType": "instant",
+              "typeOfLevel": "heightAboveGround"
+            },
+            "level_type": "heightAboveGround",
+            "short_name": "z"
+          }
+        ],
+        "title": "AROME 0,025 degre, France metropolitaine",
+        "variables": [
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "atmosphere_convective_available_potential_energy",
+            "units": "m2 s-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "atmosphere_boundary_layer_thickness",
+            "units": "m"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": null,
+            "units": "1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": "mass_fraction_of_cloud_ice_in_air",
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": "mass_fraction_of_cloud_liquid_water_in_air",
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": null,
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": null,
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "dew_point_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": "dew_point_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0
+            ],
+            "standard_name": null,
+            "units": "m s-1"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0
+            ],
+            "standard_name": "wind_speed_of_gust",
+            "units": "m s-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "m"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "high_type_cloud_area_fraction",
+            "units": "%"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "N m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "N m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "low_type_cloud_area_fraction",
+            "units": "%"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "medium_type_cloud_area_fraction",
+            "units": "%"
+          },
+          {
+            "cell_methods": "time: minimum",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "air_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "air_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0
+            ],
+            "standard_name": null,
+            "units": "m s-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "air_pressure_at_mean_sea_level",
+            "units": "Pa"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": "specific_humidity",
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "relative_humidity",
+            "units": "%"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "specific_humidity",
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_upward_latent_heat_flux",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_air_pressure",
+            "units": "Pa"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_upward_sensible_heat_flux",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_downward_shortwave_flux",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_downward_shortwave_flux_assuming_clear_sky",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_downwelling_shortwave_flux_in_air",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_upward_longwave_flux",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_downward_longwave_flux_assuming_clear_sky",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_downwelling_longwave_flux_in_air",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "air_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              2.0
+            ],
+            "standard_name": "air_temperature",
+            "units": "K"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": null,
+            "units": "J kg-1"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "precipitation_flux",
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0
+            ],
+            "standard_name": "eastward_wind",
+            "units": "m s-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              500.0,
+              750.0,
+              1000.0,
+              1500.0,
+              2000.0,
+              2500.0,
+              3000.0
+            ],
+            "standard_name": null,
+            "units": null
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": null
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0
+            ],
+            "standard_name": "northward_wind",
+            "units": "m s-1"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": "height",
+            "level_units": "m",
+            "levels": [
+              10.0,
+              20.0,
+              35.0,
+              50.0,
+              75.0,
+              100.0,
+              150.0,
+              200.0,
+              250.0,
+              375.0,
+              500.0,
+              625.0,
+              750.0,
+              875.0,
+              1000.0,
+              1125.0,
+              1250.0,
+              1375.0,
+              1500.0,
+              1750.0,
+              2000.0,
+              2250.0,
+              2500.0,
+              2750.0,
+              3000.0
+            ],
+            "standard_name": "geopotential",
+            "units": "m2 s-2"
+          }
+        ]
+      },
+      "distributions": [
+        {
+          "access_rights": "noLimitations",
+          "access_url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg",
+          "dataset": "meteofrance-arome-0025",
+          "license": "etalab-2.0",
+          "media_type": "application/x-grib2",
+          "origin": "data.gouv.fr",
+          "priority": 0,
+          "provider": {
+            "name": "data.gouv.fr",
+            "roles": [
+              "harvester",
+              "distributor"
+            ],
+            "url": null
+          }
+        }
+      ],
+      "tags": [
+        "pnt",
+        "grib2"
+      ]
+    },
+    {
+      "dataset": {
+        "domain": "meteo",
+        "identifier": "meteofrance-arpege-025",
+        "inventory_source": {
+          "derived_at": "2026-10-16T15:03:01.650142Z",
+          "granules": [
+            "arpege__025__SP3__049H072H__2026-10-13T12-00-00Z.grib2:195f102d3d41b9e4"
+          ],
+          "tables_version": 15,
+          "toolchain": "eccodes 2.49.0"
+        },
+        "max_step_hours": 72,
+        "producer": {
+          "name": "Météo-France",
+          "roles": [
+            "producer",
+            "licensor"
+          ],
+          "url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
+        },
+        "publisher": {
+          "name": "data.gouv.fr",
+          "roles": [
+            "harvester",
+            "distributor"
+          ],
+          "url": null
+        },
+        "source_terms": [
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "6",
+              "parameterNumber": "13",
+              "stepType": "instant",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ceil"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "37",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "cp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "76",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "crr"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "55",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "csfwe"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "56",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "lsfwe"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "54",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "lsp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "77",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "lsrr"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "83",
+              "stepType": "max",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "max_clwc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "19",
+              "stepType": "max",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ptype"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "4",
+              "parameterNumber": "11",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "ssrc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "5",
+              "parameterNumber": "6",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "strc"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "65",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tirf"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "1",
+              "parameterNumber": "66",
+              "stepType": "accum",
+              "typeOfLevel": "surface"
+            },
+            "level_type": "surface",
+            "short_name": "tsnowp"
+          },
+          {
+            "grib": {
+              "discipline": "0",
+              "parameterCategory": "5",
+              "parameterNumber": "7",
+              "stepType": "instant"
+            },
+            "level_type": null,
+            "short_name": "unknown"
+          }
+        ],
+        "title": "ARPEGE 0,25 degre, monde",
+        "variables": [
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "cloud_base_altitude",
+            "units": "m"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2 s-1"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2 s-1"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "mass_fraction_of_cloud_liquid_water_in_air",
+            "units": "kg kg-1"
+          },
+          {
+            "cell_methods": "time: maximum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": null
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_downward_shortwave_flux_assuming_clear_sky",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": "surface_net_downward_longwave_flux_assuming_clear_sky",
+            "units": "J m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: sum",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": "kg m-2"
+          },
+          {
+            "cell_methods": "time: point",
+            "level_reference": null,
+            "level_units": null,
+            "levels": [],
+            "standard_name": null,
+            "units": null
+          }
+        ]
+      },
+      "distributions": [
+        {
+          "access_rights": "noLimitations",
+          "access_url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg",
+          "dataset": "meteofrance-arpege-025",
+          "license": "etalab-2.0",
+          "media_type": "application/x-grib2",
+          "origin": "data.gouv.fr",
+          "priority": 0,
+          "provider": {
+            "name": "data.gouv.fr",
+            "roles": [
+              "harvester",
+              "distributor"
+            ],
+            "url": null
+          }
+        }
+      ],
+      "tags": [
+        "pnt",
+        "grib2"
+      ]
+    }
+  ]
+}

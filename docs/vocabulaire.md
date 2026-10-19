@@ -27,7 +27,10 @@ Il joue pour X10 le rôle que [GeoDCAT-AP](https://semiceu.github.io/GeoDCAT-AP/
 | `Distribution` | `dcat:Distribution` | *Resource locator* | entrée de `properties.links` | — | — |
 | `Agent` | `dcterms:Agent` | `CI_ResponsibleParty` | entrée de `properties.contacts` | entrée de `providers` | `prov:Agent` |
 | `Retrieval` | — (renvoie à PROV) | `LI_Lineage` | — | — | `prov:Activity` + `Entity` |
-| `CatalogEntry` | `dcat:Catalog` partiel | — | enregistrement WCMP, partiel | — | — |
+| `Registry` | `dcat:Catalog` | — | catalogue WCMP | `Catalog` | — |
+| `CatalogEntry` | `dcat:CatalogRecord` | — | enregistrement WCMP, partiel | — | — |
+| `Variable` | `dcat:Dataset` / propriétés CF | élément de *Content information* | — | — | — |
+| `SourceTerms` | — | — | — | — | — |
 
 > Les rôles d'acteur ci-dessous **ne sont pas encore rapprochés de WCMP2**.
 > Son `properties.contacts` porte bien des rôles, hérités d'OGC API – Records,

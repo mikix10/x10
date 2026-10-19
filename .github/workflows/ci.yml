@@ -5,6 +5,15 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    # `labeled` et `unlabeled` s'ajoutent aux trois types par defaut, et il
+    # faut les ecrire tous : declarer `types:` remplace la liste, il ne la
+    # complete pas.
+    #
+    # Sans eux, l'etiquette `refonte-api` est sans effet sur une demande deja
+    # ouverte : etiqueter ne declenche aucune execution, et une relance rejoue
+    # la **charge utile d'origine**, capturee avant que l'etiquette existe.
+    # L'echappatoire ne servirait donc que la ou on n'en a pas besoin.
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
 # Le GITHUB_TOKEN est restreint a la lecture : aucun job de cette CI n'ecrit
 # dans le depot. A elargir job par job si un futur workflow en a besoin.
@@ -143,6 +152,9 @@ jobs:
     # ne rapporte pas un succes franc bloquerait la fusion -- l'echappatoire
     # deviendrait un piege. Ici le job conclut toujours en succes, et seule
     # l'execution des tests depend de l'etiquette.
+    #
+    # L'etiquette n'agit que parce que le declencheur porte `labeled` :
+    # voir le bloc `on:` en tete de fichier.
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
