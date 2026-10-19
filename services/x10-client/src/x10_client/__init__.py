@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from .availability import Availability, observe
 from .config import MissingConfiguration, Settings
+from .credentials import Credentials, MissingCredential
 from .options import DEFAULT_OPTIONS, NormaliseOptions
 from .report import (
     ErrorType,
@@ -27,9 +28,11 @@ from .session import Session, UnknownRequest
 __all__ = [
     "DEFAULT_OPTIONS",
     "Availability",
+    "Credentials",
     "ErrorType",
     "GranuleReport",
     "MissingConfiguration",
+    "MissingCredential",
     "NormaliseOptions",
     "PipelineReport",
     "Session",

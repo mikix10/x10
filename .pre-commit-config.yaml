@@ -50,3 +50,17 @@ repos:
         # AppData y figure en clair et declencherait le hook a chaque passage.
         exclude: ^\.pre-commit-config\.yaml$
         entry: '(?i)(?:[a-z0-9._%+-]+@(?!example\.(?:com|org))[a-z0-9.-]+\.[a-z]{2,}|C:\\Users\\|/home/[a-z]|/Users/[a-z]|AppData)'
+
+  # Relecture de securite declaree sur les chemins sensibles. Un skill est une
+  # consigne qui s'oublie ; un hook s'execute. Par chemin et non par membre :
+  # une regle « avant tout commit sur x10-client » se declencherait sur un
+  # README tout en manquant observability.py et le bloc de typage racine.
+  - repo: local
+    hooks:
+      - id: relecture-securite
+        name: Relecture de securite sur chemin sensible
+        language: python
+        entry: python .pre-commit-hooks/relecture_securite.py
+        stages: [commit-msg]
+        always_run: true
+        pass_filenames: true
