@@ -21,6 +21,7 @@ from x10_connectors import (
 
 # Les constantes propres a une source se prennent au module : deux sources ne
 # peuvent pas partager un meme nom dans l'espace plat du paquet.
+from x10_connectors.contract import CF_VERTICAL, WITHOUT_VERTICAL_REFERENCE
 from x10_connectors.ecmwf_ifs import (
     DEFAULT_PARAMETERS,
     SOURCE_LICENSE,
@@ -64,11 +65,26 @@ def test_la_requete_par_defaut_porte_les_quatre_parametres_de_surface():
         {"parameters": ()},
         {"origins": ("un-nuage-inconnu",)},
         {"step": -6},
+        {"stream": "unflux"},
+        {"type": "untype"},
+        {"levtype": "unniveau"},
+        # Un membre sur un flux deterministe : le service l'ignorerait en
+        # silence, et la selection ne serait pas celle qu'on croit.
+        {"numbers": (1,)},
+        {"stream": "enfo", "type": "pf", "numbers": (0,)},
+        {"stream": "enfo", "type": "pf", "numbers": (51,)},
+        {"stream": "enfo", "type": "pf", "numbers": (3, 3)},
     ],
 )
 def test_la_requete_refuse_une_selection_invalide(kwargs):
     with pytest.raises(ValueError):
         EcmwfIfsRequest(**kwargs)
+
+
+def test_le_refus_d_un_membre_hors_bornes_nomme_le_numero_fautif():
+    """Un message qui dit seulement « invalide » oblige à relire la table."""
+    with pytest.raises(ValueError, match="99"):
+        EcmwfIfsRequest(stream="enfo", type="pf", numbers=(1, 99))
 
 
 def test_les_origines_couvrent_les_miroirs_infonuagiques():
@@ -90,6 +106,39 @@ def test_une_requete_mars_est_emise_par_parametre(tmp_path):
     assert [r["param"] for r in emises] == list(DEFAULT_PARAMETERS)
     assert {r["levtype"] for r in emises} == {"sfc"}
     assert {r["type"] for r in emises} == {"fc"}
+
+
+def test_une_requete_d_ensemble_transmet_flux_type_et_membres(tmp_path):
+    clients: list[_ClientSimule] = []
+    connecteur = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(
+            parameters=("2t",), stream="enfo", type="pf", levtype="pl", numbers=(1, 2, 3)
+        ),
+        client_factory=_fabrique(clients),
+    )
+
+    connecteur.fetch()
+
+    emise = clients[0].requetes[0]
+    assert emise["stream"] == "enfo"
+    assert emise["type"] == "pf"
+    assert emise["levtype"] == "pl"
+    assert emise["number"] == [1, 2, 3]
+
+
+def test_une_requete_deterministe_ne_porte_aucune_cle_de_membre(tmp_path):
+    """Le client officiel refuse `number` hors d'un flux d'ensemble.
+
+    Poser la clé à vide plutôt que l'omettre ferait donc échouer toutes les
+    acquisitions déterministes, soit l'essentiel du trafic.
+    """
+    clients: list[_ClientSimule] = []
+    connecteur = EcmwfIfsOpenDataConnector(tmp_path, client_factory=_fabrique(clients))
+
+    connecteur.fetch()
+
+    assert all("number" not in requete for requete in clients[0].requetes)
 
 
 def test_les_bornes_de_reprise_sont_abaissees(tmp_path):
@@ -181,6 +230,54 @@ def test_telechargement_reel_de_messages_grib2(tmp_path):
         assert donnees[7] == 2, "edition GRIB attendue : 2"
         assert struct.unpack(">Q", donnees[8:16])[0] == len(donnees)
         assert donnees[-4:] == b"7777"
+
+
+@pytest.mark.network
+def test_l_ensemble_porte_un_axe_de_membres_et_un_niveau_de_sol(tmp_path):
+    """Confronte au service réel les deux inconnues de l'ouverture à l'ensemble.
+
+    **Le `typeOfLevel` de `levtype=sol` n'est pas supposé.** `CLAUDE.md`
+    proscrit d'ajouter une entrée à `CF_VERTICAL` sur une déduction ; ce test
+    la demande au producteur. `depthBelowLandLayer` y figure déjà, donc il
+    passera si ECMWF emploie ce type — et désignera nommément le type à
+    ajouter sinon, au lieu de laisser une variable sans référence verticale
+    dont personne ne saurait dire si c'est un trou de table ou un choix.
+
+    Le second point est l'axe des membres : `cfgrib` doit rendre `number`, et
+    l'inventaire doit en tirer un compte.
+    """
+    cfgrib = pytest.importorskip("cfgrib")
+    del cfgrib
+    from x10_connectors.contract import inventory, output_contract
+    from x10_connectors.grib2 import normalise, open_granule
+
+    resultat = EcmwfIfsOpenDataConnector(
+        tmp_path,
+        EcmwfIfsRequest(
+            parameters=("2t",),
+            stream="enfo",
+            type="pf",
+            levtype="sol",
+            numbers=(1, 2),
+            step=0,
+        ),
+    ).fetch()
+
+    assert resultat.outcome == "success"
+    assert resultat.retrieval is not None
+    jeux = tuple(normalise(j) for j in open_granule(resultat.retrieval.artefacts[0]))
+    contrat = output_contract(jeux)
+
+    types_de_niveau = {f.grib.get("typeOfLevel") for f in contrat.variables.values()}
+    inconnus = types_de_niveau - set(CF_VERTICAL) - set(WITHOUT_VERTICAL_REFERENCE)
+    assert inconnus == set(), (
+        f"Type(s) de niveau sans référence CF établie : {sorted(inconnus)}. "
+        "Vérifier le nom standard CF correspondant, puis l'ajouter à "
+        "CF_VERTICAL — jamais le deviner."
+    )
+
+    variables = inventory(contrat)
+    assert {v.realizations for v in variables} == {2}
 
 
 # --- Bascule d'origine ---------------------------------------------------------

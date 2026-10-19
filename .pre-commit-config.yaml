@@ -64,3 +64,15 @@ repos:
         stages: [commit-msg]
         always_run: true
         pass_filenames: true
+
+      # Un commit decrit ce qui a ete fait. Une clause prospective ne vieillit
+      # pas, elle se perime -- et elle dilue le constat qui la precede. La
+      # liste de motifs est courte et assumee non exhaustive : elle empeche la
+      # distraction, pas la paraphrase.
+      - id: commit-sans-promesse
+        name: Un commit ne s'engage pas sur la suite
+        language: python
+        entry: python .pre-commit-hooks/commit_sans_promesse.py
+        stages: [commit-msg]
+        always_run: true
+        pass_filenames: true

@@ -16,7 +16,12 @@ from fixtures_grib2 import Field, granule
 
 from x10_connectors.contract import (
     CF_VERTICAL,
+    ENSEMBLE_COORD,
     WITHOUT_VERTICAL_REFERENCE,
+    AxisSummary,
+    Contract,
+    GeometryContract,
+    VariableContract,
     inventory,
     max_step_hours,
     output_contract,
@@ -147,3 +152,72 @@ def test_la_derivation_est_reproductible(surface):
     c'est ce qui permet de commiter le résultat et d'en lire le `git diff`."""
     assert inventory(surface) == inventory(surface)
     assert source_terms(surface) == source_terms(surface)
+
+
+# --- L'axe des membres --------------------------------------------------------
+
+
+def test_un_ensemble_porte_son_nombre_de_membres(tmp_path):
+    """CF appelle `realization` cet axe ; le compte suffit au catalogue."""
+    chemin = granule(
+        tmp_path / "ensemble.grib2",
+        [Field(category=0, number=0, level=2, member=m, members=3) for m in (1, 2, 3)],
+    )
+
+    variables = inventory(_contrat(chemin))
+
+    assert {v.realizations for v in variables} == {3}
+
+
+def test_un_champ_deterministe_n_a_pas_d_axe_de_membres(surface):
+    """`None` et non zéro : un déterministe n'a pas un membre, il n'en a pas."""
+    assert all(v.realizations is None for v in inventory(surface))
+
+
+def test_un_ensemble_plus_grand_que_le_seuil_se_lit_dans_la_geometrie():
+    """Au-delà de 64 valeurs, l'axe est caractérisé et non plus énuméré.
+
+    ECMWF en sert cinquante, donc aucune donnée réelle n'atteint ce chemin ;
+    un producteur plus fourni y tomberait, et ne lire que les coordonnées
+    rendrait `None` précisément sur l'ensemble le plus volumineux.
+    """
+    contrat = Contract(
+        variables={
+            "t2m": VariableContract(
+                dims=(ENSEMBLE_COORD, "latitude", "longitude"),
+                dtype="float32",
+                units="K",
+                standard_name="air_temperature",
+                grib={"typeOfLevel": "heightAboveGround"},
+                coords={},
+            )
+        },
+        geometry=GeometryContract(
+            grid={
+                ENSEMBLE_COORD: AxisSummary(
+                    size=100, first=1.0, last=100.0, stride=1.0, fingerprint="x"
+                )
+            },
+            crs=None,
+            datasets=1,
+        ),
+    )
+
+    assert inventory(contrat)[0].realizations == 100
+
+
+def test_un_axe_de_membres_sans_coordonnee_ne_se_devine_pas():
+    """Le supposer serait pire que l'ignorer : le compte serait faux."""
+    contrat = Contract(
+        variables={
+            "t2m": VariableContract(
+                dims=(ENSEMBLE_COORD,),
+                dtype="float32",
+                grib={"typeOfLevel": "heightAboveGround"},
+                coords={},
+            )
+        },
+        geometry=GeometryContract(grid={}, crs=None, datasets=1),
+    )
+
+    assert inventory(contrat)[0].realizations is None
