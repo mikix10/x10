@@ -17,6 +17,7 @@ from fixtures_grib2 import Field, granule
 from x10_connectors.contract import (
     CF_VERTICAL,
     ENSEMBLE_COORD,
+    ENSEMBLE_SIZE,
     WITHOUT_VERTICAL_REFERENCE,
     AxisSummary,
     Contract,
@@ -188,7 +189,7 @@ def test_un_ensemble_plus_grand_que_le_seuil_se_lit_dans_la_geometrie():
                 dtype="float32",
                 units="K",
                 standard_name="air_temperature",
-                grib={"typeOfLevel": "heightAboveGround"},
+                grib={"typeOfLevel": "heightAboveGround", ENSEMBLE_SIZE: "100"},
                 coords={},
             )
         },
@@ -213,7 +214,7 @@ def test_un_axe_de_membres_sans_coordonnee_ne_se_devine_pas():
             "t2m": VariableContract(
                 dims=(ENSEMBLE_COORD,),
                 dtype="float32",
-                grib={"typeOfLevel": "heightAboveGround"},
+                grib={"typeOfLevel": "heightAboveGround", ENSEMBLE_SIZE: "8"},
                 coords={},
             )
         },
@@ -221,3 +222,40 @@ def test_un_axe_de_membres_sans_coordonnee_ne_se_devine_pas():
     )
 
     assert inventory(contrat)[0].realizations is None
+
+
+def _un_axe_de_membres(taille_declaree: str | None) -> Contract:
+    """Un contrat portant l'axe `number`, avec ou sans ensemble déclaré."""
+    grib = {"typeOfLevel": "surface"}
+    if taille_declaree is not None:
+        grib[ENSEMBLE_SIZE] = taille_declaree
+    return Contract(
+        variables={
+            "x": VariableContract(
+                dims=(ENSEMBLE_COORD, "latitude"),
+                dtype="float32",
+                grib=grib,
+                coords={ENSEMBLE_COORD: (0.0,)},
+            )
+        },
+        geometry=GeometryContract(grid={}, crs=None, datasets=1),
+    )
+
+
+def test_un_axe_de_membres_sans_ensemble_declare_n_en_est_pas_un():
+    """Mesuré le 19/10/2026 sur le gabarit 4.104 des hauteurs de vagues.
+
+    Ce gabarit remplit les octets d'ensemble de zéros, de sorte que `number`
+    et `perturbationNumber` y valent 0 sur une prévision pourtant
+    déterministe. `cfgrib` en tire un axe `number` de longueur 1, et le
+    compte de membres valait 1 là où il doit valoir « aucun ». La présence de
+    l'axe ne suffit donc pas : c'est la taille déclarée qui tranche.
+    """
+    assert inventory(_un_axe_de_membres("0"))[0].realizations is None
+    assert inventory(_un_axe_de_membres(None))[0].realizations is None
+    assert inventory(_un_axe_de_membres("10"))[0].realizations == 1
+
+
+def test_une_taille_d_ensemble_illisible_ne_compte_pour_aucun_membre():
+    """Une valeur qu'on ne sait pas lire ne se devine pas dans un sens."""
+    assert inventory(_un_axe_de_membres("beaucoup"))[0].realizations is None

@@ -59,6 +59,17 @@ READ_KEYS = (
     # sont valides. Confrontée aux numéros de paramètre par
     # `check_local_tables`.
     "localTablesVersion",
+    # Gabarit de définition de produit, section 4. **Le triplet ne suffit
+    # pas** : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, `swh` et
+    # les six hauteurs par bande de période partagent `(10, 0, 3)` et ne se
+    # distinguent que par leur gabarit — 4.0 contre 4.104.
+    "productDefinitionTemplateNumber",
+    # Taille de l'ensemble **déclarée par le message**. C'est le seul
+    # discriminant fiable d'un axe de membres : mesuré sur trois gabarits, le
+    # 4.104 remplit les octets d'ensemble de zéros, de sorte que `number` et
+    # `perturbationNumber` y valent 0 sur une prévision déterministe. Voir
+    # `contract.ENSEMBLE_SIZE`.
+    "numberOfForecastsInEnsemble",
 )
 
 #: Attributs portant les versions de tables, une fois décodés.
@@ -224,6 +235,54 @@ CF_STANDARD_NAMES: dict[tuple[int, int, int], str] = {
     (0, 6, 13): "cloud_base_altitude",
     (0, 7, 6): "atmosphere_convective_available_potential_energy",
     (0, 19, 0): "visibility_in_air",
+    # Discipline 10 — produits océanographiques. Relevé le 19/10/2026 sur le
+    # flux `wave` d'ECMWF open data, treize paramètres. Chaque nom est
+    # **vérifié présent au tableau CF version 95**.
+    (10, 0, 3): "sea_surface_wave_significant_height",
+    #: Direction moyenne des vagues. **Le nom qui semble évident est le
+    #: mauvais** : `sea_surface_wave_mean_from_direction` désigne chez CF une
+    #: grandeur *spectrale*, « the wave direction in each frequency band »,
+    #: que sa description distingue explicitement du paramètre global. `mwd`
+    #: est global. C'est donc le nom générique qui convient.
+    #:
+    #: Elle est **conservée telle quelle**, contrairement à la direction du
+    #: vent qui est écartée au profit des composantes. La règle ne change
+    #: pas, son application dépend de ce que CF offre : il existe des noms
+    #: pour les composantes du vent, il n'en existe aucun pour celles d'une
+    #: direction de vagues, et ECMWF n'en publie pas. En inventer deux serait
+    #: la faute que la table entière évite. La contrepartie est portée dans
+    #: le fichier produit, voir `netcdf_cf.CIRCULAR_COMMENT`.
+    (10, 0, 14): "sea_surface_wave_from_direction",
+    (10, 0, 15): "sea_surface_wave_mean_period",
+    #: Période moyenne de passage par zéro. CF définit `T(m2)` comme la racine
+    #: du rapport `M(0)/M(2)` des moments fréquentiels, ce qui **est** la
+    #: période de passage par zéro ; la correspondance n'est donc pas une
+    #: approximation.
+    (10, 0, 28): (
+        "sea_surface_wave_mean_period_from_variance_spectral_density_second_frequency_moment"
+    ),
+    #: Période de pic. CF l'écrit lui-même dans sa description : « sometimes
+    #: called peak wave period ».
+    (10, 0, 34): "sea_surface_wave_period_at_variance_spectral_density_maximum",
+}
+
+#: Triplets dont le nom CF **ne vaut que pour certains gabarits** de la
+#: section 4. Le triplet seul désignerait alors plusieurs grandeurs, et poser
+#: le nom sans vérifier le gabarit en nommerait une pour une autre.
+#:
+#: `(10, 0, 3)` est le cas mesuré, le 19/10/2026 sur le flux `wave`
+#: d'ECMWF : sept messages le portent. Un seul, de gabarit `4.0`, est la
+#: hauteur significative totale ; les six autres, de gabarit `4.104`, sont
+#: des hauteurs significatives **par bande de période** — de 10 à 12
+#: secondes, de 12 à 14, et ainsi de suite. Les nommer comme le total serait
+#: faux et dangereux : les hauteurs par bande se composent en somme
+#: quadratique, non en somme, de sorte qu'un consommateur les additionnant
+#: sous un même nom obtiendrait une valeur sans signification.
+#:
+#: CF n'a aucun nom pour une hauteur significative restreinte à une bande de
+#: période ; les six restent donc **sans nom standard**, et l'absence se voit.
+TEMPLATE_RESTRICTED: dict[tuple[int, int, int], frozenset[int]] = {
+    (10, 0, 3): frozenset({0}),
 }
 
 #: Champs pour lesquels **CF n'a pas de nom**, vérifié et non supposé. Les
@@ -232,6 +291,13 @@ CF_STANDARD_NAMES: dict[tuple[int, int, int], str] = {
 WITHOUT_CF_NAME: frozenset[tuple[int, int, int]] = frozenset(
     {
         (0, 19, 11),  # energie cinetique turbulente
+        #: « Coefficient of drag with waves ». CF a bien
+        #: `surface_drag_coefficient_for_momentum_in_air`, mais il **ne dit
+        #: rien des vagues** — or c'est la distinction que l'OMM et le
+        #: producteur tracent en nommant le code ainsi. L'y ramener
+        #: confondrait un coefficient calculé par un modèle de vagues avec un
+        #: coefficient qui ne l'est pas, sous un seul nom.
+        (10, 0, 16),
     }
 )
 
@@ -255,7 +321,15 @@ WITHOUT_CF_NAME: frozenset[tuple[int, int, int]] = frozenset(
 #: c'est l'entrée 5 de la table 4.2-0-3, et elle s'exprime en mètres
 #: géopotentiels quand le champ est en mètres. Le retirer vaut mieux que de
 #: lui substituer une autre supposition.
-AMBIGUOUS_TRIPLETS: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
+#: `(10, 4, 7)`, « Model bathymetry », est le second cas, et il prend l'autre
+#: forme de l'ambiguïté : ce n'est pas le code qui désigne plusieurs champs,
+#: c'est **CF qui exige une précision que le producteur ne déclare pas**. Le
+#: tableau offre cinq profondeurs de fond selon le niveau de référence —
+#: géoïde, niveau moyen de la mer, surface, ellipsoïde, datum géopotentiel —
+#: et rien dans le message ne dit lequel le modèle emploie. Le classement
+#: reste le bon : il n'y a rien à proposer à CF, seulement un choix que nous
+#: ne pouvons pas faire.
+AMBIGUOUS_TRIPLETS: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6), (10, 4, 7)})
 
 #: Direction et force du vent. **Écartées au décodage** : elles se recalculent
 #: exactement à partir des composantes, et la direction est une grandeur
@@ -263,7 +337,10 @@ AMBIGUOUS_TRIPLETS: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6)})
 #: scalaire est fausse. Les conserver invite l'erreur.
 #:
 #: L'API ciblée du producteur ne les expose d'ailleurs pas non plus, pas plus
-#: que les données ouvertes de l'ECMWF.
+#: que les données ouvertes de l'ECMWF — **pour le vent**. Leur flux de
+#: vagues publie bien une direction, `mwd`, pour laquelle aucune composante
+#: n'est diffusée : la règle ne s'y applique donc pas, et le cas reste
+#: ouvert.
 DERIVED_WIND: frozenset[tuple[int, int, int]] = frozenset({(0, 2, 0), (0, 2, 1)})
 
 
@@ -586,6 +663,26 @@ def _usable_cf_name(value: object) -> str | None:
     return value if isinstance(value, str) and value and value != PLACEHOLDER_CF else None
 
 
+def _our_cf_name(variable: xr.DataArray) -> str | None:
+    """Le nom de **notre** table, si le gabarit ne l'interdit pas.
+
+    Un triplet inscrit à `TEMPLATE_RESTRICTED` n'est nommé que sous les
+    gabarits qui y figurent. Un gabarit absent de l'attribut — clé non lue,
+    message d'une autre provenance — est traité comme non conforme : mieux
+    vaut un champ sans nom qu'un champ mal nommé.
+    """
+    code = triplet(variable)
+    if code is None or (nom := CF_STANDARD_NAMES.get(code)) is None:
+        return None
+    if (admis := TEMPLATE_RESTRICTED.get(code)) is None:
+        return nom
+    try:
+        gabarit = int(variable.attrs["GRIB_productDefinitionTemplateNumber"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return nom if gabarit in admis else None
+
+
 def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """Pose `standard_name` sur les champs que notre table couvre.
 
@@ -599,9 +696,7 @@ def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
         existing = _usable_cf_name(var.attrs.get("standard_name"))
         if existing:
             continue
-        chosen = _usable_cf_name(var.attrs.get("GRIB_cfName")) or CF_STANDARD_NAMES.get(
-            triplet(var) or (-1, -1, -1)
-        )
+        chosen = _usable_cf_name(var.attrs.get("GRIB_cfName")) or _our_cf_name(var)
         if chosen:
             out[name].attrs["standard_name"] = chosen
         else:
@@ -627,6 +722,7 @@ __all__ = [
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
     "READ_KEYS",
+    "TEMPLATE_RESTRICTED",
     "VALUES_DTYPE",
     "WITHOUT_CF_NAME",
     "DroppedFieldsError",

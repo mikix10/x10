@@ -17,6 +17,7 @@ from x10_connectors.grib2 import normalise, open_granule
 from x10_connectors.netcdf_cf import (
     BOUNDS_SUFFIX,
     CELL_METHODS,
+    CIRCULAR_COMMENT,
     CONVENTIONS,
     CRS_VARIABLE,
     DECLARABLE_AXES,
@@ -30,6 +31,7 @@ from x10_connectors.netcdf_cf import (
     convert_units,
     global_attributes,
     grid_mapping,
+    is_circular,
     production_source,
     time_bounds,
     udunits,
@@ -136,8 +138,9 @@ def test_la_conversion_preserve_la_grandeur():
         try:
             avant = cf_units.Unit(grib).format(cf_units.UT_DEFINITION)
         except ValueError:
-            # Les quatre cas nommés : `Degree true`, `(0 - 1)` et les codes de
-            # table ne sont pas des unités UDUNITS, il n'y a rien à comparer.
+            # Les cas nommés : `Degree true`, `(0 - 1)`, `dimensionless` et
+            # les codes de table ne sont pas des unités UDUNITS lisibles, il
+            # n'y a donc rien à comparer de part et d'autre.
             continue
         apres = cf_units.Unit(udu).format(cf_units.UT_DEFINITION)
         assert avant == apres, f"{grib!r} -> {udu!r} : {avant!r} devient {apres!r}"
@@ -845,3 +848,70 @@ def test_sans_rien_de_declare_aucune_source_n_est_forgee(tmp_path):
     jeu.attrs.pop("GRIB_centre", None)
     jeu.attrs.pop("GRIB_centreDescription", None)
     assert production_source(jeu) is None
+
+
+# --- Grandeurs circulaires -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "nom_standard",
+    [
+        "sea_surface_wave_from_direction",
+        "sea_surface_wave_to_direction",
+        "wind_from_direction",
+    ],
+)
+def test_un_relevement_est_reconnu_circulaire(nom_standard):
+    assert is_circular(nom_standard)
+
+
+@pytest.mark.parametrize(
+    "nom_standard",
+    [
+        "sea_surface_wave_significant_height",
+        "sea_surface_wave_directional_spread",
+        "air_temperature",
+        None,
+        42,
+    ],
+)
+def test_ce_qui_n_est_pas_un_relevement_ne_l_est_pas(nom_standard):
+    """`directional_spread` est une dispersion d'angles, pas un relèvement :
+    elle s'additionne."""
+    assert not is_circular(nom_standard)
+
+
+def test_une_direction_ecrite_porte_son_avertissement(tmp_path):
+    """CF n'offre rien de plus structuré qu'un commentaire ; au moins est-il
+    posé, et dit-il pourquoi."""
+    champs = [
+        Field(discipline=10, category=0, number=14, level_type=1, level=0, values=np.zeros(N))
+    ]
+    jeu = normalise(open_granule(granule(tmp_path / "mwd.grib2", champs))[0])
+    cible = tmp_path / "mwd.nc"
+    write_netcdf(jeu, cible)
+
+    import netCDF4
+
+    with netCDF4.Dataset(cible) as nc:
+        direction = next(
+            v
+            for v in nc.variables.values()
+            if getattr(v, "standard_name", None) == "sea_surface_wave_from_direction"
+        )
+        assert direction.comment == CIRCULAR_COMMENT
+        assert direction.units == "degree"
+
+
+def test_un_champ_scalaire_ne_porte_aucun_avertissement(tmp_path):
+    """Un commentaire sur tout est un commentaire qu'on ne lit plus."""
+    champs = [Field(category=0, number=0, level=2, values=np.zeros(N))]
+    jeu = normalise(open_granule(granule(tmp_path / "t2m.grib2", champs))[0])
+    cible = tmp_path / "t2m.nc"
+    write_netcdf(jeu, cible)
+
+    import netCDF4
+
+    with netCDF4.Dataset(cible) as nc:
+        for nom, v in nc.variables.items():
+            assert CIRCULAR_COMMENT not in getattr(v, "comment", ""), nom

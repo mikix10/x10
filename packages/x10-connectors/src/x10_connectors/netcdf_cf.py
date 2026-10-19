@@ -110,6 +110,7 @@ UDUNITS: dict[str, str | None] = {
     "K": "K",
     "Pa": "Pa",
     "m": "m",
+    "s": "s",
     # Exposants à réécrire
     "J kg**-1": "J kg-1",
     "J m**-2": "J m-2",
@@ -137,9 +138,52 @@ UDUNITS: dict[str, str | None] = {
     #: Pas une unité : un code de table, qui relève d'une variable de drapeau
     #: avec `flag_values` et `flag_meanings`. Aucune unité ne doit être émise.
     "(Code table 4.201)": None,
+    #: Façon dont ecCodes écrit l'absence de dimension en discipline 10.
+    #: UDUNITS ne sait pas la lire — vérifié —, alors qu'il lit « 1 », qui
+    #: est sa forme pour la même chose. Même traitement que `(0 - 1)`.
+    "dimensionless": "1",
     #: Le décodage n'a pas su nommer le champ ; inventer une unité serait pire.
     "unknown": None,
 }
+
+
+#: Constructions CF qui désignent un **relèvement**, donc une grandeur
+#: circulaire. CF documente lui-même la construction dans la description de
+#: chacun de ces noms : « the phrase "from_direction" is used in the
+#: construction X_from_direction and indicates the direction from which the
+#: velocity vector of X is coming ».
+#:
+#: Une **règle** plutôt qu'une liste, délibérément : CF porte des dizaines de
+#: noms de direction et une liste rouillerait, alors que la construction est
+#: stable et documentée. Le risque d'excès est nul — ce qui se nomme ainsi
+#: est un relèvement.
+DIRECTION_SUFFIXES = ("_from_direction", "_to_direction")
+
+#: Ce qu'un fichier doit dire d'une direction, faute de pouvoir l'empêcher.
+#:
+#: **Le mot juste n'est pas « non interpolable »** : moyenne, écart-type,
+#: rééchantillonnage et interpolation sont tous des combinaisons linéaires,
+#: et aucune n'est définie sur un cercle. La moyenne arithmétique de 350° et
+#: 10° vaut 180°, soit l'exact opposé de la réponse juste. Dire « aucune
+#: combinaison linéaire » couvre les quatre d'un coup et en donne la raison.
+#:
+#: En anglais : l'attribut franchit la frontière de sérialisation et sera lu
+#: par un tiers.
+CIRCULAR_COMMENT = (
+    "Circular quantity: a bearing in degrees, where 0 and 360 denote the same "
+    "value. Mean, standard deviation, interpolation and resampling are all "
+    "linear combinations, and none of them is defined on a circle: the "
+    "arithmetic mean of 350 and 10 is 180, the exact opposite of the right "
+    "answer. Convert to unit vectors, combine those, then convert back."
+)
+
+#: Séparateur employé quand un commentaire est déjà posé sur la variable.
+COMMENT_SEPARATOR = " "
+
+
+def is_circular(standard_name: object) -> bool:
+    """La grandeur est-elle un relèvement, donc circulaire ?"""
+    return isinstance(standard_name, str) and standard_name.endswith(DIRECTION_SUFFIXES)
 
 
 def udunits(unit: str | None) -> str | None:
@@ -733,6 +777,17 @@ def write_netcdf(
             # une affirmation dont personne n'a vérifié qu'elle tient encore
             # après le traitement subi — voir `AXES_DECLARABLES`.
             prepare[name].attrs.pop("cell_methods", None)
+        # Une direction reste une direction : on ne peut pas l'écarter comme
+        # on écarte celle du vent, faute de composantes chez le producteur et
+        # de noms CF pour les exprimer. Ce que le fichier peut faire, c'est
+        # le dire -- CF n'offrant rien de plus structuré qu'un commentaire.
+        if is_circular(prepare[name].attrs.get("standard_name")):
+            precedent = str(prepare[name].attrs.get("comment", "")).strip()
+            prepare[name].attrs["comment"] = (
+                f"{precedent}{COMMENT_SEPARATOR}{CIRCULAR_COMMENT}"
+                if precedent
+                else CIRCULAR_COMMENT
+            )
 
     if (mapping := grid_mapping(prepare)) is not None:
         import xarray
@@ -768,10 +823,13 @@ def write_netcdf(
 __all__ = [
     "BOUNDS_SUFFIX",
     "CELL_METHODS",
+    "CIRCULAR_COMMENT",
+    "COMMENT_SEPARATOR",
     "COMPRESSION",
     "CONVENTIONS",
     "CRS_VARIABLE",
     "DECLARABLE_AXES",
+    "DIRECTION_SUFFIXES",
     "ECCODES_MISSING",
     "INTERVAL_UNITS",
     "LENGTH_ATTRS",
@@ -789,6 +847,7 @@ __all__ = [
     "convert_units",
     "global_attributes",
     "grid_mapping",
+    "is_circular",
     "production_source",
     "time_bounds",
     "udunits",
