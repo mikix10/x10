@@ -54,7 +54,9 @@ def test_une_source_a_plusieurs_parts_se_nomme():
 
     assert all(isinstance(parts, dict) and parts for parts in ENVIRONMENT.values())
     # Aucune source actuelle n'en a deux, mais le modele l'accepte.
-    deux = Credentials(parts={"cds": {"token": SecretStr(FACTICE), "autre": SecretStr(FACTICE)}})
+    deux = Credentials(
+        parts={"ecmwf_datastores": {"token": SecretStr(FACTICE), "autre": SecretStr(FACTICE)}}
+    )
     assert FACTICE not in deux.model_dump_json()
 
 
@@ -70,7 +72,7 @@ def test_une_part_doit_etre_nommee_quand_il_y_en_a_plusieurs(monkeypatch):
 
 def test_une_part_inconnue_leve():
     with pytest.raises(ValueError, match="Unknown part"):
-        Credentials().get("cds", "mot-de-passe")
+        Credentials().get("ecmwf_datastores", "mot-de-passe")
 
 
 def test_une_source_a_moitie_configuree_n_est_pas_disponible(monkeypatch):
@@ -113,8 +115,8 @@ def test_chaque_source_a_sa_propre_variable():
     l'une sans casser l'autre."""
     toutes = [v for parts in ENVIRONMENT.values() for v in parts.values()]
     assert len(set(toutes)) == len(toutes)
-    creds = Credentials.from_env({"X10_CDS_TOKEN": FACTICE})
-    assert creds.available == ("cds",)
+    creds = Credentials.from_env({"X10_ECMWF_DATASTORES_TOKEN": FACTICE})
+    assert creds.available == ("ecmwf_datastores",)
     assert creds.get("meteofrance") is None
 
 
@@ -142,7 +144,9 @@ def test_require_rend_la_valeur_quand_elle_est_la():
 
 @pytest.fixture
 def creds():
-    return Credentials.from_env({"X10_MF_APPLICATION_ID": FACTICE, "X10_CDS_TOKEN": FACTICE})
+    return Credentials.from_env(
+        {"X10_MF_APPLICATION_ID": FACTICE, "X10_ECMWF_DATASTORES_TOKEN": FACTICE}
+    )
 
 
 @pytest.mark.parametrize(
@@ -164,12 +168,12 @@ def test_aucun_rendu_ne_laisse_passer_la_valeur(creds, rendu, comment):
 
 def test_seul_get_secret_value_expose(creds):
     """Une seule porte, et il faut l'ouvrir exprès."""
-    assert creds.get("cds").get_secret_value() == FACTICE
+    assert creds.get("ecmwf_datastores").get_secret_value() == FACTICE
 
 
 def test_les_sources_disponibles_se_disent_sans_rien_reveler(creds):
     """De quoi afficher ce qui est configuré, sans afficher quoi."""
-    assert creds.available == ("cds", "meteofrance")
+    assert creds.available == ("ecmwf_datastores", "meteofrance")
     assert FACTICE not in str(creds.available)
 
 
@@ -298,8 +302,8 @@ def test_une_chaine_nue_est_coercee_en_secret():
     conversion automatique a bien lieu, et interdit donc cette
     simplification.
     """
-    creds = Credentials(parts={"cds": {"token": FACTICE}})
-    assert isinstance(creds.parts["cds"]["token"], SecretStr)
+    creds = Credentials(parts={"ecmwf_datastores": {"token": FACTICE}})
+    assert isinstance(creds.parts["ecmwf_datastores"]["token"], SecretStr)
     assert FACTICE not in creds.model_dump_json()
 
 
@@ -330,15 +334,15 @@ def test_aucune_surface_publique_ne_laisse_passer_la_valeur(creds):
 
 def test_les_accesseurs_a_argument_redigent_aussi(creds):
     """Les deux que le balayage ne peut pas appeler sans savoir quoi passer."""
-    assert FACTICE not in str(creds.get("cds"))
-    assert FACTICE not in str(creds.require("cds"))
-    assert FACTICE not in repr(creds.require("cds"))
+    assert FACTICE not in str(creds.get("ecmwf_datastores"))
+    assert FACTICE not in str(creds.require("ecmwf_datastores"))
+    assert FACTICE not in repr(creds.require("ecmwf_datastores"))
 
 
 def test_la_valeur_reste_accessible_malgre_tout(creds):
     """La contrepartie : rédiger partout ne doit pas rendre le secret
     inutilisable. Une seule porte, et il faut l'ouvrir exprès."""
-    assert creds.require("cds")["token"].get_secret_value() == FACTICE
+    assert creds.require("ecmwf_datastores")["token"].get_secret_value() == FACTICE
 
 
 # --- Contre la malveillance, pas seulement contre l'erreur --------------------
@@ -356,7 +360,7 @@ def test_muter_le_dictionnaire_interne_ne_fait_rien_fuir(creds):
     Ce n'est pas qu'un scénario de malveillance : du code qui « met à jour »
     un jeton en place produirait le même effet.
     """
-    creds.parts["cds"]["token"] = FACTICE  # une chaine nue, sans validation
+    creds.parts["ecmwf_datastores"]["token"] = FACTICE  # une chaine nue, sans validation
 
     for nom, rendu in [
         ("repr", repr(creds)),
@@ -379,7 +383,7 @@ def test_le_rendu_reste_utile_malgre_la_redaction(creds):
     """Rédiger ne doit pas rendre le diagnostic impossible : on veut savoir
     **quelles sources et quelles parts** sont posées."""
     rendu = repr(creds)
-    assert "cds" in rendu and "token" in rendu
+    assert "ecmwf_datastores" in rendu and "token" in rendu
     assert "meteofrance" in rendu and "application_id" in rendu
     assert FACTICE not in rendu
 
@@ -392,7 +396,7 @@ def test_une_erreur_de_validation_ne_montre_pas_l_entree():
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError) as capture:
-        Credentials(parts={"cds": {"token": {"imbrique": FACTICE}}})
+        Credentials(parts={"ecmwf_datastores": {"token": {"imbrique": FACTICE}}})
     assert FACTICE not in str(capture.value)
 
 
@@ -412,13 +416,13 @@ def test_une_copie_conserve_la_protection(creds):
 
     for copie in (creds.model_copy(deep=True), copy.deepcopy(creds)):
         assert FACTICE not in repr(copie)
-        assert copie.require("cds")["token"].get_secret_value() == FACTICE
+        assert copie.require("ecmwf_datastores")["token"].get_secret_value() == FACTICE
 
 
 def test_la_protection_ne_depend_plus_du_seul_type_de_la_feuille():
     """Défense en profondeur : même construit avec des chaînes nues partout,
     l'objet ne laisse rien sortir. L'annotation reste, en seconde ligne."""
-    brut = Credentials.model_construct(parts={"cds": {"token": FACTICE}})
+    brut = Credentials.model_construct(parts={"ecmwf_datastores": {"token": FACTICE}})
     assert FACTICE not in repr(brut)
     assert FACTICE not in brut.model_dump_json()
 
@@ -431,7 +435,7 @@ def test_le_filtre_porte_toutes_les_parts_de_toutes_les_sources():
     creds = Credentials.model_validate(
         {
             "parts": {
-                "cds": {"token": "faux-jeton-cds-de-test"},
+                "ecmwf_datastores": {"token": "faux-jeton-cds-de-test"},
                 "meteofrance": {"application_id": "faux-identifiant-mf-de-test"},
             }
         }
@@ -449,7 +453,9 @@ def test_le_filtre_ne_montre_pas_les_valeurs_qu_il_porte():
     Un filtre dont le `repr` révélerait ses valeurs ferait fuir le secret par
     le chemin même qu'il existe pour fermer.
     """
-    creds = Credentials.model_validate({"parts": {"cds": {"token": "faux-jeton-cds-de-test"}}})
+    creds = Credentials.model_validate(
+        {"parts": {"ecmwf_datastores": {"token": "faux-jeton-cds-de-test"}}}
+    )
     assert "faux-jeton-cds-de-test" not in repr(creds.redactor())
 
 

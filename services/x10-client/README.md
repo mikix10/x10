@@ -76,8 +76,7 @@ l'environnement.
 | Variable | Source |
 |---|---|
 | `X10_MF_APPLICATION_ID` | identifiant d'application Météo-France |
-| `X10_CDS_TOKEN` | jeton d'accès personnel du CDS |
-| `X10_ADS_TOKEN` | jeton d'accès personnel de l'ADS |
+| `X10_ECMWF_DATASTORES_TOKEN` | jeton d'accès personnel ECMWF — ouvre CDS, ADS et EWDS |
 
 **Une variable par part et par source.** Certains services demandent deux
 valeurs — un `login` et un mot de passe —, et `Credentials` porte donc des
@@ -85,11 +84,20 @@ valeurs — un `login` et un mot de passe —, et `Credentials` porte donc des
 variable avec un séparateur les mélangerait au premier identifiant contenant
 ce séparateur.
 
+**Et la source est l'émetteur de l'identifiant, pas le catalogue.** Mesuré le
+19/10/2026 : un seul jeton ECMWF ouvre CDS, ADS et EWDS, et les trois rendent
+la même identité — même `sub`, même `id`, même `email`. Une entrée par
+catalogue aurait fait stocker le même secret trois fois, sans qu'aucune
+révocation séparée soit possible. Ce qui diffère d'un magasin à l'autre est
+l'acceptation des politiques, tenue **par magasin** : un `403` qui les nomme,
+là où un jeton inconnu rendrait `401`. Confondre les deux conclurait à deux
+comptes.
+
 ```python
 session = Session.from_env()
-session.credentials.available  # ('cds',) — les sources utilisables
+session.credentials.available  # ('ecmwf_datastores',) — les sources utilisables
 session.credentials.incomplete  # celles dont il manque une part
-session.credentials.require("cds")  # le jeu complet, ou une erreur qui nomme
+session.credentials.require("ecmwf_datastores")  # le jeu complet, ou une erreur
 ```
 
 Un identifiant posé à moitié n'est **pas** « disponible » : le dire serait un
