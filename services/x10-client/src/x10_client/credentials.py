@@ -48,6 +48,8 @@ import os
 
 from pydantic import BaseModel, ConfigDict, SecretStr, field_serializer
 
+from x10_connectors.observability import SecretRedactor
+
 #: Par source, les **parts** attendues et la variable d'environnement de
 #: chacune. Vocabulaire **fermé** : une source inconnue lève plutôt que de
 #: rendre une absence, un nom mal orthographié étant sinon indiscernable d'un
@@ -239,6 +241,30 @@ class Credentials(BaseModel):
                 if self.parts.get(source) and set(self.parts[source]) < set(attendues)
             )
         )
+
+    def redactor(self) -> SecretRedactor:
+        """Le filtre de journalisation qui rédige nos valeurs, et rien d'autre.
+
+        **C'est ici que le partage se joue.** `x10-connectors` fournit le
+        mécanisme et ne détient aucun secret ; le client détient les valeurs
+        et les lui remet. Un connecteur reçoit déjà un identifiant résolu en
+        paramètre : c'est le même régime, appliqué à la journalisation.
+
+        **À installer par l'application, jamais par la bibliothèque.** Le
+        dépôt a posé que `x10-connectors` n'impose ni destination ni rendu de
+        journal ; il n'imposera pas davantage un filtre. L'appelant écrit :
+
+            handler.addFilter(session.credentials.redactor())
+
+        Mesuré le 19/10/2026 : sans ce filtre, `observability.redact` ne
+        couvre qu'**un** des quatre chemins par lesquels un identifiant
+        atteint le journal — elle laisse passer un jeton dans le chemin d'une
+        URL, un en-tête recopié, et un identifiant cité en clair.
+        """
+        valeurs = {
+            part.get_secret_value() for parts in self.parts.values() for part in parts.values()
+        }
+        return SecretRedactor(valeurs)
 
 
 __all__ = ["ENVIRONMENT", "Credentials", "MissingCredential"]

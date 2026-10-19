@@ -318,7 +318,10 @@ x10_connectors.netcdf_cf.__all__: write_netcdf
 x10_connectors.observability.__all__: EVENT_CATEGORY
 x10_connectors.observability.__all__: EVENT_DATASET
 x10_connectors.observability.__all__: EcsJsonFormatter
+x10_connectors.observability.__all__: MIN_SECRET_LENGTH
+x10_connectors.observability.__all__: REDACTED
 x10_connectors.observability.__all__: RESERVED_RECORD_ATTRIBUTES
+x10_connectors.observability.__all__: SecretRedactor
 x10_connectors.observability.__all__: connector_logger
 x10_connectors.observability.__all__: failure_fields
 x10_connectors.observability.__all__: fetch_finished_fields
