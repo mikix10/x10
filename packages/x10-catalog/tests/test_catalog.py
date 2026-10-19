@@ -72,7 +72,7 @@ def test_l_ordre_reste_deterministe_a_priorites_egales():
 
 def test_une_distribution_d_un_autre_jeu_est_refusee():
     """Une erreur de saisie silencieuse livrerait la mauvaise donnée."""
-    with pytest.raises(ValidationError, match="ne se rapportant pas"):
+    with pytest.raises(ValidationError, match="do not refer to"):
         _entree(
             _distribution("ecmwf", 10),
             _distribution("aws", 20, dataset="un-autre-jeu"),
@@ -80,7 +80,7 @@ def test_une_distribution_d_un_autre_jeu_est_refusee():
 
 
 def test_deux_distributions_de_meme_origine_sont_refusees():
-    with pytest.raises(ValidationError, match="même origine"):
+    with pytest.raises(ValidationError, match="same origin"):
         _entree(_distribution("aws", 10), _distribution("aws", 20))
 
 

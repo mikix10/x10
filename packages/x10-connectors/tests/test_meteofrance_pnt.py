@@ -28,9 +28,9 @@ from x10_connectors.meteofrance_pnt import (
 RESEAUX = ("2026-10-05T00:00:00Z", "2026-10-05T03:00:00Z")
 
 
-def _cle(run: str, modele: str, grid: str, granule: str, time_range: str) -> str:
-    nom = f"{modele}__{grid}__{granule}__{time_range}__{run}.grib2"
-    return f"pnt/{run}/{modele}/{grid}/{granule}/{nom}"
+def _cle(run: str, modele: str, grid: str, package: str, time_range: str) -> str:
+    nom = f"{modele}__{grid}__{package}__{time_range}__{run}.grib2"
+    return f"pnt/{run}/{modele}/{grid}/{package}/{nom}"
 
 
 def _xml_prefixes(runs: tuple[str, ...]) -> str:
@@ -64,7 +64,7 @@ class _TransportSimule:
         self.telecharges.append(url)
         if self.taille_ecrite > plafond:
             raise MeteoFrancePntError(
-                f"Volume au-delà du plafond de {plafond} octets pour {cible.name!r}."
+                f"Volume above the {plafond} byte ceiling for {cible.name!r}."
             )
         cible.write_bytes(b"\x00" * self.taille_ecrite)
         return self.taille_ecrite
@@ -73,8 +73,8 @@ class _TransportSimule:
 def _catalogue_complet() -> dict[str, dict[str, int]]:
     return {
         run: {
-            _cle(run, "arome", "0025", granule, time_range): 1000
-            for granule in ("SP1", "SP2")
+            _cle(run, "arome", "0025", package, time_range): 1000
+            for package in ("SP1", "SP2")
             for time_range in ("00H06H", "07H12H")
         }
         for run in RESEAUX
@@ -94,7 +94,7 @@ def test_les_objets_portent_paquet_tranche_et_taille(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)
     objets = connecteur.objects(RESEAUX[0])
-    assert {o.granule for o in objets} == {"SP1", "SP2"}
+    assert {o.package for o in objets} == {"SP1", "SP2"}
     assert {o.time_range for o in objets} == {"00H06H", "07H12H"}
     assert all(o.size_bytes == 1000 for o in objets)
 
@@ -131,7 +131,7 @@ def test_une_selection_introuvable_echoue_clairement(tmp_path):
     connecteur = MeteoFrancePntConnector(
         tmp_path, MeteoFrancePntRequest(packages=("IP9",)), transport=transport
     )
-    with pytest.raises(MeteoFrancePntError, match="Aucun réseau ne porte la sélection"):
+    with pytest.raises(MeteoFrancePntError, match="No model run carries the requested selection"):
         connecteur.fetch()
 
 
@@ -171,7 +171,7 @@ def test_le_nom_local_est_portable():
     Windows refuse dans un nom de fichier."""
     objet = RemoteObject(
         key=_cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H"),
-        granule="SP1",
+        package="SP1",
         time_range="00H06H",
         size_bytes=1,
     )
@@ -182,7 +182,7 @@ def test_le_nom_local_est_portable():
 def test_un_nom_local_qui_remonte_l_arborescence_est_refuse(tmp_path):
     from x10_connectors.base import safe_target
 
-    with pytest.raises(UnsafeDestinationError, match="hors de la racine"):
+    with pytest.raises(UnsafeDestinationError, match="outside the intended root"):
         safe_target(tmp_path, "../evade.grib2")
 
 
@@ -191,7 +191,7 @@ def test_le_plafond_de_volume_interrompt_et_nettoie(tmp_path):
     connecteur = MeteoFrancePntConnector(
         tmp_path, MeteoFrancePntRequest(packages=("SP1",)), max_bytes=100, transport=transport
     )
-    with pytest.raises(MeteoFrancePntError, match="plafond"):
+    with pytest.raises(MeteoFrancePntError, match="ceiling"):
         connecteur.fetch()
     assert list(tmp_path.glob("*.grib2")) == []
 
@@ -206,7 +206,7 @@ def test_le_plafond_porte_sur_le_cumul_et_non_sur_chaque_fichier(tmp_path):
         max_bytes=100,
         transport=transport,
     )
-    with pytest.raises(MeteoFrancePntError, match="plafond"):
+    with pytest.raises(MeteoFrancePntError, match="ceiling"):
         connecteur.fetch()
 
 
@@ -249,12 +249,12 @@ def test_le_compte_rendu_fait_l_aller_retour_json(tmp_path):
 
 
 def test_une_requete_sans_paquet_est_refusee():
-    with pytest.raises(ValueError, match="Au moins un paquet"):
+    with pytest.raises(ValueError, match="At least one package"):
         MeteoFrancePntRequest(packages=())
 
 
 def test_un_paquet_en_double_est_refuse():
-    with pytest.raises(ValueError, match="deux fois"):
+    with pytest.raises(ValueError, match="twice"):
         MeteoFrancePntRequest(packages=("SP1", "SP1"))
 
 

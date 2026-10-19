@@ -73,7 +73,7 @@ def safe_target(root: Path, name: str) -> Path:
     """
     candidate = (root / name).resolve()
     if not candidate.is_relative_to(root.resolve()):
-        raise UnsafeDestinationError(f"Chemin de destination hors de la racine prévue : {name!r}")
+        raise UnsafeDestinationError(f"Destination path outside the intended root: {name!r}")
     return candidate
 
 
@@ -132,7 +132,7 @@ def atomic_write(target: Path) -> Iterator[Path]:
         provisoire.unlink(missing_ok=True)
         raise
     if not provisoire.exists():
-        raise NoOutputFileError(f"Aucun fichier produit pour {target.name!r}.")
+        raise NoOutputFileError(f"No file produced for {target.name!r}.")
     os.replace(provisoire, target)
 
 

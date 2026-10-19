@@ -154,9 +154,9 @@ def udunits(unit: str | None) -> str | None:
         return None
     if unit not in UDUNITS:
         raise UnconvertibleUnitError(
-            f"Unité GRIB sans correspondance UDUNITS connue : {unit!r}. "
-            "L'ajouter à `UDUNITS` après avoir vérifié la forme attendue, "
-            "plutôt que de laisser l'écriture deviner."
+            f"GRIB unit with no known UDUNITS counterpart: {unit!r}. "
+            "Add it to `UDUNITS` once the expected form has been checked, "
+            "rather than letting the writer guess."
         )
     return UDUNITS[unit]
 
@@ -178,7 +178,7 @@ def convert_units(dataset: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
             if strict:
                 raise
             _log.warning(
-                "Unité non convertible, attribut omis",
+                "Unit not convertible, attribute omitted",
                 extra={"x10.variable": str(name), "x10.units": origin},
             )
             traduite = None
@@ -229,10 +229,10 @@ def _duration(longueur: int, unit_code: int) -> object:
     np = _numpy()
     if unit_code not in INTERVAL_UNITS:
         raise UnrepresentableIntervalError(
-            f"Unité d'intervalle GRIB inconnue ou de durée variable : {unit_code}. "
-            "Voir la table 4.4 du format et `UNITES_INTERVALLE` ; les mois et "
-            "les années n'ont pas de durée fixe et ne peuvent pas devenir des "
-            "bornes."
+            f"Unknown or variable-length GRIB interval unit: {unit_code}. "
+            "See table 4.4 of the format and `INTERVAL_UNITS`; months and "
+            "years have no fixed duration and cannot become "
+            "bounds."
         )
     facteur, unit = INTERVAL_UNITS[unit_code]
     return np.timedelta64(longueur * facteur, unit)
@@ -267,8 +267,8 @@ def time_bounds(dataset: xr.Dataset) -> object | None:
     }
     if len(units) != 1:
         raise UnrepresentableIntervalError(
-            f"Unités d'intervalle mêlées dans un même jeu : {sorted(units)}. "
-            "Une coordonnée de bornes unique ne peut pas les décrire."
+            f"Mixed interval units within a single dataset: {sorted(units)}. "
+            "A single bounds coordinate cannot describe them."
         )
     (code,) = units
 
@@ -415,7 +415,7 @@ def cell_method(attrs: Mapping[str, object]) -> str | None:
     traitement non reconnu est précisément celui dont on ignore s'il est
     statistique : le passer sous silence produirait un cumul qui se présente
     comme un instantané. Les traitements que CF ne couvre réellement pas sont
-    recensés dans `SANS_CELL_METHOD` et n'émettent rien, en connaissance de
+    recensés dans `WITHOUT_CELL_METHOD` et n'émettent rien, en connaissance de
     cause.
     """
     raw = attrs.get("GRIB_stepType")
@@ -424,15 +424,15 @@ def cell_method(attrs: Mapping[str, object]) -> str | None:
     step_type = str(raw)
     if step_type in WITHOUT_CELL_METHOD:
         _log.info(
-            "Traitement statistique sans équivalent CF, aucune méthode émise",
+            "Statistical processing with no CF equivalent, no method emitted",
             extra={"x10.step_type": step_type},
         )
         return None
     if step_type not in CELL_METHODS:
         raise UnknownStatisticalProcessingError(
-            f"`stepType` GRIB inconnu : {step_type!r}. L'ajouter à "
-            "`CELL_METHODS` après avoir vérifié la méthode au tableau E.1 de "
-            "CF, ou à `SANS_CELL_METHOD` si CF ne la couvre pas."
+            f"Unknown GRIB `stepType`: {step_type!r}. Add it to "
+            "`CELL_METHODS` once the method has been checked against table E.1 "
+            "of CF, or to `WITHOUT_CELL_METHOD` if CF does not cover it."
         )
     return CELL_METHODS[step_type]
 
@@ -712,7 +712,7 @@ def write_netcdf(
         import netCDF4  # noqa: F401
     except ImportError as exc:  # pragma: no cover - depend de l'extra
         raise GribUnavailableError(
-            "L'écriture NetCDF demande `netCDF4`. Installer l'extra : "
+            "Writing NetCDF requires `netCDF4`. Install the extra: "
             "uv sync --all-packages --extra grib"
         ) from exc
 

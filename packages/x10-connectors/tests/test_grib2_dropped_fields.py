@@ -171,7 +171,7 @@ def test_la_tolerance_reste_accessible_et_journalise(tmp_path, caplog):
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
         datasets = grib2.open_granule(chemin, errors="warn")
     assert len(datasets) == 1
-    alertes = [e for e in caplog.records if "n'apparaissent pas au" in e.getMessage()]
+    alertes = [e for e in caplog.records if "do not appear in the" in e.getMessage()]
     assert len(alertes) == 1
     assert alertes[0].__dict__["x10.granule"] == str(chemin)
 
@@ -184,7 +184,7 @@ def test_ignore_ne_journalise_rien(tmp_path, caplog):
     )
     with caplog.at_level(logging.WARNING, logger="x10_connectors"):
         grib2.open_granule(chemin, errors="ignore")
-    assert not [e for e in caplog.records if "n'apparaissent pas au" in e.getMessage()]
+    assert not [e for e in caplog.records if "do not appear in the" in e.getMessage()]
 
 
 # --- Le relevé n'accuse pas le décodage d'un message illisible ---------------

@@ -147,7 +147,7 @@ def test_un_parametre_qui_remonte_l_arborescence_est_refuse(tmp_path):
     )
     # Depuis la mise en commun du garde-fou de chemin, l'erreur est celle de
     # `base`. Elle derive de ValueError, donc reste non reessayable.
-    with pytest.raises(UnsafeDestinationError, match="hors de la racine"):
+    with pytest.raises(UnsafeDestinationError, match="outside the intended root"):
         connecteur.fetch()
 
 
@@ -158,7 +158,7 @@ def test_le_plafond_de_volume_interrompt_et_supprime_l_artefact(tmp_path):
         max_bytes=100,
         client_factory=_fabrique([], size=4096),
     )
-    with pytest.raises(EcmwfIfsError, match="plafond"):
+    with pytest.raises(EcmwfIfsError, match="ceiling"):
         connecteur.fetch()
 
     assert list(tmp_path.iterdir()) == []
@@ -258,7 +258,7 @@ def test_une_erreur_de_notre_fait_n_entraine_aucun_repli(tmp_path):
         max_bytes=100,
         client_factory=_fabrique_defaillante(set()),
     )
-    with pytest.raises(EcmwfIfsError, match="plafond"):
+    with pytest.raises(EcmwfIfsError, match="ceiling"):
         connecteur.fetch()
 
     assert _ClientDefaillant.tentatives == ["ecmwf"], "aucun repli ne doit avoir lieu"

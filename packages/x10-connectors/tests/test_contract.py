@@ -131,7 +131,7 @@ def test_deux_contrats_identiques_ne_divergent_pas(tmp_path):
     contrat = _contrat(_paquet_type(tmp_path))
     ecarts = compare_contracts(contrat, contrat)
     assert not ecarts
-    assert ecarts.resume() == "aucun écart"
+    assert ecarts.resume() == "no divergence"
 
 
 def test_une_variable_disparue_est_une_rupture(tmp_path):
@@ -184,7 +184,7 @@ def test_une_variable_apparue_est_une_nouveaute_sans_echec(tmp_path):
     ecarts = compare_contracts(avant, apres)
     assert not ecarts, "une nouveauté ne doit pas faire échouer"
     assert any(d.path == "variables.nouveau" for d in ecarts.additions)
-    assert "nouveauté" in ecarts.resume()
+    assert "addition" in ecarts.resume()
 
 
 def test_un_libelle_modifie_est_signale_sans_echec(tmp_path):
