@@ -100,10 +100,24 @@ GEO_KEYS = (
 
 #: Options d'ouverture **fixées explicitement**, relevées le 08/10/2026.
 #:
-#: `cfgrib.open_datasets` expose dix-huit paramètres, et ses défauts décident
-#: de la **forme du résultat**. S'en remettre à eux revient à laisser une
-#: version mineure de la bibliothèque changer nos sorties sans que rien ne le
-#: signale. Chaque valeur ci-dessous est donc écrite, avec sa raison.
+#: Les défauts de `cfgrib` décident de la **forme du résultat**. S'en remettre
+#: à eux revient à laisser une version mineure de la bibliothèque changer nos
+#: sorties sans que rien ne le signale. Chaque valeur ci-dessous est donc
+#: écrite, avec sa raison.
+#:
+#: **Correction du 19/10/2026 : le compte annoncé ici était faux.** Il était
+#: écrit « dix-huit paramètres » ; `CfGribBackend.open_dataset` en expose
+#: **vingt**, sur la même version de cfgrib. Ce n'était donc pas une dérive de
+#: la bibliothèque, mais un comptage que personne n'avait vérifié — et la
+#: règle « on écrit plutôt qu'on hérite » reposait dessus.
+#:
+#: **Nous en fixons huit** : les cinq ci-dessous, plus `read_keys`, `errors` et
+#: `values_dtype`, posés à l'appel. **Douze restent héritées** : `mask_and_scale`,
+#: `decode_times`, `decode_coords`, `decode_timedelta`, `use_cftime`,
+#: `concat_characters`, `drop_variables`, `lock`, `filter_by_keys`,
+#: `ignore_keys`, `coords_as_attributes`, `cache_geo_coords`. Les recenser est
+#: le minimum ; les contrôler reste à faire, et la méthode est une
+#: introspection de signature — voir [docs/standards-et-outillage.md].
 OPTIONS_CFGRIB: dict[str, object] = {
     #: Défaut : `'{path}.{short_hash}.idx'`, qui **écrit à côté de la donnée**.
     #: Effet de bord indésirable sur un fichier en lecture seule ou déposé

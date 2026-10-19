@@ -5,7 +5,9 @@ Son objet est de rendre une traduction **mécanique** plutôt qu'interprétative
 
 Il joue pour X10 le rôle que [GeoDCAT-AP](https://semiceu.github.io/GeoDCAT-AP/) joue entre INSPIRE et DCAT : un pont documenté, pas un troisième vocabulaire.
 
-**Vérifié le 02/10/2026** contre les sources liées. Les référentiels évoluent ; redater ce document à chaque reprise.
+**Vérifié le 02/10/2026** contre les sources liées, **complété le 19/10/2026**. Les référentiels évoluent ; redater ce document à chaque reprise.
+
+Ce document couvre le vocabulaire de **catalogue** — ce que nous exposons d'un jeu de données. Celui de la **chaîne de normalisation** — les standards, leurs artefacts, les outils qui les interprètent et nos correspondances — est traité à part, dans [standards-et-outillage.md](standards-et-outillage.md), avec son modèle en [standards-et-outillage.yaml](standards-et-outillage.yaml).
 
 ## Référentiels
 
@@ -17,6 +19,12 @@ Il joue pour X10 le rôle que [GeoDCAT-AP](https://semiceu.github.io/GeoDCAT-AP/
 | WCMP2 | WMO Core Metadata Profile 2, extension d'OGC API – Records. Appendice F du *Manual on the WMO Information System* (WMO-No. 1060), volume II | <https://github.com/wmo-im/wcmp2> |
 | STAC | SpatioTemporal Asset Catalog | <https://github.com/radiantearth/stac-spec> |
 | ECS | Elastic Common Schema, pour la journalisation | <https://www.elastic.co/guide/en/ecs/current/> |
+| SKOS | W3C Simple Knowledge Organization System, pour les schémas de concepts | <https://www.w3.org/TR/skos-reference/> |
+| ADMS | W3C Asset Description Metadata Schema, profil DCAT des référentiels sémantiques | <https://www.w3.org/TR/vocab-adms/> |
+| SSSOM | Simple Standard for Sharing Ontological Mappings, pour les correspondances curées et leur provenance | <https://mapping-commons.github.io/sssom/> |
+| EARL | W3C Evaluation And Report Language, pour les critères de conformité et leurs verdicts | <https://www.w3.org/TR/EARL10-Schema/> |
+
+Les quatre derniers sont **employés par le modèle de la chaîne de normalisation**, pas par celui du catalogue. Ils ont été retenus le 19/10/2026 ; le raisonnement, y compris les raisons d'**écarter SKOS** pour la couche correspondance, est dans [standards-et-outillage.md](standards-et-outillage.md).
 
 ## Classes
 

@@ -60,6 +60,13 @@ période des champs agrégés, à lire avant de toucher aux axes temporels. Enfi
 données, la compression et le découpage — à lire avant de changer la façon
 dont un fichier est écrit.
 
+Une note prend du recul sur l'ensemble :
+**[docs/standards-et-outillage.md](docs/standards-et-outillage.md)** établit
+qui fait autorité sur quoi dans la chaîne, pourquoi aucune correspondance de
+GRIB vers CF ne fait autorité nulle part, et quel modèle nous en tirons — à
+lire avant d'ajouter une table de correspondance, ou avant de supposer qu'un
+registre officiel est à jour.
+
 ## Analyses automatiques de sécurité
 
 Deux dispositifs tournent sans qu'on les lance. Ils **ne bloquent aucune

@@ -1,0 +1,548 @@
+id: https://github.com/mikix10/x10/standards-et-outillage
+name: x10-standards-et-outillage
+title: Chaîne de standards et d'outillage de la normalisation X10
+
+description: >-
+  Modèle de la chaîne de normalisation GRIB2 vers NetCDF-CF : les standards,
+  leurs artefacts de référence, les outils qui les interprètent, nos propres
+  correspondances, et les invariants qui tiennent l'ensemble.
+
+  Ce schéma décrit ; il n'est pas instancié. Les tables exécutées vivent dans
+  `packages/x10-connectors/src/x10_connectors/`, et elles restent la seule
+  source de vérité du code. Voir `docs/standards-et-outillage.md` pour la
+  justification de chaque entité, et pour ce que le formalisme ne sait pas
+  porter.
+
+  Règle qui gouverne tout le fichier : aucune entité n'est inventée là où un
+  vocabulaire normalisé existe. Chaque classe et chaque attribut déclare donc
+  le terme auquel il correspond, ou dit explicitement qu'il n'en a pas.
+
+license: BSD-3-Clause
+see_also:
+  - https://github.com/mikix10/x10/blob/main/docs/standards-et-outillage.md
+  - https://github.com/mikix10/x10/blob/main/docs/vocabulaire.md
+  - https://github.com/mikix10/x10/blob/main/docs/triplet-et-tables-grib.md
+
+# Les préfixes `sssom`, `semapv` et `adms` sont écrits en minuscules, contre
+# l'avis du registre de LinkML qui les voudrait en capitales. C'est délibéré :
+# ce sont les formes que **les schémas sources déclarent eux-mêmes**, vérifié
+# dans `sssom_schema.yaml`. Suivre la source plutôt que le registre d'un
+# outil est la règle du dépôt partout ailleurs.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  x10std: https://github.com/mikix10/x10/standards-et-outillage/
+  skos: http://www.w3.org/2004/02/skos/core#
+  dcat: http://www.w3.org/ns/dcat#
+  dcterms: http://purl.org/dc/terms/
+  prov: http://www.w3.org/ns/prov#
+  adms: http://www.w3.org/ns/adms#
+  earl: http://www.w3.org/ns/earl#
+  sssom: https://w3id.org/sssom/
+  semapv: https://w3id.org/semapv/vocab/
+  pav: http://purl.org/pav/
+
+default_prefix: x10std
+default_range: string
+
+imports:
+  - linkml:types
+
+# --------------------------------------------------------------------------
+# Vocabulaires fermés
+# --------------------------------------------------------------------------
+
+enums:
+
+  SchemeStatus:
+    description: >-
+      Ce qu'un schéma de concepts fait autorité, ou pas. La distinction est
+      décisive : plusieurs artefacts de la chaîne sont des dérivées que leur
+      présentation fait passer pour la source.
+    permissible_values:
+      normative:
+        description: >-
+          La forme qui fait foi. Pour GRIB2, c'est le PDF du Manual on Codes
+          WMO-No. 306 volume I.2.
+      derived:
+        description: >-
+          Dérivé d'un normatif, et explicitement subordonné à lui. Les tables
+          lisibles par machine de l'OMM portent « the Manual prevails ».
+      tool_vocabulary:
+        description: >-
+          Publié par un outil, sans mandat d'aucune autorité. ecCodes est dans
+          ce cas : il nomme l'entrée 5 de la table 4.2-0-3 « Orography » là où
+          l'OMM écrit « Geopotential height », et tranche sur l'entrée 6 que
+          l'OMM laisse ambiguë.
+      ours:
+        description: >-
+          Notre propre vocabulaire. Au même rang qu'un vocabulaire d'outil, et
+          c'est assumé : il n'existe pas d'autorité pour une correspondance de
+          GRIB vers CF.
+
+  MappingPredicate:
+    description: >-
+      Le prédicat d'une correspondance, vocabulaire de SSSOM et de SKOS.
+    permissible_values:
+      exact_match:
+        meaning: skos:exactMatch
+        description: Interchangeables.
+      close_match:
+        meaning: skos:closeMatch
+        description: >-
+          Proches, utilisables dans certaines applications. **Inémettable en
+          sortie CF** : `standard_name` est une chaîne unique, sans
+          qualificatif de degré. Une correspondance de ce type se traite donc
+          comme une non-correspondance, et c'est pourquoi `predicate_modifier`
+          existe.
+      broad_match:
+        meaning: skos:broadMatch
+        description: La cible est plus générale que le sujet.
+      narrow_match:
+        meaning: skos:narrowMatch
+        description: La cible est plus spécifique que le sujet.
+
+  NonMappingReason:
+    description: >-
+      Pourquoi une correspondance a été **examinée et refusée**. Trois motifs
+      distincts, et les confondre ferait perdre l'information : l'un se corrige
+      en proposant un nom, les deux autres non.
+    permissible_values:
+      target_absent:
+        description: >-
+          La cible n'existe pas dans le schéma visé. Candidat à proposer à CF.
+          Exemple : le coefficient de traînée avec vagues, pour lequel CF ne
+          porte qu'un coefficient de surface muet sur les vagues.
+      subject_underdetermined:
+        description: >-
+          Le code du producteur désigne plusieurs grandeurs. Rien à proposer à
+          CF. Exemple : le triplet de la hauteur géométrique, que l'OMM
+          elle-même déconseille.
+      target_requires_undeclared_detail:
+        description: >-
+          La cible existe en plusieurs variantes, et le producteur ne déclare
+          pas ce qui permettrait de choisir. Exemple : cinq profondeurs de fond
+          selon le niveau de référence, qu'aucune clé du message ne tranche.
+
+  DivergenceKind:
+    description: >-
+      Nature de l'écart entre ce qu'un outil rend et ce que le standard dit.
+      Les quatre formes rencontrées à ce jour.
+    permissible_values:
+      silence:
+        description: >-
+          L'outil accepte ou poursuit là où le standard serait violé, sans rien
+          signaler.
+      unmandated_arbitration:
+        description: >-
+          L'outil tranche une ambiguïté que le standard laisse ouverte, et son
+          libellé se lit comme s'il était normatif.
+      data_loss:
+        description: >-
+          De la donnée disparaît, pas seulement une métadonnée.
+      content_dependent_shape:
+        description: >-
+          La structure du résultat dépend du contenu du fichier, de sorte
+          qu'aucune référence de forme n'est tenable.
+
+  VerdictMode:
+    description: >-
+      Comment un invariant est vérifié. Le vocabulaire vient d'EARL, et
+      `untested` est la valeur qui justifie à elle seule le registre : un
+      invariant qu'on sait non outillé vaut mieux qu'un invariant qu'on ignore.
+    permissible_values:
+      automatic:
+        description: Vérifié par un test de la suite.
+      manual:
+        description: >-
+          Vérifié par une relecture, ou figé dans une constante tenue à la
+          main.
+      untested:
+        description: Énoncé, non vérifié. L'absence est ainsi visible.
+
+# --------------------------------------------------------------------------
+# Classes
+# --------------------------------------------------------------------------
+
+classes:
+
+  Scheme:
+    class_uri: skos:ConceptScheme
+    description: >-
+      Un vocabulaire de termes publié par une autorité, à une version donnée.
+      La table 4.2 de l'OMM, le tableau des noms standards CF, la base d'unités
+      d'UDUNITS, et aussi le vocabulaire qu'ecCodes publie sans mandat.
+    attributes:
+      authority:
+        description: Qui le publie.
+        required: true
+      version:
+        description: >-
+          Version du schéma telle qu'il la déclare lui-même. Absente quand il
+          n'en déclare pas, ce qui est en soi une information.
+      status:
+        range: SchemeStatus
+        description: Fait-il autorité, et de quel ordre ?
+        required: true
+      deprecation_policy:
+        description: >-
+          Ce que le schéma s'engage à faire d'une entrée retirée. Vide quand il
+          ne s'engage à rien — cas de la table 4.2, dont toutes les entrées
+          portent `Operational`, y compris celle que l'OMM dit de ne plus
+          employer.
+      machine_readable:
+        range: boolean
+        description: >-
+          Existe-t-il une forme exploitable par programme qui fasse autorité ?
+          Faux pour GRIB2 : la forme normative est un PDF.
+      requirement_language:
+        description: >-
+          Le schéma emploie-t-il un langage d'exigence déclaré, de type
+          RFC 2119 ou ISO/IEC Directives Part 2 ? Vide quand il n'en emploie
+          aucun.
+      artefacts:
+        range: Artefact
+        description: Les formes concrètes sous lesquelles il est diffusé.
+        multivalued: true
+        inlined_as_list: true
+
+  Artefact:
+    class_uri: dcat:Distribution
+    description: >-
+      Un fichier ou un service concret qui exprime un schéma. Un même schéma en
+      a plusieurs, et ils peuvent diverger entre eux : c'est le piège principal
+      de la chaîne.
+    attributes:
+      locator:
+        description: >-
+          URL, ou identifiant de paquet quand il n'y a pas d'URL. Les
+          définitions d'ecCodes sont compilées dans la roue : leur localisateur
+          est une version de paquet, pas une adresse.
+        required: true
+      media_type:
+        slot_uri: dcat:mediaType
+        description: Type de média servi, qui peut différer de ce que l'extension annonce.
+      byte_size:
+        slot_uri: dcat:byteSize
+        description: Taille servie, à confronter à celle que le diffuseur annonce.
+        range: integer
+      checksum:
+        description: >-
+          Empreinte **que nous calculons**. Jamais celle que le diffuseur
+          publie : mesuré sur une archive réelle, l'empreinte annoncée ne
+          correspondait pas aux octets servis alors que la taille était exacte
+          à l'octet.
+      derived_from:
+        slot_uri: prov:hadPrimarySource
+        range: Artefact
+        description: >-
+          L'artefact normatif dont celui-ci dérive. C'est ici que se dit « the
+          Manual prevails », et non sur l'artefact lui-même.
+      surveyed_at:
+        range: datetime
+        description: Quand nous l'avons relevé. Un artefact distant change sans prévenir.
+        required: true
+
+  Term:
+    class_uri: skos:Concept
+    description: >-
+      Une entrée d'un schéma. **Jamais frappée par nous** : seulement
+      référencée. Nous n'énonçons rien *dans* un schéma que nous ne gouvernons
+      pas ; nous énonçons *à propos* de lui.
+    attributes:
+      scheme:
+        range: Scheme
+        description: Le schéma dont ce terme est une entrée.
+        required: true
+      notation:
+        slot_uri: skos:notation
+        description: Le code tel que le schéma l'écrit — un triplet, un nom standard, une chaîne d'unité.
+        required: true
+      label:
+        slot_uri: skos:prefLabel
+        description: >-
+          Le libellé tel que le schéma l'écrit. À ne pas confondre avec celui
+          d'un outil : l'OMM écrit « Geometric height » là où ecCodes affiche
+          « Geometrical height above ground ».
+      uri:
+        description: >-
+          Identifiant persistant quand il en existe un. Vide sinon — et c'est
+          le cas général.
+
+  FieldIdentity:
+    description: >-
+      Ce qui identifie réellement un champ chez un producteur. **Aucun terme
+      normalisé ne convient**, et ce n'est pas une lacune : ISO 25964-2 nomme
+      la *relation* d'équivalence composée, pas l'objet composé.
+
+      Le triplet ne suffit pas, et c'est mesuré : sept messages d'un même flux
+      portent le même triplet et ne se distinguent que par leur gabarit.
+    attributes:
+      discipline:
+        range: integer
+        description: Première composante du triplet GRIB2.
+        required: true
+      parameter_category:
+        range: integer
+        description: Deuxième composante du triplet GRIB2.
+        required: true
+      parameter_number:
+        range: integer
+        description: Troisième composante du triplet GRIB2.
+        required: true
+      product_definition_template:
+        range: integer
+        description: >-
+          Gabarit de la section 4. Nécessaire dès qu'un triplet sert à
+          plusieurs grandeurs.
+      type_of_level:
+        description: >-
+          Nécessaire quand le même code vaut deux grandeurs selon la surface.
+      originating_centre:
+        description: >-
+          Nécessaire dans la plage réservée à l'usage local.
+
+  Mapping:
+    class_uri: sssom:Mapping
+    description: >-
+      Une correspondance entre une identité de champ et un terme d'un autre
+      schéma — ou le refus motivé d'en poser une.
+
+      Le format est SSSOM, choisi pour une raison précise : il sait exprimer
+      une correspondance **examinée et refusée**, par `predicate_modifier`.
+      Aucun autre vocabulaire d'alignement ne le fait, et c'est exactement ce
+      que nos tables d'exception consignent.
+    attributes:
+      subject:
+        slot_uri: sssom:subject_id
+        description: Le champ du producteur, côté source.
+        range: FieldIdentity
+        required: true
+      predicate:
+        slot_uri: sssom:predicate_id
+        description: La nature de la correspondance. Vide quand elle est refusée.
+        range: MappingPredicate
+      predicate_modifier:
+        slot_uri: sssom:predicate_modifier
+        description: >-
+          La valeur `Not` dit que la correspondance a été examinée et refusée.
+          Sans elle, un refus est indiscernable d'un oubli.
+      non_mapping_reason:
+        range: NonMappingReason
+        description: >-
+          Renseigné quand `predicate_modifier` vaut `Not`. **Extension X10** :
+          SSSOM sait dire qu'il n'y a pas de correspondance, pas pourquoi.
+      object:
+        slot_uri: sssom:object_id
+        description: Le terme visé. Vide quand la correspondance est refusée.
+        range: Term
+      justification:
+        slot_uri: sssom:mapping_justification
+        description: >-
+          Vocabulaire `semapv`. Pour nos entrées, c'est une curation manuelle.
+      author:
+        slot_uri: sssom:author_id
+        description: Qui a posé l'assertion. Une correspondance curée engage quelqu'un.
+      mapping_date:
+        slot_uri: sssom:mapping_date
+        description: Quand elle a été posée, pour la relire à l'état d'alors.
+        range: date
+        required: true
+      subject_source_version:
+        slot_uri: sssom:subject_source_version
+        description: >-
+          Version du schéma du sujet au moment de l'assertion. C'est ce qui
+          permet de relire une correspondance dans l'état où elle a été posée.
+      object_source_version:
+        slot_uri: sssom:object_source_version
+        description: Version du schéma cible au moment de l'assertion.
+      evidence:
+        range: Observation
+        description: La mesure sur laquelle l'assertion repose.
+
+  Rule:
+    description: >-
+      Une transformation qui n'est pas une correspondance de concepts :
+      canonicalisation d'unité, traduction d'un code de table en expression CF,
+      conversion d'une durée. **Aucun terme normalisé** — SKOS ne convient pas,
+      la cible n'étant pas un concept mais une expression.
+    attributes:
+      input:
+        required: true
+        description: Ce qui entre, tel que l'outil amont l'écrit.
+      output:
+        required: true
+        description: Ce qui sort, sous la forme que le standard aval attend.
+      invertible:
+        range: boolean
+        description: Peut-on remonter de la sortie à l'entrée sans ambiguïté ?
+      lossy:
+        range: boolean
+        description: >-
+          La transformation perd-elle de l'information ? Une canonicalisation
+          d'unité ne doit rien perdre, et un test le vérifie en comparant la
+          définition réduite des deux côtés.
+      authorised_by:
+        range: Clause
+        description: Les passages de standard qui autorisent la transformation.
+        multivalued: true
+
+  Clause:
+    description: >-
+      Un passage précis d'un standard, cité. Référencé par `dcterms:conformsTo`
+      côté ressource.
+
+      La citation est obligatoire parce que les exigences CF n'ont **aucun
+      identifiant stable** : le document de conformité les écrit en puces non
+      numérotées. On ne peut pas dire « CF-R-2.1-001 » ; on ne peut que citer.
+    attributes:
+      standard:
+        range: Scheme
+        description: Le standard d'où la clause est tirée.
+        required: true
+      version:
+        required: true
+      section:
+        description: Numéro de section ou d'annexe, faute d'identifiant d'exigence.
+        required: true
+      quoted_text:
+        description: Le texte, verbatim.
+        required: true
+      read_at:
+        range: date
+        description: Quand le passage a été relu. Un standard est réédité.
+        required: true
+
+  Dependency:
+    class_uri: prov:SoftwareAgent
+    description: >-
+      Un outil dont nous dépendons sans le gouverner, et dont le cycle de vie
+      nous échappe.
+
+      Le SBOM n'est pas remodelé ici : `uv.lock` le porte déjà. Ce qui est
+      modélisé est ce que `uv.lock` ne dit pas — ce que nous avons figé de ses
+      défauts, et ce que nous en héritons en silence.
+    attributes:
+      package:
+        description: Identifiant de paquet, forme `pkg:pypi/<nom>`.
+        required: true
+      pinned_version:
+        required: true
+        description: Version verrouillée, telle que `uv.lock` la résout.
+      implements:
+        range: Scheme
+        multivalued: true
+        description: Les standards que l'outil prétend mettre en œuvre.
+      publishes:
+        range: Scheme
+        multivalued: true
+        description: >-
+          Les vocabulaires que l'outil publie de son propre chef. ecCodes est
+          dans ce cas, et c'est une distinction que le modèle doit tenir : le
+          même paquet est un agent **et** un schéma non normatif.
+      frozen_defaults:
+        multivalued: true
+        description: >-
+          Les options dont nous écrivons la valeur plutôt que de l'hériter.
+      inherited_defaults:
+        multivalued: true
+        description: >-
+          Celles que nous héritons. **Les recenser est le point** : une option
+          non recensée change nos sorties sans que rien ne le signale, et une
+          option apparue dans une version nouvelle passe inaperçue.
+
+  Observation:
+    class_uri: prov:Activity
+    description: >-
+      Une mesure datée, et l'énoncé qu'elle soutient. C'est l'unité de preuve
+      du dépôt : aucune affirmation de la chaîne n'est admise sans l'une
+      d'elles.
+    attributes:
+      statement:
+        description: Ce que la mesure établit.
+        required: true
+      observed_at:
+        range: date
+        description: Date de la mesure. Sans elle, l'énoncé n'est pas rejouable.
+        required: true
+      corpus:
+        multivalued: true
+        description: >-
+          Empreintes des granules ou identifiants des artefacts mesurés, pour
+          pouvoir rejouer à l'identique.
+      used:
+        slot_uri: prov:used
+        range: Dependency
+        multivalued: true
+        description: >-
+          Les outils employés, à leur version. **C'est ce lien qui rend une
+          montée de version actionnable** : elle désigne mécaniquement les
+          mesures à rejouer.
+      revision_of:
+        slot_uri: prov:wasRevisionOf
+        range: Observation
+        description: >-
+          L'énoncé que celui-ci corrige. Le dépôt en compte déjà trois, et
+          aucun n'est tracé comme tel : un modèle de preuve sans révision
+          conserve des affirmations périmées sans le dire.
+
+  Divergence:
+    is_a: Observation
+    description: >-
+      Une observation d'un cas particulier : l'outil ne fait pas ce que le
+      standard dit. Vingt-trois sont relevées à ce jour dans la chaîne.
+    attributes:
+      tool:
+        range: Dependency
+        description: L'outil qui diverge, à sa version.
+        required: true
+      clause:
+        range: Clause
+        description: La clause heurtée, quand il y en a une d'identifiable.
+      kind:
+        range: DivergenceKind
+        description: La forme que prend l'écart.
+        required: true
+      mitigation:
+        description: Ce que nous faisons pour nous en prémunir.
+
+  Invariant:
+    class_uri: earl:TestCriterion
+    description: >-
+      Une propriété qui doit tenir sur l'ensemble. C'est la « cohérence
+      d'ensemble » rendue énumérable.
+
+      Un invariant est une **entité**, pas une propriété d'un test : sans cela,
+      celui qu'aucun test ne porte n'aurait nulle part où exister.
+    attributes:
+      statement:
+        required: true
+      scope:
+        description: Sur quoi il porte.
+        required: true
+      severity:
+        description: Ce que coûterait sa violation.
+
+  Verdict:
+    class_uri: earl:Assertion
+    description: >-
+      L'état d'un invariant à une date. La valeur `untested` du mode est celle
+      qui porte le modèle : elle rend visible ce qui n'est pas vérifié.
+    attributes:
+      criterion:
+        slot_uri: earl:test
+        description: L'invariant dont ce verdict dit l'état.
+        range: Invariant
+        required: true
+      mode:
+        slot_uri: earl:mode
+        description: Comment il est vérifié — ou qu'il ne l'est pas.
+        range: VerdictMode
+        required: true
+      enforced_by:
+        description: >-
+          Le test qui le fait respecter, en chemin et nom de fonction. Vide
+          quand le mode est `untested`.
+      asserted_at:
+        range: date
+        description: Date du verdict. Un invariant non outillé le reste jusqu'à preuve du contraire.
+        required: true
