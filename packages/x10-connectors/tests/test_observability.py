@@ -22,6 +22,7 @@ from x10_connectors import (
     fetch_finished_fields,
     fetch_started_fields,
 )
+from x10_connectors.observability import SecretRedactor
 from x10_models import Retrieval
 
 
@@ -314,3 +315,80 @@ def test_aucun_chemin_de_fichier_n_est_journalise():
     assert "repertoire-temoin" not in emis
     assert "grib2" not in emis
     assert fetch_finished_fields(resultat)["x10.artefacts"] == 1
+
+
+# --- Rédaction par valeur -----------------------------------------------------
+
+SECRET = "faux-jeton-pour-les-tests"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        f"HTTP 403 for https://cds.example.org/api/jobs?token={SECRET}",
+        f"HTTP 401 for https://ads.example.org/api/v1/{SECRET}/resources",
+        f"headers={{'PRIVATE-TOKEN': '{SECRET}'}}",
+        f"Authentication failed for key {SECRET}",
+    ],
+)
+def test_les_quatre_chemins_de_fuite_sont_rediges(message):
+    """Mesuré le 19/10/2026 : `redact` seule n'en couvrait qu'**un**.
+
+    Elle laissait passer un jeton dans le chemin d'une URL, un en-tête
+    recopié, et un identifiant cité en clair — trois formes produites par le
+    texte d'une bibliothèque tierce, que notre règle sur la construction
+    d'URL ne gouverne pas.
+    """
+    assert SECRET not in str(SecretRedactor([SECRET]).scrub(message))
+
+
+def test_le_filtre_redige_le_message_et_les_champs_ecs(caplog):
+    """Les champs que nous posons portent un point ; aucun attribut standard
+    de `LogRecord` n'en porte. C'est ce qui permet de les distinguer sans
+    réécrire tout l'enregistrement."""
+    filtre = SecretRedactor([SECRET])
+    record = logging.LogRecord("x", logging.ERROR, __file__, 1, f"cle {SECRET}", None, None)
+    record.__dict__["error.message"] = f"echec avec {SECRET}"
+    record.__dict__["x10.source"] = "cds"
+
+    assert filtre.filter(record) is True
+    assert SECRET not in record.msg
+    assert SECRET not in record.__dict__["error.message"]
+    assert record.__dict__["x10.source"] == "cds"
+    assert record.name == "x", "un attribut standard n'a pas à être réécrit"
+
+
+def test_le_filtre_ne_montre_jamais_ses_valeurs():
+    """Un `repr` qui révèle le secret le ferait fuir par le chemin même que
+    ce filtre existe pour fermer."""
+    rendu = repr(SecretRedactor([SECRET]))
+    assert SECRET not in rendu
+    assert "1 secret" in rendu
+
+
+def test_un_secret_trop_court_est_refuse_et_non_ignore():
+    """Rédiger une chaîne courte détruirait le journal sans rien protéger.
+
+    Le refuser plutôt que l'ignorer est le point : un appelant qui pose un
+    secret de cinq caractères doit l'apprendre, pas croire qu'il est protégé.
+    """
+    with pytest.raises(ValueError, match="too short"):
+        SecretRedactor(["court"])
+
+
+def test_un_secret_contenu_dans_un_autre_ne_le_tronque_pas():
+    """L'ordre de substitution décide du résultat.
+
+    Rédiger le plus court d'abord laisserait le plus long à demi visible.
+    """
+    long, court = "faux-jeton-long-et-distinct", "faux-jeton-long"
+    rendu = SecretRedactor([court, long]).scrub(f"a={long} b={court}")
+    assert long not in str(rendu)
+    assert court not in str(rendu)
+
+
+@pytest.mark.parametrize("valeur", [None, 42, 3.5, b"octets", ["liste"]])
+def test_une_valeur_non_textuelle_traverse_intacte(valeur):
+    """Un filtre qui convertirait tout en chaîne casserait la journalisation
+    structurée, dont l'intérêt est précisément de porter des types."""
+    assert SecretRedactor([SECRET]).scrub(valeur) is valeur

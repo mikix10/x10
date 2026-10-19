@@ -421,3 +421,40 @@ def test_la_protection_ne_depend_plus_du_seul_type_de_la_feuille():
     brut = Credentials.model_construct(parts={"cds": {"token": FACTICE}})
     assert FACTICE not in repr(brut)
     assert FACTICE not in brut.model_dump_json()
+
+
+# --- Le filtre de journalisation ----------------------------------------------
+
+
+def test_le_filtre_porte_toutes_les_parts_de_toutes_les_sources():
+    """Une part oubliée serait un secret non rédigé, donc un secret au journal."""
+    creds = Credentials.model_validate(
+        {
+            "parts": {
+                "cds": {"token": "faux-jeton-cds-de-test"},
+                "meteofrance": {"application_id": "faux-identifiant-mf-de-test"},
+            }
+        }
+    )
+    filtre = creds.redactor()
+    rendu = str(filtre.scrub("a=CDS123456789abc b=MF987654321xyz"))
+
+    assert "faux-jeton-cds-de-test" not in rendu
+    assert "faux-identifiant-mf-de-test" not in rendu
+
+
+def test_le_filtre_ne_montre_pas_les_valeurs_qu_il_porte():
+    """Le compte rendu d'une session affiche volontiers ses objets.
+
+    Un filtre dont le `repr` révélerait ses valeurs ferait fuir le secret par
+    le chemin même qu'il existe pour fermer.
+    """
+    creds = Credentials.model_validate({"parts": {"cds": {"token": "faux-jeton-cds-de-test"}}})
+    assert "faux-jeton-cds-de-test" not in repr(creds.redactor())
+
+
+def test_sans_identifiant_le_filtre_est_vide_et_non_absent():
+    """Une session sans secret doit pouvoir installer le filtre sans cas
+    particulier — sinon l'appelant écrit une condition, et l'oublie."""
+    filtre = Credentials().redactor()
+    assert filtre.scrub("rien a rediger ici") == "rien a rediger ici"

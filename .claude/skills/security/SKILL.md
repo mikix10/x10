@@ -58,17 +58,38 @@ X10 télécharge des fichiers décrits par un catalogue et les transforme. Les e
 ### URL et requêtes sortantes
 
 - Une URL venant du catalogue est une **entrée non fiable**. Valider le schéma (`https` uniquement) et l'hôte contre une liste connue avant toute requête.
+- **Ce chemin n'existe pas encore, et c'est épinglé.** Vérifié le 19/10/2026 : toutes les URL requêtées sont des constantes de module, et `Distribution.access_url` n'est lu que pour être décrit — jamais pour aller chercher. `workspace-tests/test_surface_reseau.py` le constate, et échouera le jour où un module qui émet des requêtes se mettra à le lire. Un échec n'y est pas une faute : c'est le signal qu'une relecture est due **avant** d'élargir la liste des lecteurs admis.
+- Le même fichier interdit toute URL `http://` en clair dans les sources — la façon la plus discrète de contourner la règle TLS.
 - Refuser les redirections vers des adresses privées ou de bouclage — c'est le cas SSRF classique.
 - Toujours poser un `timeout` explicite. Jamais de requête sans délai maximal.
 - Ne jamais désactiver la vérification TLS, même « temporairement pour tester ».
 
 ### Sources authentifiées — l'angle mort de `error.message`
 
-Aucune source intégrée n'exige d'authentification à ce jour. **Dès que ce sera le cas, vérifier que les identifiants ne peuvent pas remonter par les journaux.**
-
 Le champ `error.message` reprend le texte d'une exception tierce, dont nous ne maîtrisons pas le contenu. Une bibliothèque HTTP y place volontiers l'URL complète de la requête ayant échoué — avec son jeton si celui-ci voyage dans l'URL, ou son en-tête si la trace est verbeuse.
 
-C'est le seul champ de notre surface journalisée qui échappe à notre contrôle. Prévoir un filtrage avant émission, et un test qui l'atteste.
+**Mesuré le 19/10/2026, avant la première source authentifiée.** `observability.redact`, qui retire la chaîne de requête, couvre **un** des quatre chemins réalistes :
+
+| Forme du message | `redact` seule |
+|---|---|
+| jeton en paramètre d'URL | rédigé |
+| jeton dans le **chemin** de l'URL | **fuite** |
+| en-tête recopié dans le texte de l'exception | **fuite** |
+| identifiant cité en clair dans une phrase | **fuite** |
+
+Les trois qui échappent viennent du **texte de la bibliothèque tierce**, que notre règle sur la construction d'URL ne gouverne pas. Deviner la forme d'un message tiers est une course perdue.
+
+**La parade est la rédaction par valeur**, `observability.SecretRedactor` : un filtre `logging` qui remplace toute occurrence d'une valeur connue. Il couvre les quatre cas et ne suppose rien de la bibliothèque.
+
+Le partage est celui que le dépôt a déjà posé ailleurs : **le paquet fournit le mécanisme, l'application fournit les valeurs**. `x10-connectors` ne détient aucun secret ; `Credentials.redactor()` construit le filtre côté client, et c'est l'appelant qui l'installe :
+
+```python
+handler.addFilter(session.credentials.redactor())
+```
+
+Trois propriétés à ne pas casser, chacune couverte par un test : le `repr` du filtre ne montre jamais ses valeurs ; un secret trop court est **refusé** et non ignoré ; et un secret contenu dans un autre est rédigé en premier, sinon le plus long ressortirait tronqué.
+
+Limite assumée : un filtre s'exécute avant le formatage, donc il ne voit pas une trace d'appels rendue ensuite par un formateur tiers. Le message de l'exception, lui, est couvert — c'est le chemin par lequel un secret voyage réellement.
 
 Le contrat d'interface décrit cette limite aux intégrateurs : la tenir à jour si la surface change.
 
@@ -99,8 +120,11 @@ Le contrat d'interface décrit cette limite aux intégrateurs : la tenir à jour
 
 La marche à suivre : avis de sécurité GitHub (GHSA) en mode privé, correctif préparé et publié, puis publication de l'avis avec la description. Le commit de correctif référence l'avis, il ne détaille pas l'exploit.
 
-## 5. À mettre en place plus tard
+## 5. En place depuis
 
-- **Dependabot** et **CodeQL** : gratuits sur dépôt public, différés tant que le code métier se résume à des stubs — ils ne produiraient que du bruit. À activer dès que `x10-connectors` contient du code réel.
+- **Dependabot** et **CodeQL** sont actifs depuis le 12/10/2026, la condition posée ici — du code métier plutôt que des ébauches — étant remplie. Dependabot couvre `github-actions` et `uv`, en groupes relus ensemble et majeures isolées ; CodeQL analyse `python` **et** `actions`, cette seconde langue vérifiant nos propres workflows.
+
+## 6. À mettre en place plus tard
+
 - **SECURITY.md** : politique de divulgation publique, à écrire au moment de la première publication PyPI, quand le projet aura des utilisateurs à qui s'adresser.
 - **Montée de version des actions GitHub** : `checkout` et `upload-artifact` sont en v4, `setup-uv` en v5, alors que v7 et v10 existent. Épinglés sur SHA donc immuables, mais en retard. À traiter comme un changement fonctionnel à part entière, testé, pas glissé dans un commit de sécurité.
