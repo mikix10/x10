@@ -180,6 +180,7 @@ x10_connectors.contract.__all__: CRITICAL_ATTRIBUTES
 x10_connectors.contract.__all__: Contract
 x10_connectors.contract.__all__: Divergence
 x10_connectors.contract.__all__: Divergences
+x10_connectors.contract.__all__: ENSEMBLE_COORD
 x10_connectors.contract.__all__: ENUMERATION_THRESHOLD
 x10_connectors.contract.__all__: EXCLUDED_COORDS
 x10_connectors.contract.__all__: GRIB_IDENTITY
@@ -196,16 +197,23 @@ x10_connectors.contract.__all__: max_step_hours
 x10_connectors.contract.__all__: output_contract
 x10_connectors.contract.__all__: source_terms
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.date
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.levtype
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.numbers
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.origins
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.parameters
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.step
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.stream
 x10_connectors.ecmwf_ifs.EcmwfIfsRequest.time
+x10_connectors.ecmwf_ifs.EcmwfIfsRequest.type
 x10_connectors.ecmwf_ifs.__all__: AGENT
 x10_connectors.ecmwf_ifs.__all__: DEFAULT_MAX_BYTES
 x10_connectors.ecmwf_ifs.__all__: DEFAULT_PARAMETERS
+x10_connectors.ecmwf_ifs.__all__: ENSEMBLE_STREAMS
 x10_connectors.ecmwf_ifs.__all__: EcmwfIfsError
 x10_connectors.ecmwf_ifs.__all__: EcmwfIfsOpenDataConnector
 x10_connectors.ecmwf_ifs.__all__: EcmwfIfsRequest
+x10_connectors.ecmwf_ifs.__all__: LEVTYPES
+x10_connectors.ecmwf_ifs.__all__: MEMBERS
 x10_connectors.ecmwf_ifs.__all__: NOT_RETRYABLE
 x10_connectors.ecmwf_ifs.__all__: ORIGINS
 x10_connectors.ecmwf_ifs.__all__: OpenDataClient
@@ -215,6 +223,8 @@ x10_connectors.ecmwf_ifs.__all__: SOURCE_LICENSE
 x10_connectors.ecmwf_ifs.__all__: SOURCE_NAME
 x10_connectors.ecmwf_ifs.__all__: SOURCE_PROVIDER
 x10_connectors.ecmwf_ifs.__all__: SOURCE_URL
+x10_connectors.ecmwf_ifs.__all__: STREAMS
+x10_connectors.ecmwf_ifs.__all__: TYPES
 x10_connectors.grib2.__all__: AMBIGUOUS_TRIPLETS
 x10_connectors.grib2.__all__: ATTR_LOCAL_TABLES
 x10_connectors.grib2.__all__: ATTR_TABLES_LATEST
@@ -358,6 +368,7 @@ x10_models.Variable.cell_methods
 x10_models.Variable.level_reference
 x10_models.Variable.level_units
 x10_models.Variable.levels
+x10_models.Variable.realizations
 x10_models.Variable.standard_name
 x10_models.Variable.units
 x10_models.__all__: AccessRights

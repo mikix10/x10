@@ -123,6 +123,16 @@ class Variable(BaseModel):
     level_reference: str | None = None
     levels: tuple[float, ...] = ()
     level_units: str | None = None
+    #: Nombre de membres, quand la grandeur vient d'une prévision
+    #: d'ensemble. `None` pour un déterministe — et c'est une distinction,
+    #: pas une valeur manquante : un champ déterministe n'a pas un membre,
+    #: il n'a pas d'axe de membres.
+    #:
+    #: Le nom vient de CF, qui appelle `realization` l'axe d'un ensemble.
+    #: C'est un **compte** et non la liste des numéros : le catalogue
+    #: répond à « ce jeu est-il un ensemble, et de quelle taille », pas à
+    #: « quel est le quarante-deuxième membre », qui se lit dans la donnée.
+    realizations: int | None = None
 
 
 class SourceTerms(BaseModel):

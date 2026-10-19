@@ -381,7 +381,34 @@ WITHOUT_VERTICAL_REFERENCE = frozenset(
 #: **secondes**.
 STEP_COORD = "step"
 
+#: Nom que `cfgrib` donne à l'axe des membres d'un ensemble. CF l'appelle
+#: `realization` ; la traduction se fait ici, et `Variable` n'expose que le
+#: vocabulaire normalisé.
+ENSEMBLE_COORD = "number"
+
 SECONDS_PER_HOUR = 3600
+
+
+def _realizations(entry: VariableContract, geometry: GeometryContract) -> int | None:
+    """Le nombre de membres d'une grandeur, ou `None` si elle est déterministe.
+
+    **Deux endroits à consulter, et c'est la raison d'être de cette
+    fonction.** Une coordonnée courte est énumérée dans `coords`, une longue
+    est caractérisée dans `geometry.grid` — le seuil est à
+    `ENUMERATION_THRESHOLD`, soit 64. Les 50 membres d'ECMWF passent donc par
+    le premier chemin, mais un producteur plus fourni basculerait dans le
+    second, et ne lire que `coords` rendrait `None` précisément sur
+    l'ensemble le plus volumineux.
+    """
+    if ENSEMBLE_COORD not in entry.dims:
+        return None
+    if (enumerated := entry.coords.get(ENSEMBLE_COORD)) is not None:
+        return len(enumerated)
+    if (summarised := geometry.grid.get(ENSEMBLE_COORD)) is not None:
+        return summarised.size
+    # L'axe est dans les dimensions sans coordonnée associée : le nombre de
+    # membres n'est pas lisible, et le supposer serait pire que l'ignorer.
+    return None
 
 
 def inventory(contract: Contract) -> tuple[Variable, ...]:
@@ -414,6 +441,7 @@ def inventory(contract: Contract) -> tuple[Variable, ...]:
                 level_reference=reference,
                 levels=niveaux,
                 level_units=unite if reference is not None else None,
+                realizations=_realizations(fiche, contract.geometry),
             )
         )
     return tuple(variables)
@@ -481,6 +509,7 @@ def _vertical(type_niveau: str | None) -> tuple[str | None, str | None]:
 __all__ = [
     "CF_VERTICAL",
     "CRITICAL_ATTRIBUTES",
+    "ENSEMBLE_COORD",
     "ENUMERATION_THRESHOLD",
     "EXCLUDED_COORDS",
     "GRIB_IDENTITY",

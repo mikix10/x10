@@ -60,6 +60,36 @@ ORIGINS = ("ecmwf", "aws", "azure", "google")
 #: à 2 m, composantes du vent à 10 m.
 DEFAULT_PARAMETERS = ("2t", "2d", "10u", "10v")
 
+#: Flux servis par les données ouvertes. Vocabulaire **fermé**, relevé dans le
+#: client officiel et confirmé par la documentation le 16/10/2026.
+#:
+#: `scda` et `scwv` portaient les réseaux de 06 et 18 UTC jusqu'au cycle 50r1,
+#: opérationnel le 12/05/2026 ; ils sont depuis sous `oper` et `wave`. Les
+#: garder permet de lire une archive antérieure sans cas particulier.
+STREAMS = ("oper", "wave", "enfo", "waef", "scda", "scwv")
+
+#: Types de produit. `fc` déterministe, `pf` les membres perturbés, `cf` le
+#: contrôle, `em` et `es` moyenne et écart-type d'ensemble, `ep` les
+#: probabilités.
+#:
+#: **Depuis le cycle 50r1, le contrôle d'`enfo` a disparu** : il se prend dans
+#: `oper`/`fc`, identique à la prévision haute résolution. `cf` reste admis
+#: pour `waef` et pour les archives antérieures.
+TYPES = ("fc", "pf", "cf", "em", "es", "ep")
+
+#: Types de niveau. `sfc` la surface, `pl` les niveaux de pression, `sol` le
+#: sol. Relevé sur l'index d'ensemble du 16/10/2026 : 1 800 messages en `sfc`,
+#: 6 300 en `pl`, 400 en `sol`.
+LEVTYPES = ("sfc", "pl", "sol")
+
+#: Flux qui portent des membres, et pour lesquels un numéro a un sens.
+ENSEMBLE_STREAMS = ("enfo", "waef")
+
+#: Nombre de membres perturbés servis. Mesuré le 16/10/2026 sur l'index réel :
+#: numéros 1 à 50. Avant le cycle 50r1 le fichier en portait 51, contrôle
+#: compris.
+MEMBERS = 50
+
 #: Plafond de volume par exécution. Généreux au regard des 2,8 Mo attendus,
 #: mais borné bien en deçà des 135 Mo du fichier complet.
 DEFAULT_MAX_BYTES = 64 * 1024 * 1024
@@ -100,6 +130,18 @@ class EcmwfIfsRequest:
     step: int = 0
     time: int = 0
     date: int = -1
+    #: Flux demandé. `oper` est la prévision déterministe atmosphérique,
+    #: `wave` son équivalent pour les vagues, `enfo` et `waef` les ensembles.
+    stream: str = "oper"
+    #: Type de produit. `fc` pour un déterministe, `pf` pour des membres.
+    type: str = "fc"
+    #: Type de niveau. Le défaut reste la surface, de loin le plus demandé.
+    levtype: str = "sfc"
+    #: Membres voulus, **et c'est une borne de volume autant qu'une
+    #: sélection**. Un fichier d'échéance d'ensemble porte 8 500 messages ;
+    #: ne pas pouvoir se restreindre rendrait le flux inexploitable sous le
+    #: plafond. Vide prend ce que le fichier contient.
+    numbers: tuple[int, ...] = ()
     #: Origines à tenter, **dans l'ordre**. Le connecteur passe à la suivante
     #: quand une origine est inaccessible. L'ordre vient en général de
     #: `CatalogEntry.origins()`, que l'appelant résout — un connecteur n'a pas
@@ -120,6 +162,26 @@ class EcmwfIfsRequest:
             raise ValueError("An origin cannot appear twice in the fallback order.")
         if self.step < 0:
             raise ValueError("The forecast step cannot be negative.")
+        if self.stream not in STREAMS:
+            raise ValueError(f"Unknown stream {self.stream!r}. Expected one of {STREAMS}.")
+        if self.type not in TYPES:
+            raise ValueError(f"Unknown type {self.type!r}. Expected one of {TYPES}.")
+        if self.levtype not in LEVTYPES:
+            raise ValueError(f"Unknown level type {self.levtype!r}. Expected one of {LEVTYPES}.")
+        # Un numero de membre sur un flux deterministe n'a pas de sens, et le
+        # service l'ignorerait en silence -- on prefere le dire.
+        if self.numbers and self.stream not in ENSEMBLE_STREAMS:
+            raise ValueError(
+                f"Members only apply to ensemble streams {ENSEMBLE_STREAMS}, "
+                f"not to {self.stream!r}."
+            )
+        out_of_range = sorted(n for n in self.numbers if not 1 <= n <= MEMBERS)
+        if out_of_range:
+            raise ValueError(
+                f"Member number(s) out of range: {out_of_range}. Expected 1 to {MEMBERS}."
+            )
+        if len(set(self.numbers)) != len(self.numbers):
+            raise ValueError("A member cannot appear twice in the selection.")
 
 
 class EcmwfIfsOpenDataConnector(BaseConnector):
@@ -178,15 +240,20 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
         return client
 
     def _mars_request(self, parameter: str) -> dict[str, Any]:
-        return {
+        mars: dict[str, Any] = {
             "date": self.request.date,
             "time": self.request.time,
             "step": self.request.step,
-            "stream": "oper",
-            "type": "fc",
-            "levtype": "sfc",
+            "stream": self.request.stream,
+            "type": self.request.type,
+            "levtype": self.request.levtype,
             "param": parameter,
         }
+        # `number` n'est pose que s'il est demande : le client officiel refuse
+        # la cle sur un flux deterministe.
+        if self.request.numbers:
+            mars["number"] = list(self.request.numbers)
+        return mars
 
     def _download(self, root: Path, origin: str) -> tuple[list[Path], int]:
         client = self._client(origin)
@@ -322,6 +389,9 @@ __all__ = [
     "AGENT",
     "DEFAULT_MAX_BYTES",
     "DEFAULT_PARAMETERS",
+    "ENSEMBLE_STREAMS",
+    "LEVTYPES",
+    "MEMBERS",
     "NOT_RETRYABLE",
     "ORIGINS",
     "SOURCE_FORMAT",
@@ -330,6 +400,8 @@ __all__ = [
     "SOURCE_NAME",
     "SOURCE_PROVIDER",
     "SOURCE_URL",
+    "STREAMS",
+    "TYPES",
     "EcmwfIfsError",
     "EcmwfIfsOpenDataConnector",
     "EcmwfIfsRequest",
