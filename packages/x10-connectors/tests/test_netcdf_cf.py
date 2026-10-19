@@ -23,6 +23,7 @@ from x10_connectors.netcdf_cf import (
     DECLARABLE_AXES,
     ECCODES_MISSING,
     UDUNITS,
+    WITHOUT_CELL_METHOD,
     UnconvertibleUnitError,
     UnknownStatisticalProcessingError,
     UnrepresentableIntervalError,
@@ -915,3 +916,19 @@ def test_un_champ_scalaire_ne_porte_aucun_avertissement(tmp_path):
     with netCDF4.Dataset(cible) as nc:
         for nom, v in nc.variables.items():
             assert CIRCULAR_COMMENT not in getattr(v, "comment", ""), nom
+
+
+def test_les_deux_tables_de_methodes_sont_disjointes():
+    """Un `stepType` présent des deux côtés gagnerait **en silence**.
+
+    `cell_method` consulte `WITHOUT_CELL_METHOD` **avant** `CELL_METHODS` :
+    une entrée dans les deux ne produirait donc aucune méthode, et un cumul
+    se présenterait comme un instantané — la faute même que ce module existe
+    pour éviter. Rien ne le vérifiait.
+    """
+    communs = sorted(WITHOUT_CELL_METHOD & set(CELL_METHODS))
+    assert communs == [], (
+        f"`stepType` présent dans les deux tables : {communs}. "
+        "`WITHOUT_CELL_METHOD` étant consulté en premier, la méthode de "
+        "`CELL_METHODS` serait ignorée sans un mot."
+    )

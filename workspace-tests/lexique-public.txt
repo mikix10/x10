@@ -230,6 +230,7 @@ x10_connectors.grib2.__all__: AMBIGUOUS_TRIPLETS
 x10_connectors.grib2.__all__: ATTR_LOCAL_TABLES
 x10_connectors.grib2.__all__: ATTR_TABLES_LATEST
 x10_connectors.grib2.__all__: ATTR_TABLES_VERSION
+x10_connectors.grib2.__all__: CF_DERIVED
 x10_connectors.grib2.__all__: CF_STANDARD_NAMES
 x10_connectors.grib2.__all__: COORD_UNDEFINED
 x10_connectors.grib2.__all__: DERIVED_WIND

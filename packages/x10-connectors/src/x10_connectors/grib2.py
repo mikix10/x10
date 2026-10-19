@@ -633,11 +633,24 @@ def check_local_tables(datasets: tuple[xr.Dataset, ...]) -> str | None:
     )
 
 
+#: Noms CF des grandeurs que nous **calculons** au lieu de les décoder, avec
+#: l'unité que nous leur donnons. Ce sont des noms CF émis au même titre que
+#: ceux de `CF_STANDARD_NAMES`, et ils étaient écrits en dur dans les deux
+#: fonctions ci-dessous — donc invisibles du contrôle qui confronte nos noms
+#: au tableau officiel. Les réunir ici les y rend visibles, et un test
+#: interdit désormais qu'un nom CF réapparaisse en dur ailleurs.
+CF_DERIVED: dict[str, str] = {
+    "wind_speed": "m s-1",
+    "wind_from_direction": "degree",
+}
+
+
 def wind_speed(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
     """Force du vent, norme du vecteur."""
     np = _numpy()
     out: xr.DataArray = np.hypot(u, v)
-    out.attrs = {"standard_name": "wind_speed", "units": "m s-1"}
+    nom = "wind_speed"
+    out.attrs = {"standard_name": nom, "units": CF_DERIVED[nom]}
     out.name = "ws"
     return out
 
@@ -653,7 +666,8 @@ def wind_from_direction(u: xr.DataArray, v: xr.DataArray) -> xr.DataArray:
     """
     np = _numpy()
     out: xr.DataArray = np.degrees(np.arctan2(-u, -v)) % 360.0
-    out.attrs = {"standard_name": "wind_from_direction", "units": "degree"}
+    nom = "wind_from_direction"
+    out.attrs = {"standard_name": nom, "units": CF_DERIVED[nom]}
     out.name = "wdir"
     return out
 
@@ -728,6 +742,7 @@ __all__ = [
     "ATTR_LOCAL_TABLES",
     "ATTR_TABLES_LATEST",
     "ATTR_TABLES_VERSION",
+    "CF_DERIVED",
     "CF_STANDARD_NAMES",
     "COORD_UNDEFINED",
     "DERIVED_WIND",

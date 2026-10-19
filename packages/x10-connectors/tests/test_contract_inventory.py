@@ -259,3 +259,18 @@ def test_un_axe_de_membres_sans_ensemble_declare_n_en_est_pas_un():
 def test_une_taille_d_ensemble_illisible_ne_compte_pour_aucun_membre():
     """Une valeur qu'on ne sait pas lire ne se devine pas dans un sens."""
     assert inventory(_un_axe_de_membres("beaucoup"))[0].realizations is None
+
+
+def test_les_deux_tables_de_reference_verticale_sont_disjointes():
+    """Même piège que pour les méthodes de cellule, et même silence.
+
+    `_vertical` teste `WITHOUT_VERTICAL_REFERENCE` **avant** `CF_VERTICAL` :
+    un type de niveau présent dans les deux perdrait sa référence verticale
+    sans que rien ne le signale, et la grandeur sortirait sans niveau.
+    """
+    communs = sorted(set(CF_VERTICAL) & WITHOUT_VERTICAL_REFERENCE)
+    assert communs == [], (
+        f"Type de niveau présent dans les deux tables : {communs}. "
+        "`WITHOUT_VERTICAL_REFERENCE` étant consulté en premier, l'entrée de "
+        "`CF_VERTICAL` serait ignorée."
+    )

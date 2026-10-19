@@ -74,6 +74,7 @@ packages/x10-connectors/tests/test_contract_inventory.py::test_la_reference_vert
 packages/x10-connectors/tests/test_contract_inventory.py::test_la_vue_normalisee_ne_porte_aucun_terme_d_eccodes
 packages/x10-connectors/tests/test_contract_inventory.py::test_la_vue_source_porte_le_nom_court_du_producteur
 packages/x10-connectors/tests/test_contract_inventory.py::test_le_type_de_niveau_d_eccodes_reste_du_cote_source
+packages/x10-connectors/tests/test_contract_inventory.py::test_les_deux_tables_de_reference_verticale_sont_disjointes
 packages/x10-connectors/tests/test_contract_inventory.py::test_les_deux_vues_sont_dans_le_meme_ordre
 packages/x10-connectors/tests/test_contract_inventory.py::test_sans_echeance_la_capacite_est_inconnue_et_non_nulle
 packages/x10-connectors/tests/test_contract_inventory.py::test_un_axe_de_membres_sans_coordonnee_ne_se_devine_pas
@@ -106,6 +107,7 @@ packages/x10-connectors/tests/test_ecmwf_ifs.py::test_une_requete_d_ensemble_tra
 packages/x10-connectors/tests/test_ecmwf_ifs.py::test_une_requete_deterministe_ne_porte_aucune_cle_de_membre
 packages/x10-connectors/tests/test_ecmwf_ifs.py::test_une_requete_mars_est_emise_par_parametre
 packages/x10-connectors/tests/test_grib2.py::test_aucun_fichier_d_index_n_est_depose
+packages/x10-connectors/tests/test_grib2.py::test_aucun_nom_cf_n_est_ecrit_en_dur
 packages/x10-connectors/tests/test_grib2.py::test_chaque_nom_cf_emis_existe_au_tableau_officiel
 packages/x10-connectors/tests/test_grib2.py::test_cumul_et_ensemble_ne_se_combinent_pas_en_silence
 packages/x10-connectors/tests/test_grib2.py::test_ecarter_le_vent_derive_allege_sans_rien_perdre
@@ -121,6 +123,7 @@ packages/x10-connectors/tests/test_grib2.py::test_la_tolerance_reste_accessible_
 packages/x10-connectors/tests/test_grib2.py::test_le_coefficient_de_trainee_des_vagues_reste_sans_nom
 packages/x10-connectors/tests/test_grib2.py::test_le_meme_triplet_sous_un_autre_gabarit_n_est_pas_nomme
 packages/x10-connectors/tests/test_grib2.py::test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale
+packages/x10-connectors/tests/test_grib2.py::test_le_releve_des_noms_cf_couvre_les_trois_sources
 packages/x10-connectors/tests/test_grib2.py::test_le_triplet_grib_est_remonte
 packages/x10-connectors/tests/test_grib2.py::test_le_vent_derive_est_bien_celui_qui_est_ecarte
 packages/x10-connectors/tests/test_grib2.py::test_les_absences_de_nom_cf_sont_declarees_et_non_subies
@@ -236,6 +239,7 @@ packages/x10-connectors/tests/test_netcdf_cf.py::test_le_referentiel_est_decrit_
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_attributs_cf_attendus_sont_poses
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_bornes_n_ont_pas_d_unite_propre
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_coordonnees_survivent_a_l_aller_retour
+packages/x10-connectors/tests/test_netcdf_cf.py::test_les_deux_tables_de_methodes_sont_disjointes
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_unites_connues_se_traduisent_en_udunits
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_valeurs_explicites_l_emportent_sur_celles_du_lignage
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_valeurs_manquantes_restent_manquantes
