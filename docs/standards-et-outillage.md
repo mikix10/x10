@@ -328,16 +328,30 @@ exactement le cas qu'il faut rendre visible.
 
 | Invariant | Mode |
 |---|---|
-| Tout nom CF émis existe au tableau officiel et n'est pas devenu un alias | automatique, test réseau |
+| **Tout** nom CF émis existe au tableau officiel et n'est pas devenu un alias | automatique, test réseau |
+| **Aucun nom CF n'est écrit en dur** : tous viennent d'une table relevée | automatique, par analyse du code |
 | Toute unité émise est acceptée par UDUNITS, et la conversion préserve la définition réduite | automatique |
-| Les ensembles d'exception sont deux à deux disjoints | automatique, **sur une paire des trois** |
+| Les tables d'exception sont deux à deux disjointes de leur table positive | automatique, **sur les trois paires** |
 | La version de tables déclarée par un producteur reste inférieure à celle que notre outillage résout | automatique, test réseau |
-| Les noms de la table de références verticales existent au tableau CF | **non outillé** |
 | Aucun défaut de dépendance n'est hérité sans être recensé | **non outillé** |
-| Les tables d'exception sont confrontées à une table tierce de clé compatible | **non outillé** |
+| Les tables de correspondance sont confrontées à une table tierce de clé compatible | **non outillé** |
 | Aucune assertion n'est tracée comme révision d'une précédente | **non outillé** |
 
-Les quatre derniers sont des `untested` assumés. Les écrire est l'objet du
+**Trois de ces invariants ont été outillés le 19/10/2026**, après que le
+modèle les eut nommés — ce qui est précisément son intérêt. Le relevé avait
+d'ailleurs manqué un gisement : `wind_speed` et `wind_from_direction`
+étaient écrits **en dur** dans deux fonctions, donc hors du contrôle qui
+confronte nos noms au tableau officiel. Ils sont passés en table, et un
+contrôle par analyse du code **ferme la classe plutôt que le cas** — un nom
+CF ne peut plus réapparaître en littéral sans faire échouer la suite.
+
+Les deux disjonctions manquantes avaient la même forme et le même silence :
+`cell_method` consulte `WITHOUT_CELL_METHOD` **avant** `CELL_METHODS`, et
+`_vertical` consulte `WITHOUT_VERTICAL_REFERENCE` avant `CF_VERTICAL`. Une
+entrée présente des deux côtés aurait gagné sans un mot, et un cumul se
+serait présenté comme un instantané.
+
+Les trois derniers restent des `untested` assumés. Les écrire est l'objet du
 modèle ; les outiller est un travail distinct.
 
 ---

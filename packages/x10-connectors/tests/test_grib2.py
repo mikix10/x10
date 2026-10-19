@@ -7,12 +7,16 @@ cumuls et le vent.
 
 from __future__ import annotations
 
+import pathlib
+
 import numpy as np
 import pytest
 from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 
+from x10_connectors.contract import CF_VERTICAL
 from x10_connectors.grib2 import (
     AMBIGUOUS_TRIPLETS,
+    CF_DERIVED,
     CF_STANDARD_NAMES,
     DERIVED_WIND,
     OPTIONS_CFGRIB,
@@ -429,8 +433,9 @@ def test_chaque_nom_cf_emis_existe_au_tableau_officiel():
     alias = {e.get("id") for e in racine.iter("alias")}
     assert len(officiels) > 4000, "tableau CF inattendu : trop peu d'entrées"
 
-    inconnus = sorted(set(CF_STANDARD_NAMES.values()) - officiels)
-    perimes = sorted(set(CF_STANDARD_NAMES.values()) & alias)
+    emis = noms_cf_emis()
+    inconnus = sorted(emis - officiels)
+    perimes = sorted(emis & alias)
     assert inconnus == [], (
         f"Nom(s) absent(s) du tableau CF {racine.findtext('version_number')} : "
         f"{inconnus}. Un nom inventé rend un fichier non conforme en silence."
@@ -465,3 +470,73 @@ def test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale():
     spectrale que sa description distingue du paramètre global. `mwd` est
     global."""
     assert CF_STANDARD_NAMES[(10, 0, 14)] == "sea_surface_wave_from_direction"
+
+
+def noms_cf_emis() -> set[str]:
+    """Tous les noms standards CF que la chaîne peut écrire dans un fichier.
+
+    **Trois sources, et c'est le point.** Le contrôle ne balayait que la
+    première, de sorte que deux gisements entiers échappaient à la
+    vérification : les références verticales, et les grandeurs que nous
+    calculons. Les énumérer ici resterait fragile sans
+    `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui prouve par analyse du code
+    qu'aucune quatrième source n'existe.
+    """
+    return (
+        set(CF_STANDARD_NAMES.values()) | set(CF_DERIVED) | {nom for nom, _ in CF_VERTICAL.values()}
+    )
+
+
+def test_le_releve_des_noms_cf_couvre_les_trois_sources():
+    """Un garde-fou du garde-fou : si une table cessait d'être relevée, le
+    test réseau passerait en ne vérifiant plus rien."""
+    emis = noms_cf_emis()
+    assert set(CF_STANDARD_NAMES.values()) <= emis
+    assert set(CF_DERIVED) <= emis
+    assert {nom for nom, _ in CF_VERTICAL.values()} <= emis
+    assert len(emis) >= len(CF_STANDARD_NAMES) + len(CF_DERIVED)
+
+
+def test_aucun_nom_cf_n_est_ecrit_en_dur():
+    """Un nom CF posé en dur échappe au contrôle qui le confronte au tableau.
+
+    C'est exactement ce qui s'était produit : `wind_speed` et
+    `wind_from_direction` vivaient dans le corps de deux fonctions, donc
+    invisibles du test réseau. Ce contrôle ferme la classe plutôt que le cas
+    — il analyse le code et exige que **tout** `standard_name` émis vienne
+    d'une table, jamais d'un littéral.
+    """
+    import ast
+
+    racine = pathlib.Path(__file__).resolve().parents[1] / "src" / "x10_connectors"
+    fautifs: list[str] = []
+    for chemin in sorted(racine.rglob("*.py")):
+        arbre = ast.parse(chemin.read_text(encoding="utf-8"))
+        for noeud in ast.walk(arbre):
+            # Forme `{"standard_name": "air_temperature"}`.
+            if isinstance(noeud, ast.Dict):
+                for cle, valeur in zip(noeud.keys, noeud.values, strict=True):
+                    if (
+                        isinstance(cle, ast.Constant)
+                        and cle.value == "standard_name"
+                        and isinstance(valeur, ast.Constant)
+                        and isinstance(valeur.value, str)
+                    ):
+                        fautifs.append(f"{chemin.name}:{noeud.lineno} -> {valeur.value!r}")
+            # Forme `attrs["standard_name"] = "air_temperature"`.
+            if isinstance(noeud, ast.Assign) and isinstance(noeud.value, ast.Constant):
+                for cible in noeud.targets:
+                    if (
+                        isinstance(cible, ast.Subscript)
+                        and isinstance(cible.slice, ast.Constant)
+                        and cible.slice.value == "standard_name"
+                        and isinstance(noeud.value.value, str)
+                    ):
+                        fautifs.append(f"{chemin.name}:{noeud.lineno} -> {noeud.value.value!r}")
+
+    assert fautifs == [], (
+        "Nom(s) CF écrit(s) en dur, donc hors du contrôle qui les confronte au "
+        f"tableau officiel : {fautifs}. Les poser dans une table — "
+        "`CF_STANDARD_NAMES`, `CF_DERIVED` ou `CF_VERTICAL` — et les relever "
+        "dans `noms_cf_emis`."
+    )
