@@ -16,6 +16,23 @@ from .availability import Availability, observe
 from .config import MissingConfiguration, Settings
 from .credentials import Credentials, MissingCredential
 from .options import DEFAULT_OPTIONS, NormaliseOptions
+from .probes import (
+    Assertion,
+    Handling,
+    InvalidCatalogue,
+    Mode,
+    Nature,
+    Outcome,
+    Probe,
+    ProbeReport,
+    Registered,
+    Replay,
+    Side,
+    Status,
+    as_tsv,
+    load,
+    run,
+)
 from .report import (
     ErrorType,
     GranuleReport,
@@ -27,18 +44,33 @@ from .session import Session, UnknownRequest
 
 __all__ = [
     "DEFAULT_OPTIONS",
+    "Assertion",
     "Availability",
     "Credentials",
     "ErrorType",
     "GranuleReport",
+    "Handling",
+    "InvalidCatalogue",
     "MissingConfiguration",
     "MissingCredential",
+    "Mode",
+    "Nature",
     "NormaliseOptions",
+    "Outcome",
     "PipelineReport",
+    "Probe",
+    "ProbeReport",
+    "Registered",
+    "Replay",
     "Session",
     "Settings",
+    "Side",
+    "Status",
     "UnknownRequest",
     "Verdict",
+    "as_tsv",
     "contract_fingerprint",
+    "load",
     "observe",
+    "run",
 ]

@@ -11,21 +11,36 @@ x10_catalog.Registry.entries
 x10_catalog.__all__: CatalogEntry
 x10_catalog.__all__: Query
 x10_catalog.__all__: Registry
+x10_client.__all__: Assertion
 x10_client.__all__: Availability
 x10_client.__all__: Credentials
 x10_client.__all__: DEFAULT_OPTIONS
 x10_client.__all__: ErrorType
 x10_client.__all__: GranuleReport
+x10_client.__all__: Handling
+x10_client.__all__: InvalidCatalogue
 x10_client.__all__: MissingConfiguration
 x10_client.__all__: MissingCredential
+x10_client.__all__: Mode
+x10_client.__all__: Nature
 x10_client.__all__: NormaliseOptions
+x10_client.__all__: Outcome
 x10_client.__all__: PipelineReport
+x10_client.__all__: Probe
+x10_client.__all__: ProbeReport
+x10_client.__all__: Registered
+x10_client.__all__: Replay
 x10_client.__all__: Session
 x10_client.__all__: Settings
+x10_client.__all__: Side
+x10_client.__all__: Status
 x10_client.__all__: UnknownRequest
 x10_client.__all__: Verdict
+x10_client.__all__: as_tsv
 x10_client.__all__: contract_fingerprint
+x10_client.__all__: load
 x10_client.__all__: observe
+x10_client.__all__: run
 x10_client.availability.Availability.bytes_total
 x10_client.availability.Availability.last_run
 x10_client.availability.Availability.median_duration_ms
@@ -52,6 +67,72 @@ x10_client.options.NormaliseOptions.strict_units
 x10_client.options.NormaliseOptions.write
 x10_client.options.__all__: DEFAULT_OPTIONS
 x10_client.options.__all__: NormaliseOptions
+x10_client.probes.Assertion.detail
+x10_client.probes.Assertion.duration_ns
+x10_client.probes.Assertion.identifier
+x10_client.probes.Assertion.observed_at
+x10_client.probes.Assertion.outcome
+x10_client.probes.Handling.DOCUMENTED = 'documented'
+x10_client.probes.Handling.ENDURED = 'endured'
+x10_client.probes.Handling.NOT_APPLICABLE = 'not_applicable'
+x10_client.probes.Handling.WORKED_AROUND = 'worked_around'
+x10_client.probes.Mode.AUTOMATIC = 'automatic'
+x10_client.probes.Mode.MANUAL = 'manual'
+x10_client.probes.Mode.UNTESTED = 'untested'
+x10_client.probes.Nature.DATA_QUALITY = 'data_quality'
+x10_client.probes.Nature.DIVERGENCE = 'divergence'
+x10_client.probes.Nature.NON_CONFORMITY = 'non_conformity'
+x10_client.probes.Outcome.CANT_TELL = 'cantTell'
+x10_client.probes.Outcome.FAILED = 'failed'
+x10_client.probes.Outcome.PASSED = 'passed'
+x10_client.probes.Outcome.UNTESTED = 'untested'
+x10_client.probes.Probe.artefact
+x10_client.probes.Probe.clause
+x10_client.probes.Probe.fixed_on
+x10_client.probes.Probe.handled_in
+x10_client.probes.Probe.handling
+x10_client.probes.Probe.identifier
+x10_client.probes.Probe.mode
+x10_client.probes.Probe.nature
+x10_client.probes.Probe.observed_on
+x10_client.probes.Probe.producer
+x10_client.probes.Probe.replay
+x10_client.probes.Probe.replay_note
+x10_client.probes.Probe.side
+x10_client.probes.Probe.status
+x10_client.probes.Probe.status_note
+x10_client.probes.Probe.title
+x10_client.probes.Probe.workaround
+x10_client.probes.ProbeReport.assertions
+x10_client.probes.ProbeReport.started_at
+x10_client.probes.Registered.check
+x10_client.probes.Registered.origine
+x10_client.probes.Registered.probe
+x10_client.probes.Replay.OPEN = 'open'
+x10_client.probes.Replay.RESTRICTED = 'restricted'
+x10_client.probes.Side.SOURCE = 'source'
+x10_client.probes.Side.X10 = 'x10'
+x10_client.probes.Status.CONFIRMED = 'confirmed'
+x10_client.probes.Status.UNDER_INVESTIGATION = 'under_investigation'
+x10_client.probes.Status.WITHDRAWN = 'withdrawn'
+x10_client.probes.__all__: Assertion
+x10_client.probes.__all__: COLUMNS
+x10_client.probes.__all__: Handling
+x10_client.probes.__all__: InvalidCatalogue
+x10_client.probes.__all__: Mode
+x10_client.probes.__all__: Nature
+x10_client.probes.__all__: Outcome
+x10_client.probes.__all__: PREFIX
+x10_client.probes.__all__: PRIVATE
+x10_client.probes.__all__: Probe
+x10_client.probes.__all__: ProbeReport
+x10_client.probes.__all__: Registered
+x10_client.probes.__all__: Replay
+x10_client.probes.__all__: Side
+x10_client.probes.__all__: Status
+x10_client.probes.__all__: as_tsv
+x10_client.probes.__all__: load
+x10_client.probes.__all__: run
 x10_client.report.ErrorType.CELL_METHODS = 'cell_methods'
 x10_client.report.ErrorType.DECODE = 'decode'
 x10_client.report.ErrorType.INTERVAL = 'interval'

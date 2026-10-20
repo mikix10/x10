@@ -37,10 +37,18 @@ URL_LITTERALE = re.compile(r"""["'](http://[^"'\s]+)["']""")
 
 
 def _sources() -> list[Path]:
+    """Tout ce qui peut émettre une requête — `probes/` compris.
+
+    Le catalogue de sondes a été ajouté le 20/10/2026, et c'est une
+    correction : il est **par nature** émetteur de requêtes sortantes, et il
+    échappait donc à l'invariant que ce fichier existe pour tenir. Un dossier
+    hors `src/` n'est pas pour autant hors de la surface d'attaque.
+    """
     trouves: list[Path] = []
     for famille in ("packages", "services"):
         for membre in sorted((RACINE / famille).glob("*")):
             trouves += sorted((membre / "src").rglob("*.py"))
+    trouves += sorted((RACINE / "probes").glob("*.py"))
     return trouves
 
 
@@ -79,3 +87,46 @@ def test_aucune_url_en_clair_n_est_requetee():
         for m in URL_LITTERALE.finditer(c.read_text(encoding="utf-8"))
     ]
     assert fautifs == [], f"URL non chiffrée(s) dans les sources : {fautifs}"
+
+
+#: Les appels sortants admis, et le module qui a le droit de les faire. Une
+#: sonde passe par cet utilitaire plutôt que d'ouvrir une connexion elle-même,
+#: de sorte que le délai maximal et la rédaction des secrets tiennent en un
+#: seul endroit.
+EMETTEUR_ADMIS = "probes/_access.py"
+
+#: Ouvrir une connexion soi-même, sans passer par l'utilitaire.
+OUVERTURE_DIRECTE = re.compile(r"\b(urlopen|urlretrieve|socket\.|http\.client)")
+
+
+def test_une_sonde_ne_requete_que_par_l_utilitaire():
+    """Le délai maximal et la rédaction tiennent en un seul endroit.
+
+    Le skill de sécurité exige un `timeout` explicite sur toute requête et
+    interdit qu'un secret parte au journal. Les deux sont assurés par
+    `probes/_access.py` ; une sonde qui ouvrirait sa propre connexion
+    contournerait les deux sans qu'aucune relecture ne le voie.
+    """
+    fautifs = [
+        c.name
+        for c in sorted((RACINE / "probes").glob("*.py"))
+        if c.name != Path(EMETTEUR_ADMIS).name
+        and OUVERTURE_DIRECTE.search(c.read_text(encoding="utf-8"))
+    ]
+    assert fautifs == [], (
+        f"Ces sondes ouvrent une connexion sans passer par {EMETTEUR_ADMIS} : "
+        f"{fautifs}. Le délai maximal et la rédaction des secrets y seraient perdus."
+    )
+
+
+def test_l_utilitaire_des_sondes_borne_toutes_ses_requetes():
+    """Jamais de requête sans délai maximal — et celui-ci est une constante.
+
+    Mesuré sur deux clients officiels d'ECMWF : leurs reprises par défaut
+    autorisent seize heures d'attente. Une sonde qui hériterait d'un délai
+    implicite reproduirait le défaut qu'elle est censée constater.
+    """
+    texte = (RACINE / EMETTEUR_ADMIS).read_text(encoding="utf-8")
+    assert "TIMEOUT = " in texte
+    for appel in re.finditer(r"urlopen\(([^)]*)\)", texte):
+        assert "timeout=" in appel.group(1), appel.group(0)
