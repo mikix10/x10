@@ -10,10 +10,6 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        # Dans un TSV, une tabulation finale **est une donnée** : elle marque
-        # une colonne vide. La retirer décalerait les champs d'un cran et
-        # ferait échouer la comparaison au registre engendré.
-        exclude: \.tsv$
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml

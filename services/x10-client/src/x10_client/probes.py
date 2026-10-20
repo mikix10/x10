@@ -390,7 +390,6 @@ COLUMNS = (
     "artefact",
     "observed_on",
     "clause",
-    "workaround",
     "handling",
     "handled_in",
     "mode",
@@ -398,6 +397,13 @@ COLUMNS = (
     "replay_note",
     "fixed_on",
     "status_note",
+    # **La dernière colonne est obligatoire, et ce n'est pas une question de
+    # mise en forme.** Un champ facultatif en fin de ligne y laisserait une
+    # tabulation finale, que `trailing-whitespace` retirerait — et la retirer
+    # décalerait tous les champs d'un cran. Fermer la ligne sur un champ que
+    # le modèle exige non vide évite à la fois d'exclure le hook et d'ajouter
+    # une colonne factice dont personne ne saurait quoi faire.
+    "workaround",
 )
 
 
@@ -410,9 +416,14 @@ def as_tsv(probes: Iterable[Probe]) -> str:
     """
 
     def cell(value: object) -> str:
+        """Une cellule sans séparateur, sans saut de ligne et sans blanc de bord.
+
+        L'élagage n'est pas cosmétique : un blanc en fin de dernière cellule
+        suffirait à rouvrir le problème que l'ordre des colonnes ferme.
+        """
         if value is None:
             return ""
-        return str(value).replace("\t", " ").replace("\n", " ").replace("\r", "")
+        return str(value).replace("\t", " ").replace("\n", " ").replace("\r", "").strip()
 
     lines = ["\t".join(COLUMNS)]
     for probe in sorted(probes, key=lambda s: s.identifier):

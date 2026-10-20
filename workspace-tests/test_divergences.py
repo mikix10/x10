@@ -51,6 +51,23 @@ def test_le_registre_commite_est_celui_du_catalogue(registered) -> None:
     assert REGISTRE.read_text(encoding="utf-8") == attendu
 
 
+def test_aucune_ligne_du_registre_ne_finit_par_un_blanc(registered) -> None:
+    """La dernière colonne est obligatoire, et rien ne doit le défaire.
+
+    Un champ facultatif en fin de ligne y laisserait une tabulation finale,
+    que le hook `trailing-whitespace` retirerait — et la retirer décalerait
+    tous les champs d'un cran, rendant le registre faux sans que rien ne le
+    signale. Ce test tient la propriété pour que le prochain réordonnancement
+    de colonnes se voie, plutôt que d'exclure le hook ou d'ajouter une
+    colonne factice.
+    """
+    from x10_client.probes import COLUMNS, Probe, as_tsv
+
+    assert Probe.model_fields[COLUMNS[-1]].is_required(), COLUMNS[-1]
+    for ligne in as_tsv(e.probe for e in registered).splitlines():
+        assert ligne == ligne.rstrip(), repr(ligne[-40:])
+
+
 def test_la_numerotation_est_continue_et_sans_doublon(registered) -> None:
     """Un trou signale une entrée perdue ; un retrait garde son numéro.
 
