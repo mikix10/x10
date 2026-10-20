@@ -3,8 +3,9 @@
 Note technique à l'usage de qui intègre X10, contribue au dépôt, ou maintient
 l'une des sources que nous exploitons.
 
-> **État au 20/10/2026** — 14 entrées, dont 11 confirmées et 3 sous
-> instruction. 3 sont rejouables automatiquement. Registre :
+> **État au 20/10/2026** — 17 entrées, dont 15 confirmées et 2 sous
+> instruction. 6 sont rejouables automatiquement, dont une **sans rien
+> demander** : ni réseau, ni identifiant. Registre :
 > [divergences.tsv](divergences.tsv). Catalogue : [`probes/`](../probes).
 > Mécanisme : `x10_client.probes`.
 
@@ -21,7 +22,7 @@ X10 fait en attendant.
 
 **C'est aussi la justification de la couche de normalisation.** Un lecteur
 qui se demande pourquoi X10 ne se contente pas de relayer des fichiers
-trouvera ici la réponse en quatorze cas concrets : entre ce qu'un producteur
+trouvera ici la réponse en dix-sept cas concrets : entre ce qu'un producteur
 sert et ce qu'un consommateur peut exploiter sans se tromper, il y a un
 travail, et il est mesurable.
 
@@ -35,14 +36,14 @@ a tort.
 pourquoi le titre dit « ce que X10 doit redresser » et non « ce que la
 normalisation doit redresser », le dépôt employant ce mot au sens strict de
 la fonction `normalise()`. Réparties sur les cinq temps de la chaîne —
-**acquérir, vérifier, normaliser, décrire, exposer** —, les quatorze entrées
-se logent ainsi :
+**acquérir, vérifier, normaliser, décrire, exposer** —, les entrées se logent
+ainsi :
 
 | Étape | Entrées |
 |---|---|
 | acquérir | 4, plus une partagée |
 | vérifier | 1 |
-| normaliser | 6, plus une partagée |
+| normaliser | 9, plus une partagée |
 | décrire | 2 |
 | **exposer** | **0** |
 
@@ -131,7 +132,7 @@ continue ne les lance pas et personne ne les rejoue à notre place. Les dates
 disent quand nous avons regardé, pas que l'état décrit vaut aujourd'hui.
 Tenir la table nous revient ; la rejouer est ouvert à quiconque.
 
-**L'exhaustivité.** Quatorze entrées sortent de deux journées de relevé sur
+**L'exhaustivité.** Dix-sept entrées sortent de deux journées de relevé sur
 deux producteurs. Il y en a d'autres, et des pans entiers n'ont pas été
 examinés — observations in-situ, projections climatiques, produits
 satellitaires.
