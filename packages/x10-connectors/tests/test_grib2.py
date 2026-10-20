@@ -16,6 +16,7 @@ from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 from x10_connectors.contract import CF_VERTICAL
 from x10_connectors.grib2 import (
     AMBIGUOUS_TRIPLETS,
+    CF_BY_PARAM_ID,
     CF_DERIVED,
     CF_STANDARD_NAMES,
     DERIVED_WIND,
@@ -475,23 +476,28 @@ def test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale():
 def noms_cf_emis() -> set[str]:
     """Tous les noms standards CF que la chaîne peut écrire dans un fichier.
 
-    **Trois sources, et c'est le point.** Le contrôle ne balayait que la
+    **Quatre sources désormais.** Le contrôle ne balayait d'abord que la
     première, de sorte que deux gisements entiers échappaient à la
     vérification : les références verticales, et les grandeurs que nous
-    calculons. Les énumérer ici resterait fragile sans
-    `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui prouve par analyse du code
-    qu'aucune quatrième source n'existe.
+    calculons. La quatrième est arrivée avec l'édition 1 — `CF_BY_PARAM_ID`,
+    indexée par `paramId` et non par triplet. Les énumérer ici resterait
+    fragile sans `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui prouve par
+    analyse du code qu'aucune cinquième source n'existe.
     """
     return (
-        set(CF_STANDARD_NAMES.values()) | set(CF_DERIVED) | {nom for nom, _ in CF_VERTICAL.values()}
+        set(CF_STANDARD_NAMES.values())
+        | set(CF_BY_PARAM_ID.values())
+        | set(CF_DERIVED)
+        | {nom for nom, _ in CF_VERTICAL.values()}
     )
 
 
-def test_le_releve_des_noms_cf_couvre_les_trois_sources():
+def test_le_releve_des_noms_cf_couvre_les_quatre_sources():
     """Un garde-fou du garde-fou : si une table cessait d'être relevée, le
     test réseau passerait en ne vérifiant plus rien."""
     emis = noms_cf_emis()
     assert set(CF_STANDARD_NAMES.values()) <= emis
+    assert set(CF_BY_PARAM_ID.values()) <= emis
     assert set(CF_DERIVED) <= emis
     assert {nom for nom, _ in CF_VERTICAL.values()} <= emis
     assert len(emis) >= len(CF_STANDARD_NAMES) + len(CF_DERIVED)

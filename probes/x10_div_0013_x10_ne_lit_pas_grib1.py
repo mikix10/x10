@@ -46,6 +46,35 @@ nulle part ne nomme.
 **Résidu après travail : deux champs sur quatorze**, tous deux de tables
 locales de Météo-France.
 
+## Fait le 20/10/2026
+
+La garde est posée, et `paramId` est devenu l'axe du nommage. Vérifié sur
+les huit granules du corpus : **douze des quatorze champs sont nommés**, et
+les deux restants sont exactement ceux que le diagnostic annonçait —
+`paramId = 0`, tables locales, rien nulle part ne les nomme.
+
+Quatre choses ont été nécessaires, et aucune n'était grosse :
+
+**`file_triplets`** reçoit une garde : un message d'édition 1 n'a pas de
+triplet, et le dire n'est pas échouer.
+
+**`identity` et `file_identities`** font suivre l'identité à l'édition —
+`(1, table2Version, indicatorOfParameter)` ou `(2, triplet)`. Sans cela la
+détection de perte serait **aveugle** sur l'édition 1 : elle dirait « rien
+perdu » quoi qu'il arrive, ce qui est pire qu'un échec.
+
+**`cf_name_for_param_id`** est le second passage, hors ligne, qui récupère
+six champs à lui seul.
+
+**`CF_BY_PARAM_ID`** porte deux entrées, pour ce qu'aucune autre voie
+n'atteint.
+
+**Ce que l'entrée ne couvre pas, et qui reste ouvert** : `check_local_tables`
+ne voit rien en édition 1, alors que le concept y existe — une
+`table2Version` supérieure ou égale à 128 désigne une table locale du
+centre. Le contrôle dégrade donc en silence plutôt que de signaler. C'est
+une entrée à part, pas un reste de celle-ci.
+
 ## L'ampleur, qui justifie d'en faire un chantier
 
 ERA5 et CAMS chez Copernicus, MFWAM, WaveWatch III et HYCOM2D chez
@@ -71,11 +100,12 @@ PROBE = Probe(
     producer="X10",
     artefact="x10-connectors, grib2.file_triplets et CF_STANDARD_NAMES",
     workaround=(
-        "Aucun à ce jour. Le chantier est décidé : une garde dans "
-        "`file_triplets` pour la lecture, puis `paramId` comme second axe "
-        "d'indexation de la correspondance."
+        "Fait. Garde dans `file_triplets`, identité propre à chaque édition, "
+        "nommage par `paramId` avec second passage hors ligne, et "
+        "`CF_BY_PARAM_ID` pour le reste. Douze champs sur quatorze nommés."
     ),
-    handling=Handling.ENDURED,
+    handling=Handling.WORKED_AROUND,
+    handled_in="0.1.0",
     mode=Mode.UNTESTED,
     replay_note=(
         "Appeler `grib2.open_granule` sur un granule d'édition 1 ; attendu "
