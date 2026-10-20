@@ -1,4 +1,4 @@
-# Écarts observés — ce que la normalisation doit redresser
+# Écarts observés — ce que X10 doit redresser
 
 Note technique à l'usage de qui intègre X10, contribue au dépôt, ou maintient
 l'une des sources que nous exploitons.
@@ -28,9 +28,29 @@ travail, et il est mesurable.
 **« Redresser » est le mot juste**, et il a été choisi contre deux autres.
 « Absorber » ne dirait que l'entrée ; « corriger » accuserait la source, ce
 qui est faux d'une divergence qui ne viole rien. Redresser dit ce que fait la
-couche : l'entrée est de travers, la sortie est droite, sans préjuger de qui
-a tort. Une minorité d'entrées ne touche d'ailleurs pas la donnée mais
-seulement l'accès — on les contourne, et la colonne `nature` les distingue.
+chaîne : l'entrée est de travers, la sortie est droite, sans préjuger de qui
+a tort.
+
+**Et le redressement n'est pas l'affaire de la seule normalisation** — c'est
+pourquoi le titre dit « ce que X10 doit redresser » et non « ce que la
+normalisation doit redresser », le dépôt employant ce mot au sens strict de
+la fonction `normalise()`. Réparties sur les cinq temps de la chaîne —
+**acquérir, vérifier, normaliser, décrire, exposer** —, les quatorze entrées
+se logent ainsi :
+
+| Étape | Entrées |
+|---|---|
+| acquérir | 4, plus une partagée |
+| vérifier | 1 |
+| normaliser | 6, plus une partagée |
+| décrire | 2 |
+| **exposer** | **0** |
+
+Le zéro est le chiffre qui compte : **`exposer` est la seule étape où plus
+rien ne doit être de travers.** Tout ce qui précède redresse ; ce qui sort
+n'a plus à l'être. Cette répartition est un jugement sur ce qu'absorbe
+chaque étape, non une mesure — elle se lit entrée par entrée dans la colonne
+`workaround`.
 
 ## Nous pouvons nous tromper, et nous demandons qu'on nous le dise
 
