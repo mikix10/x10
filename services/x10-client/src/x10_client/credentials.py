@@ -18,10 +18,42 @@ entasser deux valeurs dans une variable avec un séparateur, et les voir se
 mélanger au premier identifiant contenant ce séparateur.
 
 > Relevé le 16/10/2026 : le CDS actuel attend **un** jeton d'accès personnel,
-> la forme `UID:clé` étant obsolète. Mais son URL de base diffère de celle de
-> l'ADS, et une source à deux parts reste la règle ailleurs. Le modèle ne
-> coûte rien de plus et n'oblige à aucun changement de schéma à la prochaine
-> source.
+> la forme `UID:clé` étant obsolète. Le modèle à parts ne coûte rien de plus
+> et n'oblige à aucun changement de schéma à la prochaine source.
+
+**La source est l'émetteur de l'identifiant, pas le catalogue** — et c'est
+une mesure qui l'a tranché, non une intuition. Le 19/10/2026, un seul jeton
+d'accès personnel, un UUID de 36 caractères, est reconnu par **trois**
+magasins : CDS, ADS et EWDS. Les profils rendus par CDS et ADS portent le
+même `sub`, le même `id` et le même `email`. Une identité, trois catalogues.
+
+Découper par catalogue aurait fait stocker le même secret à trois endroits —
+trois places à faire tourner, trois à fuir, et aucune révocation séparée
+possible puisque le compte ECMWF est unique.
+
+**Le piège qui déguise cela en deux comptes** : l'acceptation des politiques
+est tenue **par magasin**, pas par compte. ADS et EWDS répondent `403` en
+nommant les politiques manquantes, là où un jeton inconnu rendrait `401`.
+Lire le premier comme le second conclurait à deux identifiants distincts, et
+le modèle en porterait la trace pour longtemps.
+
+**La bascule du producteur n'est pas récente, et la mesure l'est.** L'ancien
+CDS et l'ancien ADS ont été annoncés pour décommissionnement au 26/09/2024,
+au profit d'une infrastructure commune exigeant un compte ECMWF. Mais cette
+annonce **ne dit pas** qu'un même jeton ouvre les trois magasins : c'est
+notre relevé qui l'établit, d'où une date à nous et non la sienne.
+
+**Et le relevé a une péremption annoncée.** Une mise à jour des conditions
+d'usage de l'ADS est annoncée pour le **28/10/2026** sur la page des
+conditions ; une nouvelle révision ramènerait le `403` ci-dessus jusqu'à
+nouvelle acceptation. À consigner tel quel : une récupération **anonyme** de
+cette page ne montre pas cet avis, elle ne rend que « Version 1.0 (January
+2020) » sous un titre « rev. 1 ».
+
+**Aucun test ne vérifie encore tout cela** : il exigerait le client
+`ecmwf-datastores-client`, qui n'entre aux dépendances qu'avec le connecteur.
+C'est donc un invariant énoncé et non outillé — le dire vaut mieux que de
+laisser croire qu'il est tenu.
 
 **Ce qui rend la chose sûre est mesuré, pas supposé.** `SecretStr` rédige sur
 tous les chemins que X10 emprunte — `repr`, `str`, f-string, `model_dump`,
@@ -55,19 +87,20 @@ from x10_connectors.observability import SecretRedactor
 #: rendre une absence, un nom mal orthographié étant sinon indiscernable d'un
 #: identifiant non posé.
 #:
-#: Une variable **par part et par source** : un secret partagé entre deux
-#: sources serait impossible à révoquer pour l'une sans casser l'autre, et
-#: deux parts dans une même variable se mélangeraient au premier identifiant
-#: contenant le séparateur.
+#: Une variable **par part et par source**, la *source* étant l'émetteur de
+#: l'identifiant et non le catalogue : un secret partagé entre deux sources
+#: serait impossible à révoquer pour l'une sans casser l'autre, et deux parts
+#: dans une même variable se mélangeraient au premier identifiant contenant
+#: le séparateur.
 #:
 #: Ce sont des identifiants **de longue durée**. Le jeton éphémère qu'ils
 #: permettent d'obtenir n'a pas sa place ici — voir `Credentials`.
 ENVIRONMENT: dict[str, dict[str, str]] = {
     # Identifiant d'application, qui sert a obtenir un jeton d'une heure.
     "meteofrance": {"application_id": "X10_MF_APPLICATION_ID"},
-    # Jeton d'acces personnel. La forme `UID:cle` est obsolete depuis 2025.
-    "cds": {"token": "X10_CDS_TOKEN"},
-    "ads": {"token": "X10_ADS_TOKEN"},
+    # Un seul jeton d'acces personnel ouvre CDS, ADS et EWDS : un emetteur,
+    # donc une entree. La forme `UID:cle` est obsolete depuis 2025.
+    "ecmwf_datastores": {"token": "X10_ECMWF_DATASTORES_TOKEN"},
 }
 
 
@@ -121,7 +154,7 @@ class Credentials(BaseModel):
     def __repr__(self) -> str:
         """Dit quelles sources et quelles parts sont posées, jamais leur valeur.
 
-        Utile et sûr : `Credentials(parts={'cds': ['token']})` suffit à
+        Utile et sûr : `Credentials(parts={'ecmwf_datastores': ['token']})` suffit à
         diagnostiquer une configuration sans rien révéler.
         """
         detail = {source: sorted(p) for source, p in sorted(self.parts.items())}
