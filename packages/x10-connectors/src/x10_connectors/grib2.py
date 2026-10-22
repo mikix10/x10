@@ -299,6 +299,83 @@ TEMPLATE_RESTRICTED: dict[tuple[int, int, int], frozenset[int]] = {
     (10, 0, 3): frozenset({0}),
 }
 
+#: Les `stepType` qui désignent une **accumulation** sur la fenêtre de temps.
+#:
+#: Les deux, et pas seulement `accum` : `netcdf_cf.CELL_METHODS` rend
+#: `time: sum` pour `accum` **et** pour `sum`, et n'en retenir qu'un ferait
+#: échapper la moitié des cas. Un test apparie les deux tables.
+ACCUMULATED_STEP_TYPES = frozenset({"accum", "sum"})
+
+#: Jetons des noms CF qui désignent un **débit**, donc une grandeur rapportée
+#: à l'unité de temps.
+#:
+#: Une **règle** plutôt qu'une liste, sur le modèle de
+#: `netcdf_cf.DIRECTION_SUFFIXES` : CF documente qu'un *flux* est une quantité
+#: par unité de surface **et de temps**, et la construction est stable là où
+#: une énumération rouillerait. Elle ne sert qu'à **détecter** ; c'est
+#: `CF_ACCUMULATED` qui nomme, parce qu'un nom construit par concaténation
+#: échapperait au contrôle qui exige que tout nom émis soit valeur d'une
+#: table.
+#:
+#: **Des jetons, pas des terminaisons**, et c'est une correction du 22/10/2026 :
+#: CF compose ses noms par mots séparés d'un tiret bas, et le débit n'est pas
+#: toujours en dernier — `surface_downwelling_shortwave_flux_in_air` et
+#: `water_flux_into_sea_water` le portent au milieu. Une règle par suffixe en
+#: manquait la moitié.
+RATE_TOKENS = ("flux", "rate")
+
+#: Construction par laquelle CF nomme l'intégrale temporelle d'une grandeur.
+#:
+#: Elle **exclut** le nom de la règle ci-dessus, sans quoi le redressement se
+#: détruirait lui-même : l'intégrale d'un flux porte encore le mot `flux`, et
+#: un second passage la prendrait pour un débit qu'aucune table ne sait
+#: redresser — donc la retirerait. La correction doit être idempotente.
+INTEGRAL_PREFIX = "integral_wrt_time_of_"
+
+#: Nom de l'intégrale correspondant à un nom de débit, quand CF en offre un.
+#:
+#: **Indexée par le nom CF, pas par le triplet**, et c'est ce qui la rend
+#: juste. La correspondance est une propriété de la grandeur, non de son
+#: codage : elle vaut quel que soit le producteur ou le triplet employé. Une
+#: clé par triplet n'atteindrait en outre jamais les noms venus de la chaîne
+#: de décodage, qui sont posés sans passer par nos tables.
+#:
+#: **Le défaut qu'elle corrige est attesté sur donnée réelle**, et pour deux
+#: causes distinctes. `(0, 1, 52)` est nommé par l'OMM « Total precipitation
+#: rate » et **notre** table y posait `precipitation_flux` sur un cumul en
+#: `kg m-2` — voir la sonde `X10-DIV-0008`, où Météo-France et SMHI font le
+#: même usage. Et mesuré le 22/10/2026 sur ecCodes 2.49.0 et 2.50.0, le
+#: décodeur change l'unité selon le `stepType` — `W m-2` devient `J m-2` —
+#: mais **garde le nom CF du taux** ; `cfgrib` recopiant `cfName` dans
+#: `standard_name`, le nom fautif arrive déjà posé.
+#:
+#: **Piège vérifié** : `integral_of_…_wrt_time` est un **alias** au tableau
+#: CF, que le contrôle réseau rejette. La forme valide est
+#: `integral_wrt_time_of_…`.
+#: **Quatre entrées, et cinq absences délibérées.** Relevé au tableau CF
+#: version 95 le 22/10/2026, sur les onze débits que le catalogue Météo-France
+#: porte en cumul. CF publie l'intégrale de trois d'entre eux ; pour les cinq
+#: autres, aucune entrée n'est inscrite, et le repli les laisse sans nom :
+#:
+#: * `surface_upward_latent_heat_flux` et `surface_upward_sensible_heat_flux` —
+#:   CF ne publie que `integral_wrt_time_of_surface_downward_…`, de sens
+#:   **opposé**. Les y rattacher inverserait le signe des valeurs sans que rien
+#:   ne le signale ; une table nom vers nom ne sait pas changer un signe.
+#: * `surface_net_upward_longwave_flux`, et les deux variantes
+#:   `…_assuming_clear_sky` — CF n'offre rien, ni dans un sens ni dans l'autre.
+CF_ACCUMULATED: dict[str, str] = {
+    "precipitation_flux": "precipitation_amount",
+    "surface_downwelling_longwave_flux_in_air": (
+        "integral_wrt_time_of_surface_downwelling_longwave_flux_in_air"
+    ),
+    "surface_downwelling_shortwave_flux_in_air": (
+        "integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air"
+    ),
+    "surface_net_downward_shortwave_flux": (
+        "integral_wrt_time_of_surface_net_downward_shortwave_flux"
+    ),
+}
+
 #: Champs pour lesquels **CF n'a pas de nom**, vérifié et non supposé. Les
 #: énumérer vaut mieux que de les laisser se confondre avec un oubli de notre
 #: part : ce sont des candidats à proposer au tableau CF.
@@ -711,6 +788,40 @@ def _our_cf_name(variable: xr.DataArray) -> str | None:
     return nom if gabarit in admis else None
 
 
+def denotes_a_rate(standard_name: object) -> bool:
+    """Le nom désigne-t-il un débit, donc une grandeur par unité de temps ?
+
+    Une intégrale temporelle n'en est pas un, bien qu'elle porte le mot : la
+    traiter comme tel rendrait le redressement non idempotent.
+    """
+    if not isinstance(standard_name, str) or standard_name.startswith(INTEGRAL_PREFIX):
+        return False
+    return bool(set(standard_name.split("_")) & set(RATE_TOKENS))
+
+
+def _is_accumulated(variable: xr.DataArray) -> bool:
+    return str(variable.attrs.get("GRIB_stepType", "")) in ACCUMULATED_STEP_TYPES
+
+
+def _redress_accumulated(name: str | None, variable: xr.DataArray) -> str | None:
+    """Un nom de débit ne peut pas nommer un cumul.
+
+    La correction s'applique **au nom retenu**, quelle que soit la branche qui
+    l'a produit : la nôtre comme celle de la chaîne de décodage. C'est ce qui
+    permet de traiter d'une seule pièce deux causes distinctes — notre table
+    pour `(0, 1, 52)`, ecCodes pour `(0, 4, 7)`.
+
+    **Le repli est le cœur du dispositif.** Un nom de débit sur un cumul dont
+    `CF_ACCUMULATED` ne connaît pas l'intégrale sort **sans nom**, et l'écart
+    se voit — plutôt que de sortir faux en silence, ce que `CLAUDE.md` tient
+    pour le défaut le plus coûteux. La classe reste ainsi fermée : le
+    prochain cas se signale de lui-même au lieu de passer.
+    """
+    if name is None or not _is_accumulated(variable) or not denotes_a_rate(name):
+        return name
+    return CF_ACCUMULATED.get(name)
+
+
 def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """Pose `standard_name` sur les champs que notre table couvre.
 
@@ -718,13 +829,20 @@ def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     sinon celui de la chaîne de décodage ; sinon le nôtre. Quand aucun des
     trois ne donne de nom, **l'attribut est retiré** plutôt que laissé à sa
     valeur de remplissage — un champ sans nom standard doit se voir comme tel.
+
+    **Puis une correction, sur le nom retenu quelle qu'en soit l'origine** :
+    un nom de débit posé sur un cumul est remplacé par celui de l'intégrale,
+    ou retiré si CF n'en offre aucune. Elle vient après le choix, et non dans
+    l'une des branches, parce que le défaut qu'elle corrige se produit dans
+    les deux — notre table pour `(0, 1, 52)`, ecCodes pour `(0, 4, 7)`, dont
+    `cfgrib` recopie le `cfName` dans `standard_name` avant même que nous
+    regardions.
     """
     out = dataset.copy()
     for name, var in out.data_vars.items():
         existing = _usable_cf_name(var.attrs.get("standard_name"))
-        if existing:
-            continue
-        chosen = _usable_cf_name(var.attrs.get("GRIB_cfName")) or _our_cf_name(var)
+        chosen = existing or _usable_cf_name(var.attrs.get("GRIB_cfName")) or _our_cf_name(var)
+        chosen = _redress_accumulated(chosen, var)
         if chosen:
             out[name].attrs["standard_name"] = chosen
         else:
@@ -738,18 +856,22 @@ def normalise(dataset: xr.Dataset) -> xr.Dataset:
 
 
 __all__ = [
+    "ACCUMULATED_STEP_TYPES",
     "AMBIGUOUS_TRIPLETS",
     "ATTR_LOCAL_TABLES",
     "ATTR_TABLES_LATEST",
     "ATTR_TABLES_VERSION",
+    "CF_ACCUMULATED",
     "CF_DERIVED",
     "CF_STANDARD_NAMES",
     "COORD_UNDEFINED",
     "DERIVED_WIND",
     "GEO_KEYS",
+    "INTEGRAL_PREFIX",
     "LOCAL_USE_RANGE_START",
     "OPTIONS_CFGRIB",
     "PLACEHOLDER_CF",
+    "RATE_TOKENS",
     "READ_KEYS",
     "TEMPLATE_RESTRICTED",
     "VALUES_DTYPE",
@@ -759,6 +881,7 @@ __all__ = [
     "apply_cf_names",
     "check_local_tables",
     "check_tables_version",
+    "denotes_a_rate",
     "drop_derived_wind",
     "dropped_fields",
     "file_triplets",

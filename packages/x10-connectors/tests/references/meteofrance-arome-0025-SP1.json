@@ -52,6 +52,7 @@
         "discipline": "0",
         "parameterCategory": "2",
         "parameterNumber": "23",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "max",
         "typeOfLevel": "heightAboveGround"
       },
@@ -86,6 +87,7 @@
         "discipline": "0",
         "parameterCategory": "2",
         "parameterNumber": "22",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "max",
         "typeOfLevel": "heightAboveGround"
       },
@@ -120,6 +122,7 @@
         "discipline": "0",
         "parameterCategory": "2",
         "parameterNumber": "24",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "max",
         "typeOfLevel": "heightAboveGround"
       },
@@ -155,6 +158,7 @@
         "discipline": "0",
         "parameterCategory": "3",
         "parameterNumber": "1",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "meanSea"
       },
@@ -190,6 +194,7 @@
         "discipline": "0",
         "parameterCategory": "1",
         "parameterNumber": "1",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
@@ -224,11 +229,12 @@
         "discipline": "0",
         "parameterCategory": "4",
         "parameterNumber": "7",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "accum",
         "typeOfLevel": "surface"
       },
       "long_name": "Surface short-wave (solar) radiation downwards",
-      "standard_name": "surface_downwelling_shortwave_flux_in_air",
+      "standard_name": "integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air",
       "units": "J m-2"
     },
     "t2m": {
@@ -259,6 +265,7 @@
         "discipline": "0",
         "parameterCategory": "0",
         "parameterNumber": "0",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
@@ -293,6 +300,7 @@
         "discipline": "0",
         "parameterCategory": "1",
         "parameterNumber": "75",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "accum",
         "typeOfLevel": "surface"
       },
@@ -327,11 +335,12 @@
         "discipline": "0",
         "parameterCategory": "1",
         "parameterNumber": "52",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "accum",
         "typeOfLevel": "surface"
       },
       "long_name": "Total Precipitation",
-      "standard_name": "precipitation_flux",
+      "standard_name": "precipitation_amount",
       "units": "kg m-2"
     },
     "tsnowp": {
@@ -361,6 +370,7 @@
         "discipline": "0",
         "parameterCategory": "1",
         "parameterNumber": "66",
+        "productDefinitionTemplateNumber": "8",
         "stepType": "accum",
         "typeOfLevel": "surface"
       },
@@ -396,6 +406,7 @@
         "discipline": "0",
         "parameterCategory": "2",
         "parameterNumber": "2",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
@@ -430,6 +441,7 @@
         "discipline": "0",
         "parameterCategory": "6",
         "parameterNumber": "1",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "surface"
       },
@@ -465,6 +477,7 @@
         "discipline": "0",
         "parameterCategory": "2",
         "parameterNumber": "3",
+        "productDefinitionTemplateNumber": "0",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
