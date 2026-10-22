@@ -28,6 +28,7 @@ Dépendance optionnelle : installer l'extra `grib`.
 from __future__ import annotations
 
 import contextlib
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -173,6 +174,42 @@ UDUNITS: dict[str, str | None] = {
     "dimensionless": "1",
     #: Le décodage n'a pas su nommer le champ ; inventer une unité serait pire.
     "unknown": None,
+    #: Façon dont ecCodes écrit « pas d'unité ». Même traitement que
+    #: `unknown` : rien à émettre, et surtout rien à inventer.
+    "~": None,
+    # --- Familles relevées le 22/10/2026, et pourquoi elles entrent -------
+    #
+    # **Mesuré** : 42 chaînes qu'ecCodes émet sur les disciplines 0 et 10
+    # n'avaient aucune entrée ici, couvrant **127 triplets sur 451, soit
+    # 28 %**. La table fermée qui lève reste le bon choix, mais l'exposition
+    # n'avait jamais été chiffrée : une source nouvelle avait plus d'une
+    # chance sur quatre de bloquer l'écriture sur une unité dont la
+    # traduction est purement mécanique.
+    #
+    # **Chacune est validée par UDUNITS lui-même**, pas par relecture —
+    # `cf_units.Unit(...)` les accepte toutes.
+    #: Deux façons d'écrire l'absence de dimension, que `1` dit déjà.
+    "Numeric": "1",
+    "Proportion": "1",
+    #: Angles. UDUNITS lit `rad` et `degree`, pas les pluriels d'ecCodes.
+    "radians": "rad",
+    "degrees": "degree",
+    #: Exposants à réécrire, de la même façon que les entrées ci-dessus.
+    "kg m**-3": "kg m-3",
+    "K s**-1": "K s-1",
+    "m**2 s**-1": "m2 s-1",
+    "kg kg**-1 s**-1": "kg kg-1 s-1",
+    "m**-1": "m-1",
+    "Bq m**-3": "Bq m-3",
+    "J kg**-1 K**-1": "J kg-1 K-1",
+    # --- Deux exclusions délibérées, et leurs raisons ---------------------
+    #
+    # `dB` : **UDUNITS le refuse**, vérifié. Rien à proposer sans inventer.
+    #
+    # `gpm`, le mètre géopotentiel : `m` passerait la validation d'UDUNITS et
+    # serait **faux**. C'est exactement la faute que le dépôt a corrigée sur
+    # `(0, 3, 6)`, où `geopotential_height` était faux deux fois. Une unité
+    # qui se convertit n'est pas une unité qui veut dire la même chose.
 }
 
 
@@ -222,6 +259,15 @@ UNTRANSLATED_UNIT_COMMENT = (
 #: Séparateur employé quand un commentaire est déjà posé sur la variable.
 COMMENT_SEPARATOR = " "
 
+#: Ce qu'ecCodes écrit quand la « valeur » d'un champ est un code et non une
+#: mesure — « (Code table 4.201) », « (Code table 4.222) » et six autres.
+#:
+#: **Une règle plutôt qu'une liste**, comme pour les directions : la forme est
+#: celle d'ecCodes, elle est stable, et une énumération rouillerait à chaque
+#: table nouvelle. Un code n'a pas d'unité ; il n'y a rien à émettre, et
+#: surtout rien à inventer.
+CODE_TABLE_UNIT = re.compile(r"^\(Code table \d+\.\d+\)$")
+
 
 def is_circular(standard_name: object) -> bool:
     """La grandeur est-elle un relèvement, donc circulaire ?"""
@@ -256,6 +302,8 @@ def udunits(unit: str | None) -> str | None:
     faux qui se dit conforme est pire qu'une écriture qui refuse.
     """
     if unit is None or not unit.strip():
+        return None
+    if CODE_TABLE_UNIT.match(unit.strip()):
         return None
     if unit not in UDUNITS:
         raise UnconvertibleUnitError(
@@ -508,7 +556,18 @@ CELL_METHODS: dict[str, str] = {
     "min": "time: minimum",
     "rms": "time: root_mean_square",
     "sd": "time: standard_deviation",
+    #: Mode, traitement 101 de la table 4.10. Vérifié présent au tableau E.1
+    #: de CF, et **atteignable** : ecCodes rend bien `stepType = mode`.
+    "mode": "time: mode",
 }
+
+#: **`median` n'entre pas, et ce n'est pas un oubli.** Le tableau E.1 de CF le
+#: porte, la table 4.10 de l'OMM aussi — traitement 13 —, mais mesuré le
+#: 22/10/2026 : poser `typeOfStatisticalProcessing = 13` fait lever
+#: `KeyValueNotFoundError` à la lecture de `stepType`. ecCodes ne l'expose
+#: pas, donc l'entrée serait du code mort. À rouvrir si une version
+#: ultérieure le rend.
+MEDIAN_NOT_EXPOSED = 13
 
 #: Traitements de la table 4.10 que **CF ne couvre pas**, recensés plutôt que
 #: rapprochés de force d'une méthode voisine :
@@ -589,6 +648,27 @@ def _value(attrs: dict[str, object], key: str) -> float | None:
     return None if value == ECCODES_MISSING else value
 
 
+#: Les formes de la Terre dont la table 3.2 du format **nomme le datum**.
+#:
+#: Le code 8 est le seul cas où le producteur déclare autre chose qu'une
+#: géométrie : son libellé dit que « the horizontal datum of the resulting
+#: latitude/longitude field is the WGS-84 reference frame ». Le code 6, le
+#: nôtre, ne dit rien — et c'est pourquoi rien n'est émis pour lui. Supposer
+#: à la place du producteur serait la faute que `grid_mapping` corrige déjà
+#: en rendant `None` plutôt qu'un défaut.
+DECLARED_DATUM: dict[int, str] = {8: "WGS84"}
+
+
+def _datum(attrs: Mapping[str, object]) -> dict[str, str]:
+    """Le datum **déclaré** par le message, s'il en déclare un."""
+    try:
+        forme = int(str(attrs["GRIB_shapeOfTheEarth"]))
+    except (KeyError, TypeError, ValueError):
+        return {}
+    nom = DECLARED_DATUM.get(forme)
+    return {"horizontal_datum_name": nom} if nom else {}
+
+
 def grid_mapping(dataset: xr.Dataset) -> dict[str, object] | None:
     """Décrit le référentiel géodésique, au sens de l'annexe F de CF.
 
@@ -611,6 +691,7 @@ def grid_mapping(dataset: xr.Dataset) -> dict[str, object] | None:
             "longitude_of_prime_meridian": 0.0,
             #: Trace de la correspondance, pour qui veut remonter au GRIB.
             "GRIB_shapeOfTheEarth": attrs["GRIB_shapeOfTheEarth"],
+            **_datum(attrs),
         }
         if _value(attrs, "earthIsOblate"):
             demi_grand = _value(attrs, "earthMajorAxis")

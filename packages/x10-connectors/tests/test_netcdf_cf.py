@@ -1026,3 +1026,57 @@ def test_une_unite_intraduisible_ne_se_declare_pas_sans_dimension(tmp_path):
     assert "units" not in sortie["t"].attrs
     assert "standard_name" not in sortie["t"].attrs
     assert "parsecs par fortnight" in sortie["t"].attrs["comment"]
+
+
+# --- Ce qui aurait levé, et qui ne lève plus ---------------------------------
+
+
+def test_une_table_de_codes_n_a_pas_d_unite():
+    """Une **règle** plutôt qu'une liste : huit orthographes de « Code table »
+    circulent, et seule la 4.201 était traitée. La forme est celle d'ecCodes,
+    elle est stable, une énumération rouillerait."""
+    assert udunits("(Code table 4.201)") is None
+    assert udunits("(Code table 4.222)") is None
+    assert udunits("(Code table 4.5)") is None
+    assert udunits("~") is None
+
+
+def test_les_familles_mecaniques_ne_levent_plus():
+    """**Mesuré** : 42 chaînes qu'ecCodes émet n'avaient aucune entrée,
+    couvrant 127 triplets sur 451 — 28 %. Une source nouvelle avait plus
+    d'une chance sur quatre de bloquer l'écriture sur une traduction purement
+    mécanique."""
+    assert udunits("Numeric") == "1"
+    assert udunits("Proportion") == "1"
+    assert udunits("radians") == "rad"
+    assert udunits("kg m**-3") == "kg m-3"
+    assert udunits("Bq m**-3") == "Bq m-3"
+
+
+def test_le_metre_geopotentiel_leve_toujours():
+    """`gpm` vers `m` passerait la validation d'UDUNITS et serait **faux**.
+    C'est la faute corrigée sur `(0, 3, 6)` : une unité qui se convertit n'est
+    pas une unité qui veut dire la même chose."""
+    with pytest.raises(UnconvertibleUnitError):
+        udunits("gpm")
+
+
+def test_le_mode_est_traduit_et_la_mediane_ne_l_est_pas():
+    """Les deux figurent au tableau E.1 de CF et à la table 4.10 de l'OMM,
+    mais ecCodes n'expose que le premier : poser le traitement 13 fait lever
+    à la lecture de `stepType`. Une entrée pour la médiane serait du code
+    mort."""
+    assert CELL_METHODS["mode"] == "time: mode"
+    assert "median" not in CELL_METHODS
+    assert "median" not in WITHOUT_CELL_METHOD
+
+
+def test_le_datum_n_est_emis_que_s_il_est_declare():
+    """Le code 8 de la table 3.2 est le seul qui nomme un datum ; le code 6,
+    le nôtre, ne dit rien. Supposer à la place du producteur serait la faute
+    que `grid_mapping` corrige déjà en rendant `None`."""
+    from x10_connectors.netcdf_cf import _datum
+
+    assert _datum({"GRIB_shapeOfTheEarth": "8"}) == {"horizontal_datum_name": "WGS84"}
+    assert _datum({"GRIB_shapeOfTheEarth": "6"}) == {}
+    assert _datum({}) == {}

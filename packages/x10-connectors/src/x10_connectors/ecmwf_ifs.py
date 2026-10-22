@@ -80,7 +80,15 @@ TYPES = ("fc", "pf", "cf", "em", "es", "ep")
 #: Types de niveau. `sfc` la surface, `pl` les niveaux de pression, `sol` le
 #: sol. Relevé sur l'index d'ensemble du 16/10/2026 : 1 800 messages en `sfc`,
 #: 6 300 en `pl`, 400 en `sol`.
-LEVTYPES = ("sfc", "pl", "sol")
+LEVTYPES = ("sfc", "pl", "sol", "hl")
+#: `hl` — niveaux hauteur — est ajouté le 22/10/2026 **avant d'en avoir
+#: besoin**, et c'est délibéré. La migration MTG2 déplace `100u`, `100v`,
+#: `200u` et `200v` vers `u` et `v` sur `levtype=hl` ; le jour de la bascule,
+#: toute requête de vent à 100 m serait refusée par **notre propre
+#: validation**, avec un message qui accuserait l'appelant. Mesuré au même
+#: moment : à `tablesVersion 35`, 44 `paramId` cessent d'être encodables sous
+#: le centre 98 — le flux open data en déclare 32, donc trois crans sous la
+#: bascule.
 
 #: Flux qui portent des membres, et pour lesquels un numéro a un sens.
 ENSEMBLE_STREAMS = ("enfo", "waef")
