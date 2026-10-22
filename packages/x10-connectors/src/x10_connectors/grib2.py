@@ -69,6 +69,14 @@ READ_KEYS = (
     # 4.0 nomme un produit « for waves selected by period range », et la
     # bande vit à l'intérieur du gabarit.
     "productDefinitionTemplateNumber",
+    # **Le nom court que les tables résolvent**, et qui n'est pas celui que
+    # `cfgrib` donne à la variable : mesuré le 22/10/2026, les deux diffèrent
+    # 949 fois sur 6 566 paramètres — `2t` contre `t2m`, `10u` contre `u10`.
+    # Le premier est l'idiome que connaît qui interroge une archive ; le
+    # second nomme notre variable NetCDF. Les deux méritent d'être publiés,
+    # et ni l'un ni l'autre n'est une abréviation du **producteur** : l'OMM
+    # n'en publie aucune, et le nom court n'est pas dans le message.
+    "shortName",
     # **La quantification subie**, section 5 du format. La sortie étant en
     # `float32`, rien dans le fichier ne dirait sans elles que la donnée ne
     # porte que douze bits significatifs. Mesuré sur un champ de 30 K : le pas

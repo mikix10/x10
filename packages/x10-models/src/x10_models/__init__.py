@@ -163,10 +163,20 @@ class SourceTerms(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    #: Nom court tel que la chaîne de décodage le rend — `t2m`, `u10`.
-    #: C'est le `cfVarName` d'ecCodes, dérivé du nom court du message
-    #: — `2t`, `10u` — et non une abréviation du producteur.
+    #: Nom de la variable tel que la chaîne de décodage la nomme — `t2m`,
+    #: `u10`. C'est le `cfVarName` d'ecCodes, et c'est sous ce nom que la
+    #: grandeur apparaît dans nos fichiers NetCDF.
     short_name: str = Field(min_length=1)
+    #: Nom court que les tables résolvent — `2t`, `10u`. C'est l'idiome de
+    #: qui interroge une archive GRIB, et il diffère du précédent 949 fois
+    #: sur 6 566 paramètres. **Ni l'un ni l'autre n'est une abréviation du
+    #: producteur** : l'OMM n'en publie aucune, et le nom court n'est pas
+    #: dans le message — c'est une clé que la bibliothèque calcule, et
+    #: qu'elle a déjà renommée (ECC-2128, septembre 2025).
+    #:
+    #: `None` quand les tables ne résolvent pas le paramètre : la sentinelle
+    #: `unknown` d'ecCodes n'est pas un nom, et la publier en serait un faux.
+    grib_short_name: str | None = None
     #: Type de niveau dans le vocabulaire d'ecCodes — `heightAboveGround`.
     level_type: str | None = None
     #: Identité du champ chez le producteur, reprise telle quelle.

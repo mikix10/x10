@@ -11,8 +11,9 @@ répond ; `SourceTerms` porte le reste, et ne promet rien.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
-from fixtures_grib2 import Field, granule
+from fixtures_grib2 import DEFAULT_GRID, Field, granule
 
 from x10_connectors.contract import (
     CF_VERTICAL,
@@ -31,6 +32,9 @@ from x10_connectors.contract import (
 from x10_connectors.grib2 import normalise, open_granule
 
 pytest.importorskip("cfgrib")
+
+
+N = int(DEFAULT_GRID["ni"] * DEFAULT_GRID["nj"])
 
 
 def _contrat(chemin):
@@ -274,3 +278,38 @@ def test_les_deux_tables_de_reference_verticale_sont_disjointes():
         "`WITHOUT_VERTICAL_REFERENCE` étant consulté en premier, l'entrée de "
         "`CF_VERTICAL` serait ignorée."
     )
+
+
+def test_la_vue_source_distingue_le_nom_de_variable_du_nom_court(tmp_path):
+    """Les deux ne sont pas le même, et la confusion désignait le mauvais
+    responsable.
+
+    `short_name` est le `cfVarName` d'ecCodes, sous lequel la grandeur
+    apparaît dans nos fichiers ; `grib_short_name` est le nom court que les
+    tables résolvent, l'idiome de qui interroge une archive. Mesuré sur la
+    référence AROME réelle : la variable s'appelle `efg10` quand le nom court
+    vaut `max_10efg`. **Ni l'un ni l'autre n'est une abréviation du
+    producteur** — l'OMM n'en publie aucune.
+    """
+    champs = [Field(category=0, number=0, values=np.zeros(N))]
+    jeux = open_granule(granule(tmp_path / "s.grib2", champs))
+    contrat = output_contract(tuple(normalise(j) for j in jeux))
+    termes = source_terms(contrat)
+
+    assert termes, "aucun terme source relevé"
+    for terme in termes:
+        assert terme.short_name
+        # Le nom court peut manquer — la sentinelle d'ecCodes n'est pas un nom.
+        assert terme.grib_short_name is None or terme.grib_short_name
+
+
+def test_la_sentinelle_d_eccodes_n_est_pas_publiee_en_nom_court():
+    """Même faute que `standard_name = "unknown"`, sur l'autre vue : deux
+    champs irrésolus s'y présenteraient sous le même nom."""
+    from x10_connectors.contract import _nom_court
+
+    assert _nom_court("unknown") is None
+    assert _nom_court("~") is None
+    assert _nom_court("") is None
+    assert _nom_court(None) is None
+    assert _nom_court("2t") == "2t"

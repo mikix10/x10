@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from x10_models import SourceTerms, Variable
 
-from .grib2 import GribUnavailableError, _numpy
+from .grib2 import PLACEHOLDER_CF, GribUnavailableError, _numpy
 from .netcdf_cf import cell_method, grid_mapping, udunits
 from .observability import connector_logger
 
@@ -65,6 +65,11 @@ GRIB_IDENTITY = (
     "parameterNumber",
     "typeOfLevel",
     "stepType",
+    # Le nom court des tables. Il entre à l'identité parce qu'un changement
+    # de nom **est** une dérive à voir — et depuis le 22/10/2026 elle est
+    # attribuable : la sortie porte la version d'ecCodes, donc un renommage
+    # de la bibliothèque ne se lit plus comme un renommage du producteur.
+    "shortName",
     # **Le triplet ne suffit pas à identifier un champ**, et ce n'est pas une
     # précaution : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, sept
     # messages portent `(10, 0, 3)`. Le gabarit et le type de niveau séparent
@@ -485,11 +490,31 @@ def inventory(contract: Contract) -> tuple[Variable, ...]:
     return tuple(variables)
 
 
-def source_terms(contract: Contract) -> tuple[SourceTerms, ...]:
-    """Les mêmes grandeurs **dans les termes du producteur**, même ordre.
+def _nom_court(valeur: str | None) -> str | None:
+    """La sentinelle d'ecCodes n'est pas un nom, et la publier en ferait un faux.
 
-    > Cette vue ne promet rien, par construction, puisqu'elle suit le
-    > producteur. Si le nom court change chez lui, elle change ici.
+    Même faute que `standard_name = "unknown"`, sur l'autre vue : deux champs
+    irrésolus s'y présenteraient sous le même nom, et un consommateur les
+    croirait identiques.
+    """
+    return None if valeur in (None, "", PLACEHOLDER_CF, "~") else valeur
+
+
+def source_terms(contract: Contract) -> tuple[SourceTerms, ...]:
+    """Les mêmes grandeurs **dans les termes de la chaîne de lecture**.
+
+    > Cette vue ne promet rien, par construction, puisqu'elle suit sa source.
+    > Si le vocabulaire amont change, elle change ici.
+
+    **Correction du 22/10/2026 : « les termes du producteur » était faux.**
+    Ni l'OMM ni Météo-France ne publient d'abréviation ; le nom court n'est
+    pas dans le message, c'est une clé qu'ecCodes calcule — et qu'il a déjà
+    renommée. La vue suit donc la bibliothèque autant que le producteur, ce
+    qui ne la rend pas moins utile mais désigne le bon responsable.
+
+    Les deux noms sont publiés parce qu'ils ne servent pas à la même chose :
+    `short_name` nomme la variable dans nos fichiers, `grib_short_name` est
+    l'idiome de qui interroge une archive.
 
     Rendue dans l'ordre d'`inventory`, de sorte que l'indice d'une grandeur
     désigne la même dans les deux vues.
@@ -500,6 +525,7 @@ def source_terms(contract: Contract) -> tuple[SourceTerms, ...]:
         termes.append(
             SourceTerms(
                 short_name=nom,
+                grib_short_name=_nom_court(fiche.grib.get("shortName")),
                 level_type=fiche.grib.get("typeOfLevel"),
                 grib=dict(fiche.grib),
             )
