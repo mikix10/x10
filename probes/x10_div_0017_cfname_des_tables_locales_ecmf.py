@@ -44,6 +44,15 @@ n'ont aucun encodage d'édition 2. Sur les 3 528 `paramId` encodables en
 et **l'union des deux 148**. La parade juste est donc l'union, pas la
 substitution.
 
+**La parade a une limite que notre propre registre énonce.** Elle est indexée
+par `paramId`, et `X10-DIV-0016` établit que cette clé n'est pas univoque : la
+hauteur significative en porte trois. La seconde forme mord plus directement
+— `(0, 3, 6)` et `(0, 3, 34)` rendent tous deux `3008`, de sorte qu'un second
+passage construit depuis le `paramId` **ne saurait pas de quel triplet il
+part**. Sur ces deux entrées, que l'OMM a justement créées pour être
+distinctes, la parade nommerait un champ pour un autre. Elle vaut donc partout
+sauf là, et le dire fait partie de la parade.
+
 **Ce n'est pas une non-conformité** : aucune clause n'oblige l'ECMWF à tenir
 une concordance CF dans ses tables locales. C'est une asymétrie coûteuse à qui
 ne la connaît pas.
