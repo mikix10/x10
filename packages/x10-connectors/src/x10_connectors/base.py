@@ -53,10 +53,25 @@ class ConnectorResult(BaseModel):
     retrieval: Retrieval | None = None
 
 
+def _package_version() -> str:
+    """La version installée du paquet, ou `unknown` hors installation."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("x10-connectors")
+    except PackageNotFoundError:  # pragma: no cover - paquet non installé
+        return "unknown"
+
+
 #: Agent responsable, pour le lignage et la trace `history` des sorties.
 #: Defini ici plutot que dans chaque connecteur : trois copies de la meme
 #: version divergent au premier oubli.
-AGENT = "x10-connectors 0.1.0"
+#:
+#: **Dérivé des métadonnées du paquet depuis le 22/10/2026**, et non plus
+#: écrit en dur : une version figée à la main est fausse dès la publication
+#: suivante, et c'est précisément la trace qui doit permettre d'attribuer une
+#: divergence à notre outillage plutôt qu'au producteur.
+AGENT = f"x10-connectors {_package_version()}"
 
 
 class UnsafeDestinationError(ValueError):

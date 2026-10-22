@@ -27,12 +27,19 @@ Dépendance optionnelle : installer l'extra `grib`.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from .base import AGENT, atomic_write
-from .grib2 import COORD_UNDEFINED, GribUnavailableError, _numpy
+from .grib2 import (
+    COORD_UNDEFINED,
+    GribUnavailableError,
+    _numpy,
+    cf_tables_revision,
+    decoder_versions,
+)
 from .observability import connector_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -47,7 +54,29 @@ _log = connector_logger(__name__)
 #: Version des conventions CF que nos sorties respectent. La chaîne de
 #: décodage la pose déjà ; elle est reprise ici pour que l'écriture ne dépende
 #: pas d'un attribut hérité.
-CONVENTIONS = "CF-1.7"
+#:
+#: **Montée de 1.7 à 1.11 le 22/10/2026**, et c'est la montée minimale :
+#: vérifié au texte publié, `units_metadata` compte zéro occurrence en 1.10 et
+#: quinze en 1.11. Sans elle, l'attribut serait émis hors convention. La seule
+#: obligation que la montée ouvre est conditionnelle — § 5.6, `grid_mapping`
+#: et `coordinates` dès que la grille n'est pas lon/lat — et nous l'émettons
+#: déjà.
+CONVENTIONS = "CF-1.11"
+
+#: Ce que `units_metadata` dit d'une température, et pourquoi il le faut.
+#:
+#: `units` ne distingue pas une température **sur une échelle** d'un **écart**
+#: de température : les deux s'écrivent `K`. En l'absence de l'attribut, CF
+#: 1.11 § 3.1 prescrit de supposer `temperature: unknown`, et la conversion
+#: vers une autre échelle n'est alors **pas garantie** — un écart converti par
+#: addition de 273,15 au lieu d'une mise à l'échelle est le mode d'échec que
+#: la convention nomme elle-même.
+UNITS_METADATA_ON_SCALE = "temperature: on_scale"
+
+#: Le `stepType` d'une **différence**, seul cas où une grandeur en kelvins
+#: n'est pas sur une échelle. CF ne couvre pas ce traitement — il figure à
+#: `WITHOUT_CELL_METHOD` — donc rien d'autre ne le signalerait.
+STEP_TYPE_DIFFERENCE = "diff"
 
 
 #: Niveau de compression `zlib` appliqué aux variables de données.
@@ -177,6 +206,19 @@ CIRCULAR_COMMENT = (
     "answer. Convert to unit vectors, combine those, then convert back."
 )
 
+#: Ce qu'un fichier doit dire d'une unité qu'il n'a pas su traduire.
+#:
+#: CF § 3.1 : « a variable with no units attribute is assumed to be
+#: dimensionless ». Retirer l'unité **affirme** donc, et il faut dire que
+#: l'affirmation ne tient pas. En anglais : l'attribut franchit la frontière
+#: de sérialisation.
+UNTRANSLATED_UNIT_COMMENT = (
+    "The unit declared by the source, {unit!r}, has no UDUNITS equivalent in "
+    "this chain, so no units attribute is emitted and no standard_name is "
+    "claimed. Do not read the absence as dimensionless: the original string "
+    "is preserved in the GRIB_units attribute."
+)
+
 #: Séparateur employé quand un commentaire est déjà posé sur la variable.
 COMMENT_SEPARATOR = " "
 
@@ -184,6 +226,25 @@ COMMENT_SEPARATOR = " "
 def is_circular(standard_name: object) -> bool:
     """La grandeur est-elle un relèvement, donc circulaire ?"""
     return isinstance(standard_name, str) and standard_name.endswith(DIRECTION_SUFFIXES)
+
+
+def units_metadata(attrs: Mapping[str, object]) -> str | None:
+    """Ce qu'il faut dire d'une température, ou `None` s'il n'y a rien à dire.
+
+    **L'absence de cet attribut n'est pas neutre** : CF 1.11 § 3.1 prescrit de
+    supposer alors `temperature: unknown`, donc une conversion d'échelle non
+    garantie. Une température absolue mérite donc de le déclarer.
+
+    La règle est étroite à dessein : l'unité canonique doit être le kelvin, et
+    le traitement statistique ne doit pas être une **différence** — seul cas
+    où une grandeur en kelvins n'est pas sur une échelle, et que rien d'autre
+    ne signalerait puisque CF ne couvre pas ce `stepType`.
+    """
+    if attrs.get("units") != "K":
+        return None
+    if str(attrs.get("GRIB_stepType", "")) == STEP_TYPE_DIFFERENCE:
+        return None
+    return UNITS_METADATA_ON_SCALE
 
 
 def udunits(unit: str | None) -> str | None:
@@ -212,6 +273,14 @@ def convert_units(dataset: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
     sinon disparaît de la variable. Dans les deux cas **rien n'est inventé**,
     et `GRIB_units`, que la chaîne de décodage conserve, garde la valeur
     d'origine.
+
+    **Mais une unité absente n'est pas muette, et c'est la correction du
+    22/10/2026.** CF § 3.1 énonce qu'« a variable with no units attribute is
+    assumed to be dimensionless » : la retirer **affirme** quelque chose de
+    faux, exactement comme `standard_name = "unknown"` le faisait. Le nom
+    standard est donc retiré avec elle — un nom dont CF impose que l'unité
+    soit équivalente à sa canonique ne peut pas survivre sans unité — et un
+    commentaire nomme l'unité d'origine, pour que l'écart se voie.
     """
     out = dataset.copy()
     for name, var in out.data_vars.items():
@@ -228,6 +297,12 @@ def convert_units(dataset: xr.Dataset, *, strict: bool = True) -> xr.Dataset:
             traduite = None
         if traduite is None:
             out[name].attrs.pop("units", None)
+            if out[name].attrs.pop("standard_name", None) is not None or origin:
+                precedent = str(out[name].attrs.get("comment", "")).strip()
+                avis = UNTRANSLATED_UNIT_COMMENT.format(unit=origin)
+                out[name].attrs["comment"] = (
+                    f"{precedent}{COMMENT_SEPARATOR}{avis}" if precedent else avis
+                )
         else:
             out[name].attrs["units"] = traduite
     return out
@@ -636,6 +711,26 @@ def _integer(attrs: dict[str, object], key: str) -> int | None:
     return int(raw)
 
 
+def _maintenant() -> str:
+    """L'instant de l'écriture, au format que CF emploie dans `history`."""
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _outillage() -> str:
+    """Les versions qui décident de ce que le fichier dira.
+
+    L'empreinte de nos tables répond à la question que deux fichiers
+    divergents posent : *laquelle a parlé ?* Elle est **dérivée du contenu**,
+    donc elle ne peut pas être oubliée au moment d'un changement.
+    """
+    pieces = [f"x10 cf tables {cf_tables_revision()}"]
+    # La pile GRIB est un extra : une sortie écrite sans elle reste traçable
+    # par l'empreinte de nos tables, qui ne dépend d'aucune dépendance.
+    with contextlib.suppress(Exception):  # pragma: no cover - extra absent
+        pieces += [f"{nom} {version}" for nom, version in sorted(decoder_versions().items())]
+    return ", ".join(pieces)
+
+
 def _history_line(precedente: str | None, *lines: str) -> str:
     """Journal d'audit cumulatif, au format que CF recommande.
 
@@ -673,6 +768,14 @@ def global_attributes(
             f"{horodatage} : retrieved {retrieval.dataset} "
             f"from {retrieval.origin} by {retrieval.agent}"
         )
+
+    # **La trace de notre propre outillage**, sans laquelle une divergence
+    # future est inattribuable. `GRIB_tablesVersion` dit la version des tables
+    # du producteur ; rien ne disait la nôtre. Deux fichiers écrits depuis le
+    # même granule à six mois d'écart peuvent porter deux `standard_name`
+    # différents — c'est arrivé le 22/10/2026 — et le lecteur doit pouvoir
+    # dire lequel de nous ou du producteur a bougé.
+    acquisitions.append(f"{_maintenant()} : normalised by {AGENT} ({_outillage()})")
 
     attrs: dict[str, str] = {
         "Conventions": CONVENTIONS,
@@ -781,6 +884,11 @@ def write_netcdf(
         # on écarte celle du vent, faute de composantes chez le producteur et
         # de noms CF pour les exprimer. Ce que le fichier peut faire, c'est
         # le dire -- CF n'offrant rien de plus structuré qu'un commentaire.
+        # Une température sans `units_metadata` se lit `temperature:
+        # unknown`, donc sans garantie de conversion d'échelle. L'absence
+        # affirme ; on dit donc ce qu'il en est.
+        if (echelle := units_metadata(prepare[name].attrs)) is not None:
+            prepare[name].attrs["units_metadata"] = echelle
         if is_circular(prepare[name].attrs.get("standard_name")):
             precedent = str(prepare[name].attrs.get("comment", "")).strip()
             prepare[name].attrs["comment"] = (
@@ -835,8 +943,11 @@ __all__ = [
     "LENGTH_ATTRS",
     "PROCESS_TYPE",
     "PRODUCTION_STATUS",
+    "STEP_TYPE_DIFFERENCE",
     "TIME_ENCODING",
     "UDUNITS",
+    "UNITS_METADATA_ON_SCALE",
+    "UNTRANSLATED_UNIT_COMMENT",
     "WITHOUT_CELL_METHOD",
     "UnconvertibleUnitError",
     "UnknownStatisticalProcessingError",
@@ -851,5 +962,6 @@ __all__ = [
     "production_source",
     "time_bounds",
     "udunits",
+    "units_metadata",
     "write_netcdf",
 ]

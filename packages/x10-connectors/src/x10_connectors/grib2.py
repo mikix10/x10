@@ -14,6 +14,8 @@ Dépendance optionnelle : installer l'extra `grib`.
 
 from __future__ import annotations
 
+import functools
+import hashlib
 from types import ModuleType
 from typing import TYPE_CHECKING
 
@@ -67,6 +69,26 @@ READ_KEYS = (
     # 4.0 nomme un produit « for waves selected by period range », et la
     # bande vit à l'intérieur du gabarit.
     "productDefinitionTemplateNumber",
+    # **La quantification subie**, section 5 du format. La sortie étant en
+    # `float32`, rien dans le fichier ne dirait sans elles que la donnée ne
+    # porte que douze bits significatifs. Mesuré sur un champ de 30 K : le pas
+    # de quantification vaut 0,0625 K à 8 bits, **0,0036 K à 12** — la valeur
+    # des paquets réels —, 0,00024 K à 16.
+    #
+    # Elles sont émises en attributs `GRIB_` et **rien n'est déclaré au titre
+    # de CF § 8.4** : aucun de ses quatre algorithmes n'est l'empaquetage du
+    # GRIB2, et une quantification déjà subie puis décodée en flottant n'y est
+    # pas exprimable. Mieux vaut une trace exacte hors convention qu'une
+    # déclaration fausse dedans.
+    #
+    # **Réserve connue** : `cfgrib` lit les attributs sur le **premier
+    # message** de chaque hypercube. Une valeur qui varierait d'un message à
+    # l'autre ne serait donc pas rendue fidèlement — voir le contrôle à
+    # ajouter sur `READ_KEYS`.
+    "bitsPerValue",
+    "packingType",
+    "decimalScaleFactor",
+    "bitmapPresent",
     # Taille de l'ensemble **déclarée par le message**. C'est le seul
     # discriminant fiable d'un axe de membres : mesuré sur trois gabarits, le
     # 4.104 remplit les octets d'ensemble de zéros, de sorte que `number` et
@@ -817,6 +839,47 @@ def _our_cf_name(variable: xr.DataArray) -> str | None:
     return nom if gabarit in admis else None
 
 
+def decoder_versions() -> dict[str, str]:
+    """Versions de la chaîne de décodage, pour la trace de la sortie.
+
+    **Sans elles, une divergence est inattribuable.** Le fichier porte déjà
+    `GRIB_tablesVersion`, qui est la version des tables **du producteur** ;
+    rien n'y disait quelle version de notre outillage avait lu le message.
+    Deux fichiers écrits à six mois d'intervalle depuis le même granule
+    peuvent porter deux noms différents, et le lecteur doit pouvoir dire
+    lequel de nous ou du producteur a bougé. C'est la règle que le dépôt
+    applique à `InventorySource` pour l'inventaire, appliquée à la sortie.
+    """
+    import eccodes
+
+    return {
+        "eccodes": str(eccodes.codes_get_api_version()),
+        "cfgrib": str(_cfgrib().__version__),
+    }
+
+
+@functools.lru_cache(maxsize=1)
+def cf_tables_revision() -> str:
+    """Empreinte des tables qui décident d'un `standard_name`.
+
+    **Dérivée plutôt que tenue à la main.** Une version qu'un mainteneur doit
+    penser à incrémenter n'est pas incrémentée ; une empreinte du contenu ne
+    peut pas mentir. Elle répond à la seule question qui compte quand deux
+    fichiers divergent : *quelle table a parlé ?*
+    """
+    materiau = repr(
+        (
+            sorted(CF_STANDARD_NAMES.items()),
+            sorted(CF_ACCUMULATED.items()),
+            sorted(CF_DERIVED.items()),
+            sorted(WITHOUT_CF_NAME),
+            sorted(AMBIGUOUS_TRIPLETS),
+            sorted((code, sorted(gabarits)) for code, gabarits in TEMPLATE_RESTRICTED.items()),
+        )
+    )
+    return hashlib.sha256(materiau.encode("utf-8")).hexdigest()[:12]
+
+
 def denotes_a_rate(standard_name: object) -> bool:
     """Le nom désigne-t-il un débit, donc une grandeur par unité de temps ?
 
@@ -908,8 +971,10 @@ __all__ = [
     "DroppedFieldsError",
     "GribUnavailableError",
     "apply_cf_names",
+    "cf_tables_revision",
     "check_local_tables",
     "check_tables_version",
+    "decoder_versions",
     "denotes_a_rate",
     "drop_derived_wind",
     "dropped_fields",

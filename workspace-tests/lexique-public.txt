@@ -330,8 +330,10 @@ x10_connectors.grib2.__all__: TEMPLATE_RESTRICTED
 x10_connectors.grib2.__all__: VALUES_DTYPE
 x10_connectors.grib2.__all__: WITHOUT_CF_NAME
 x10_connectors.grib2.__all__: apply_cf_names
+x10_connectors.grib2.__all__: cf_tables_revision
 x10_connectors.grib2.__all__: check_local_tables
 x10_connectors.grib2.__all__: check_tables_version
+x10_connectors.grib2.__all__: decoder_versions
 x10_connectors.grib2.__all__: denotes_a_rate
 x10_connectors.grib2.__all__: drop_derived_wind
 x10_connectors.grib2.__all__: dropped_fields
@@ -384,8 +386,11 @@ x10_connectors.netcdf_cf.__all__: INTERVAL_UNITS
 x10_connectors.netcdf_cf.__all__: LENGTH_ATTRS
 x10_connectors.netcdf_cf.__all__: PROCESS_TYPE
 x10_connectors.netcdf_cf.__all__: PRODUCTION_STATUS
+x10_connectors.netcdf_cf.__all__: STEP_TYPE_DIFFERENCE
 x10_connectors.netcdf_cf.__all__: TIME_ENCODING
 x10_connectors.netcdf_cf.__all__: UDUNITS
+x10_connectors.netcdf_cf.__all__: UNITS_METADATA_ON_SCALE
+x10_connectors.netcdf_cf.__all__: UNTRANSLATED_UNIT_COMMENT
 x10_connectors.netcdf_cf.__all__: UnconvertibleUnitError
 x10_connectors.netcdf_cf.__all__: UnknownStatisticalProcessingError
 x10_connectors.netcdf_cf.__all__: UnrepresentableIntervalError
@@ -400,6 +405,7 @@ x10_connectors.netcdf_cf.__all__: is_circular
 x10_connectors.netcdf_cf.__all__: production_source
 x10_connectors.netcdf_cf.__all__: time_bounds
 x10_connectors.netcdf_cf.__all__: udunits
+x10_connectors.netcdf_cf.__all__: units_metadata
 x10_connectors.netcdf_cf.__all__: write_netcdf
 x10_connectors.observability.__all__: EVENT_CATEGORY
 x10_connectors.observability.__all__: EVENT_DATASET
