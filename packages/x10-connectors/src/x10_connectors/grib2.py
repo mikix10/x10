@@ -399,8 +399,11 @@ INTEGRAL_PREFIX = "integral_wrt_time_of_"
 #: **Le défaut qu'elle corrige est attesté sur donnée réelle**, et pour deux
 #: causes distinctes. `(0, 1, 52)` est nommé par l'OMM « Total precipitation
 #: rate » et **notre** table y posait `precipitation_flux` sur un cumul en
-#: `kg m-2` — voir la sonde `X10-DIV-0008`, où Météo-France et SMHI font le
-#: même usage. Et sur `(0, 4, 7)`, ecCodes résout **deux paramètres
+#: `kg m-2` — voir la sonde `X10-DIV-0008`. **Trois producteurs indépendants
+#: font cet usage** : Météo-France, SMHI, et DWD, dont le `tot_prec` d'ICON-D2
+#: a été passé dans la chaîne le 22/10/2026. C'est une pratique établie, pas
+#: une singularité — et sans le redressement, ICON aurait produit un fichier
+#: non conforme dès le premier granule. Et sur `(0, 4, 7)`, ecCodes résout **deux paramètres
 #: distincts** que seul le traitement statistique départage — `sdswrf`,
 #: `paramId 260087`, en instantané, et `ssrd`, `paramId 169`, en cumul. Le
 #: second porte le nom CF du **débit** avec l'unité du **cumul**, `J m-2` ;
