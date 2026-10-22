@@ -129,6 +129,20 @@ GEO_KEYS = (
     "radius",
     "earthMajorAxis",
     "earthMinorAxis",
+    # **L'orientation de balayage**, section 3. Une inversion nord-sud est
+    # bruyante sur une carte et **silencieuse sur une agrégation ou une
+    # extraction de point** — le cas est attesté, des grilles du NCEP
+    # affichées à l'envers. Pour une source déjà contractée, l'empreinte des
+    # coordonnées la verrait ; pour une source nouvelle, rien ne la verrait.
+    #
+    # Ce sont les **quatre drapeaux** et non l'octet `scanMode`, qui n'est
+    # pas une clé lisible en édition 2 — mesuré le 22/10/2026, il lève
+    # `KeyValueNotFoundError`. Le contrôle « chaque clé demandée ressort »
+    # l'a attrapé à son premier passage.
+    "jScansPositively",
+    "iScansNegatively",
+    "jPointsAreConsecutive",
+    "alternativeRowScanning",
 )
 
 #: Options d'ouverture **fixées explicitement**, relevées le 08/10/2026.

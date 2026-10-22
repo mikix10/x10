@@ -71,6 +71,13 @@ class Field:
     level_type: int = 103
     level: int = 10
     step: int = 0
+    #: Centre émetteur. **85 est Météo-France**, notre producteur pilote ; le
+    #: poser permet d'exercer le chemin de l'ECMWF — `98` —, dont les
+    #: concepts locaux se comportent différemment : mesuré le 22/10/2026,
+    #: `(128, 167)` y rend `cfName = unknown` quand la table générique rend
+    #: `air_temperature` sous tout autre centre. Sans ce paramètre, aucun
+    #: test hors ligne ne touchait ce chemin.
+    centre: int = 85
     #: Version des tables maîtresses de l'OMM déclarée par le message. Sert à
     #: simuler un producteur qui a pris de l'avance sur notre ecCodes — cas
     #: qu'aucune donnée réelle ne nous offre aujourd'hui, et qui ne lève
@@ -115,7 +122,7 @@ def message(spec: Field, grid: dict[str, float] | None = None) -> bytes:
 
     h = eccodes.codes_grib_new_from_samples("regular_ll_sfc_grib2")
     try:
-        eccodes.codes_set(h, "centre", 85)
+        eccodes.codes_set(h, "centre", spec.centre)
         # Avant les paramètres : c'est la version de tables qui décide de la
         # façon dont ecCodes les résout.
         if spec.tables is not None:
