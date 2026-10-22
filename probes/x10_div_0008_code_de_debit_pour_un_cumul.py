@@ -1,39 +1,44 @@
-"""X10-DIV-0008 — le code d'un débit employé pour une accumulation.
+"""X10-DIV-0008 — retirée : le producteur suivait la norme, c'est nous qui nommions mal.
 
-**Le constat, et il vaut pour deux producteurs indépendants.** Le triplet
-`(0, 1, 52)` est nommé par l'OMM **« Total precipitation rate »**, en
-`kg m-2 s-1`. Deux producteurs l'emploient pour un **cumul** :
+**Le constat de fait tient, son imputation était inversée.** Le triplet
+`(0, 1, 52)` est nommé par l'OMM « Total precipitation rate », et deux
+producteurs indépendants l'emploient pour un **cumul** :
 
 | Producteur | Produit | `stepType` | `units` |
 |---|---|---|---|
 | Météo-France | AROME 0,025° | `accum` | `kg m**-2` |
 | SMHI | CERRA | `accum` | `kg m**-2` |
 
-**Pourquoi ce n'est pas une singularité** : deux occurrences indépendantes,
-sur deux chaînes de production sans rapport, font un usage établi plutôt
-qu'une erreur isolée.
+**Ce que la mesure du 22/10/2026 a renversé.** Ils ne s'écartent de rien : ils
+appliquent une recommandation écrite. La note 3 de la table 4.2-0-1 du *Manual
+on Codes*, attachée à l'entrée 8 — *Total precipitation* —, dit verbatim :
 
-**Ce que cela nous fait écrire de faux.** Notre table est fidèle à la norme
-et pose `precipitation_flux` — un flux par seconde, sur une variable dont
-l'unité n'a pas de seconde. Le fichier produit se dirait conforme sans
-l'être.
+> « Statistical process 1 (Accumulation) does not change units. It is
+> recommended to use another parameter with "rate" in its name and
+> accumulation in PDT. »
 
-**L'invariant qui en découle** : le `standard_name` émis et l'unité émise
-doivent être **dimensionnellement compatibles**. `cf-units` est déjà au
-groupe de développement et sait réduire une unité ; le tableau CF publie
-l'unité canonique de chaque nom. Rien à inventer.
+Et l'entrée 8 est **`Deprecated`** au registre de l'OMM, comme quatorze des
+175 entrées de cette table. ecCodes ne la résout d'ailleurs plus : `(0, 1, 8)`
+rend `paramId = 0` et `unknown` partout, sous les huit combinaisons de gabarit
+et de traitement essayées, aux six versions de tables et sous trois centres —
+seul `kwbc` porte une concordance locale. Le producteur emploie donc ce que la
+norme recommande **et** ce que l'outillage sait lire.
 
-**Outillé le 22/10/2026, et l'ampleur était sous-estimée.** Le contrôle a
-trouvé **treize** couples incompatibles commités, dont onze dans le catalogue
-livré et non dans les contrats de référence — là où personne ne regardait.
+**Le seul maillon fautif était le nôtre** : `grib2.CF_STANDARD_NAMES` indexait
+`(0, 1, 52)` par le triplet seul et posait `precipitation_flux` sur le cumul.
+Corrigé le 22/10/2026 — `denotes_a_rate` et `CF_ACCUMULATED` substituent
+`precipitation_amount` dès que le champ est cumulé.
 
-**Ce que l'invariant ne voit pas, et il faut le dire.** La compatibilité
-dimensionnelle ignore le **signe** et la **convention de référence**. CF ne
-publie l'intégrale des flux de chaleur que sous la forme *downward* quand le
-GRIB compte *upward* : y rattacher nos noms passerait au vert tout en
-inversant le sens des valeurs. Ces champs restent donc **sans nom**, et c'est
-le bon résultat. Un test vert dit « nos noms et nos unités sont
-dimensionnellement compatibles », pas « nos noms sont justes ».
+**Pourquoi un retrait plutôt qu'une bascule de côté.** Le registre recense ce
+qui sépare ce qu'un producteur sert de ce qu'un consommateur peut exploiter.
+Ici le producteur ne sépare rien : l'écart était entre notre table et la
+norme, et il est clos. Le garder sous `side = x10` ferait du registre un
+journal de nos propres défauts, ce que le contrat de sortie et la suite de
+tests font déjà. **Une entrée fausse dans un registre présenté comme
+contradictoire coûte plus cher qu'une entrée manquante.**
+
+Ce qui subsiste du dossier est ailleurs, et mesuré : voir `X10-DIV-0018`, où
+c'est ecCodes qui porte un nom CF incompatible avec l'unité qu'il déclare.
 """
 
 from __future__ import annotations
@@ -44,22 +49,22 @@ from x10_client.probes import Handling, Mode, Nature, Probe, Side, Status
 
 PROBE = Probe(
     identifier="X10-DIV-0008",
-    title="Triplet (0,1,52), a precipitation rate, is used for an accumulation",
+    title="Withdrawn: (0,1,52) used for an accumulation follows a WMO recommendation",
     nature=Nature.DIVERGENCE,
-    status=Status.CONFIRMED,
+    status=Status.WITHDRAWN,
     side=Side.SOURCE,
     observed_on=date(2026, 10, 20),
     producer="Météo-France et SMHI",
-    artefact="GRIB2, table 4.2-0-1 entrée 52",
-    workaround="Outillé le 22/10/2026. `grib2.denotes_a_rate` reconnaît un nom "
-    "de débit par ses jetons, et `CF_ACCUMULATED` lui substitue le "
-    "nom de l'intégrale sur un champ cumulé — ici "
-    "`precipitation_amount`. Faute d'intégrale connue, le nom est "
-    "retiré plutôt que posé faux. "
-    "`workspace-tests/test_coherence_noms_cf.py` soumet désormais "
-    "chaque couple commis à UDUNITS.",
-    handling=Handling.WORKED_AROUND,
+    artefact="GRIB2, table 4.2-0-1 note 3",
+    status_note="Retirée le 22/10/2026 : le producteur ne s'écarte de rien. La "
+    "note 3 de la table 4.2-0-1 recommande d'employer un paramètre "
+    "« rate » avec accumulation dans le gabarit, et l'entrée 8 est "
+    "dépréciée. Le seul maillon fautif était notre table, corrigée "
+    "le même jour.",
+    workaround="Sans objet : l'écart n'était pas chez le producteur. Le défaut "
+    "de nommage qu'il révélait est corrigé dans `grib2.CF_ACCUMULATED`.",
+    handling=Handling.NOT_APPLICABLE,
     mode=Mode.MANUAL,
-    replay_note="Extraire un cumul de précipitation d'AROME ou de CERRA et lire "
-    "`stepType` et `units` sur le message. Demande ecCodes.",
+    replay_note="Relire la note 3 de la table 4.2-0-1 au registre de l'OMM, et "
+    "le statut de l'entrée 8. Aucun granule nécessaire.",
 )

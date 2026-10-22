@@ -664,11 +664,13 @@ def test_un_nom_de_debit_venu_du_decodeur_est_redresse_aussi(tmp_path):
     """La correction porte sur le **nom retenu**, pas sur la branche qui l'a
     produit.
 
-    Mesuré le 22/10/2026 sur ecCodes 2.49.0 et 2.50.0 : le décodeur change
-    l'unité selon le `stepType` — `W m-2` devient `J m-2` — mais garde le nom
-    CF du taux. Et `cfgrib` recopiant `cfName` dans `standard_name`, ce nom
-    arrive déjà posé : une correction placée dans la branche « notre table »
-    ne l'aurait jamais vu.
+    Mesuré le 22/10/2026 sous ecCodes 2.49.0, rejoué sous 2.50.0 par
+    `uv run --no-project --with eccodes==2.50.0 python` : sur `(0, 4, 7)`, le
+    décodeur résout **deux paramètres distincts** selon le traitement
+    statistique, et celui du cumul porte le nom CF du débit avec l'unité du
+    cumul. Et `cfgrib` recopiant `cfName` dans `standard_name`, ce nom arrive
+    déjà posé : une correction placée dans la branche « notre table » ne
+    l'aurait jamais vu.
     """
     jeu = _jeu_cumul(tmp_path, number=7, nom_pose="surface_downwelling_shortwave_flux_in_air")
     sortie = apply_cf_names(jeu)

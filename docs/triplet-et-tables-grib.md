@@ -44,6 +44,13 @@ de fichiers CSV.
 > ecCodes, le NCEP et EUMETSAT en produisent chacun une version, et elles
 > divergent — ce que la section 3 mesure.
 
+**Précision du 22/10/2026, parce que la phrase se lit de travers.** Un
+artefact lisible par machine existe, il est **officiel**, et il n'est pas
+normatif : la distribution de l'OMM et l'archive du tag v37 de `wmo-im/GRIB2`
+ont la **même empreinte SHA-256**, c'est le même fichier. Ce qui manque n'est
+donc pas l'artefact mais son **autorité** — et la clause de préséance ne vit
+pas dans l'archive, elle vit sur la page qui la diffuse.
+
 ### Aucun engagement de stabilité, et les entrées changent
 
 Mesuré sur l'historique du dépôt officiel : la révision de mai 2025 **réécrit
@@ -52,12 +59,26 @@ en place** les descriptions des entrées 20, 21, 22 et 24 de la table 4.2-0-3
 dans le standard ne promet que ce le restera, et aucune clause n'interdit de
 redéfinir une entrée existante.
 
-### Aucun mécanisme de dépréciation
+### Une dépréciation qui existe, mais que la table qui nous occupe n'emploie pas
 
 Les cinquante entrées de la table 4.2-0-3 portent toutes le statut
 `Operational` — **y compris celle dont l'OMM écrit elle-même qu'il ne faut
-plus l'employer**. Un lecteur ne peut donc pas détecter par programme qu'un
-code est découragé : l'information n'existe qu'en **note de texte libre**.
+plus l'employer**. Sur cette table, un lecteur ne peut donc pas détecter par
+programme qu'un code est découragé : l'information n'y existe qu'en **note de
+texte libre**.
+
+> **Correction du 22/10/2026 : généraliser était faux.** Le mécanisme existe
+> et l'OMM s'en sert. Sur l'ensemble de la table 4.2 en v37 : **1 387 entrées
+> hors `Reserved` et `Missing`, dont 1 323 `Operational` et 60 `Deprecated`**
+> — et il n'est pas récent, la v22 de 2019 en portait déjà cinquante. La
+> table 4.2-0-1 à elle seule en compte quinze, dont l'entrée 8, *Total
+> precipitation*.
+>
+> Ce qui reste vrai, et qui est le point utile : le registre SKOS de
+> `codes.wmo.int` **ne transporte ni le statut ni les notes**. L'entrée
+> dépréciée s'y présente comme une entrée ordinaire, de sorte qu'un
+> consommateur qui suit les URI persistantes ne voit pas la dépréciation que
+> le CSV déclare.
 
 ### Ce qui est, en revanche, solidement défini
 
@@ -66,7 +87,8 @@ l'empaquetage, la géométrie des grilles, les gabarits de produit et les
 plages réservées à l'usage local sont précisément spécifiés, et c'est ce qui
 rend un lecteur générique possible. Le problème n'est pas le format : c'est
 la **sémantique des paramètres**, laissée à des tables dont la gouvernance
-n'offre ni stabilité, ni dépréciation, ni forme exploitable.
+n'offre ni stabilité, ni forme faisant autorité — et dont la dépréciation,
+qui existe, ne franchit pas le registre à URI persistantes.
 
 ---
 
@@ -233,49 +255,67 @@ Tout ce qui précède porte sur ce que d'autres publient. Le relevé a aussi
 révélé un défaut du côté lecteur, et il mérite d'être connu de qui emploie
 `cfgrib`.
 
-**`cfgrib` nomme ses variables d'après le nom court qu'ecCodes résout.** Deux
-paramètres portant le même nom court se recouvrent donc à l'intérieur d'un
-même jeu, et le second écrase le premier.
+> **Réécrit le 22/10/2026 : le mécanisme décrit ici était faux.** Nous
+> l'attribuions au nom court. Mesuré depuis : `cfgrib` nomme d'après
+> `cfVarName`, le nom court n'étant qu'un repli, et `open_datasets` — notre
+> seul appel — découpe le fichier **par `paramId`**. La perte se produit donc
+> **avant tout nommage**.
+
+**Deux triplets qu'ecCodes résout en un même `paramId` ne donnent qu'une
+variable.** Le second n'est jamais lu.
 
 | | Mesure |
 |---|---|
 | Messages dans le fichier | 4 — deux échéances de `(0, 16, 192)`, deux de `(0, 16, 193)` |
-| Champs décodés | **1**, nommé `unknown` |
+| `paramId` rendu | **0** pour les quatre : aucun n'est résolu |
+| Champs décodés | **1** |
 | Attributs et valeurs du survivant | cohérents, ceux de `(0, 16, 192)` |
 
 La bonne nouvelle est que ce n'est pas un mélange : le champ survivant est
 entier et porte sa propre identité. La mauvaise est que l'autre **disparaît
 sans un mot**, et qu'un compte rendu d'exécution dirait `success`.
 
-**Ni `errors="raise"` ni `compat="equals"` n'y voient quoi que ce soit** : le
-premier porte sur les messages illisibles, le second sur la fusion de jeux.
-La perte se produit à l'intérieur d'un jeu, au nommage.
+**Aucune option ne le signale** — ni `errors="warn"`, ni `errors="raise"`,
+sous aucun des deux appels : le paramètre porte sur les messages illisibles,
+et le recouvrement est en amont. La mention de `compat="equals"` que portait
+cette note était un emprunt à la décision sur l'assemblage `xarray` : X10 ne
+le passe nulle part.
 
 ### Et le recouvrement ne touche pas que les codes exotiques
 
 C'est le point qu'on n'attend pas. Les codes irrésolus reçoivent tous
-`unknown` et se recouvrent donc entre eux — les codes `(0, 6, 11)` et
+`paramId = 0` et se recouvrent donc entre eux — les codes `(0, 6, 11)` et
 `(0, 17, 4)` du paquet SP3 d'ARPEGE 0,25° sont dans ce cas, résolus ni par
 ecCodes ni par la table du producteur.
 
-Mais des codes **parfaitement résolus** se recouvrent aussi. Relevé sur
-365 codes des disciplines 0 et 10, à `tablesVersion = 37` : **cinq noms
-courts** en désignent plusieurs.
+Mais des codes **parfaitement résolus** collisionnent aussi. Recompté le
+22/10/2026 au niveau de surface : sur **458 triplets** résolus des
+disciplines 0 et 10 — et non 365 —, **six `paramId` sont portés par deux
+triplets chacun**.
 
-| Nom court | Triplets | Libellés ecCodes |
+| `paramId` | Triplets | Ce que c'est |
 |---|---|---|
-| `h` | `(0, 3, 6)`, `(0, 3, 34)` | *Geometrical height above ground*, pour les deux |
-| `tmax` | `(0, 0, 4)`, `(10, 0, 23)` | température maximale / **période de houle** |
-| `cdct` | `(0, 6, 8)`, `(0, 6, 12)` | *Cloud type* / *Cloud top* |
-| `tcond` | `(0, 1, 21)`, `(0, 6, 17)` | *Condensate* / *Total condensate* |
-| `~` | `(0, 6, 25)`, `(0, 19, 20)`, `(0, 19, 21)` | cumulonimbus / givrage / turbulence |
+| 3008 | `(0, 3, 6)`, `(0, 3, 34)` | les deux entrées que l'OMM a créées pour être distinctes |
+| 229 | `(0, 2, 38)`, `(0, 2, 62)` | deux tensions de surface |
+| 230 | `(0, 2, 37)`, `(0, 2, 63)` | idem |
+| 140101, 140102, 140218 | — | trois paires du domaine des vagues |
 
-Qu'une température maximale et une période de houle partagent un nom court
-n'a rien d'anodin : il suffit qu'un granule porte les deux dans une même
-forme d'hypercube pour qu'un champ disparaisse. Et le recouvrement de `h`
-est le même code `(0, 3, 6)` que la section 2, revu par un autre bout — la
-chaîne ne distingue pas les deux entrées que l'OMM a créées précisément pour
-être distinctes.
+**Ce sont les seuls qui fassent disparaître un champ.** Le cas de `h` est le
+plus parlant : `(0, 3, 6)` et `(0, 3, 34)` ne partagent **pas un nom**, ils
+partagent le `paramId` 3008 — la collision est en amont du nommage, et
+**aucune liste de noms n'aurait pu l'attraper**. C'est l'argument du contrôle
+contre la liste, et il est plus fort que celui que nous avancions.
+
+**Trois vrais recouvrements de nom existent par ailleurs** — `tmax` pour une
+température maximale et une période de houle, `cdct`, `tcond` — et ils ne
+perdent **rien** sur notre chemin : le découpage par `paramId` les sépare en
+jeux distincts, où ils portent le même nom sans se recouvrir. La cinquième
+ligne de notre tableau précédent, `~` pour trois codes, était une fausse
+alerte : leurs `cfVarName` sont distincts.
+
+**Le compte dépend du type de niveau**, ce que la mesure d'origine ne disait
+pas : 458 triplets et six collisions en surface, 393 et deux à
+`heightAboveGround`.
 
 > **C'est ce qui fait pencher pour un contrôle plutôt qu'une liste.** Une
 > liste de codes connus aurait manqué les trois quarts de ce tableau, et

@@ -320,7 +320,7 @@ def time_bounds(dataset: xr.Dataset) -> object | None:
     start = np.array([f - _duration(int(n), code) for f, n in zip(end, longueurs, strict=True)])
     # `numpy` entre par import paresseux, donc sans types : la variable
     # annotée rend la frontière explicite plutôt que de laisser `Any`
-    # remonter dans la signature. Même motif que `_cfgrib` dans `decoding`.
+    # remonter dans la signature. Même motif que `_cfgrib` dans `grib2`.
     bounds: object = np.stack([start, end], axis=-1)
     return bounds
 

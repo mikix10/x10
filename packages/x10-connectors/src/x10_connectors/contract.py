@@ -67,7 +67,12 @@ GRIB_IDENTITY = (
     "stepType",
     # **Le triplet ne suffit pas à identifier un champ**, et ce n'est pas une
     # précaution : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, sept
-    # messages portent `(10, 0, 3)` et seul le gabarit les sépare.
+    # messages portent `(10, 0, 3)`. Le gabarit et le type de niveau séparent
+    # **conjointement** la hauteur totale des six hauteurs par bande de
+    # période ; rejoué le 22/10/2026, **aucune des clés ci-dessous ne sépare
+    # les six bandes entre elles**, qui rendent une seule identité. Fermer
+    # l'identité exigerait les clés de bande du gabarit 4.104 — voir
+    # `TEMPLATE_RESTRICTED`.
     "productDefinitionTemplateNumber",
     # Taille de l'ensemble déclarée par le message. Elle est ici pour deux
     # raisons : elle discrimine un axe de membres réel, et son évolution --

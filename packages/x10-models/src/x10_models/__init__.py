@@ -136,11 +136,19 @@ class Variable(BaseModel):
 
 
 class SourceTerms(BaseModel):
-    """Les termes du producteur pour une grandeur. **Aucune stabilité promise.**
+    """Les termes tels que la chaîne de décodage les rend. **Aucune stabilité promise.**
 
-    > Cette vue ne promet **rien, par construction, puisqu'elle suit le
-    > producteur**. Si Météo-France renomme `t2m`, elle change — c'est son
-    > objet. Qui l'interroge accepte ce régime en l'interrogeant.
+    > Cette vue ne promet **rien, par construction, puisqu'elle suit sa
+    > source**. Si le vocabulaire amont change, elle change — c'est son objet.
+    > Qui l'interroge accepte ce régime en l'interrogeant.
+
+    **Correction du 22/10/2026 : « les termes du producteur » était faux, et
+    ses exemples étaient des contre-exemples.** Ni Météo-France ni l'OMM ne
+    nomment `t2m` : la table 4.2 ne porte aucune colonne d'abréviation, le
+    message GRIB déclare `2t`, et `t2m` est le `cfVarName` qu'ecCodes en
+    dérive — identique sous les quatre centres essayés, donc **indépendant du
+    producteur**. La vue suit donc le vocabulaire d'**ecCodes**, ce qui ne la
+    rend pas moins utile mais désigne le bon responsable d'un changement.
 
     Elle existe pour l'usage expert : savoir demander « `t2m` d'AROME 0,025° »
     quand on connaît déjà la source. Elle n'est **pas encore exposée** par une
@@ -155,7 +163,9 @@ class SourceTerms(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    #: Nom court tel que le producteur le donne — `t2m`, `u10`.
+    #: Nom court tel que la chaîne de décodage le rend — `t2m`, `u10`.
+    #: C'est le `cfVarName` d'ecCodes, dérivé du nom court du message
+    #: — `2t`, `10u` — et non une abréviation du producteur.
     short_name: str = Field(min_length=1)
     #: Type de niveau dans le vocabulaire d'ecCodes — `heightAboveGround`.
     level_type: str | None = None

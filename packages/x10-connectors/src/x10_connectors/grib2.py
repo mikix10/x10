@@ -61,8 +61,11 @@ READ_KEYS = (
     "localTablesVersion",
     # Gabarit de définition de produit, section 4. **Le triplet ne suffit
     # pas** : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, `swh` et
-    # les six hauteurs par bande de période partagent `(10, 0, 3)` et ne se
-    # distinguent que par leur gabarit — 4.0 contre 4.104.
+    # les six hauteurs par bande de période partagent `(10, 0, 3)`. Le
+    # gabarit sépare le total des bandes — 4.0 contre 4.104 — mais **pas les
+    # bandes entre elles**, rejoué le 22/10/2026 : l'entrée 104 de la table
+    # 4.0 nomme un produit « for waves selected by period range », et la
+    # bande vit à l'intérieur du gabarit.
     "productDefinitionTemplateNumber",
     # Taille de l'ensemble **déclarée par le message**. C'est le seul
     # discriminant fiable d'un axe de membres : mesuré sur trois gabarits, le
@@ -133,6 +136,15 @@ OPTIONS_CFGRIB: dict[str, object] = {
     #: Défaut : `('parameter', 'time', 'geography', 'vertical')`. Repris tel
     #: quel, mais écrit : ces quatre couches posent les noms CF, les axes
     #: temporels, les coordonnées et les niveaux.
+    #:
+    #: **Ce que la couche `parameter` décide, et qui n'était pas écrit.**
+    #: Mesuré le 22/10/2026 : c'est elle qui fait nommer les variables
+    #: d'après `cfVarName` plutôt que d'après le nom court. Le même fichier
+    #: ouvert sans elle rend `5wavh`, `ci` et `4lftx` là où il rend `wavh5`,
+    #: `siconc` et `lftx4` avec elle. Elle nous évite donc des noms de
+    #: variable commençant par un chiffre — qu'une variable NetCDF ne peut
+    #: pas porter sans gêner ses consommateurs — et elle fixe du même coup la
+    #: clé d'indexation du contrat de sortie.
     "encode_cf": ("parameter", "time", "geography", "vertical"),
     #: Défaut : `('time', 'step')`. Repris tel quel, et écrit pour la même
     #: raison — il décide de ce qui devient dimension plutôt que coordonnée.
@@ -344,10 +356,18 @@ INTEGRAL_PREFIX = "integral_wrt_time_of_"
 #: causes distinctes. `(0, 1, 52)` est nommé par l'OMM « Total precipitation
 #: rate » et **notre** table y posait `precipitation_flux` sur un cumul en
 #: `kg m-2` — voir la sonde `X10-DIV-0008`, où Météo-France et SMHI font le
-#: même usage. Et mesuré le 22/10/2026 sur ecCodes 2.49.0 et 2.50.0, le
-#: décodeur change l'unité selon le `stepType` — `W m-2` devient `J m-2` —
-#: mais **garde le nom CF du taux** ; `cfgrib` recopiant `cfName` dans
-#: `standard_name`, le nom fautif arrive déjà posé.
+#: même usage. Et sur `(0, 4, 7)`, ecCodes résout **deux paramètres
+#: distincts** que seul le traitement statistique départage — `sdswrf`,
+#: `paramId 260087`, en instantané, et `ssrd`, `paramId 169`, en cumul. Le
+#: second porte le nom CF du **débit** avec l'unité du **cumul**, `J m-2` ;
+#: `cfgrib` recopiant `cfName` dans `standard_name`, le nom fautif arrive
+#: déjà posé. Ce n'est pas une adaptation d'unité, c'est une entrée de table
+#: incohérente — et elle n'est pas isolée : **onze des 88 paramètres portant
+#: un `cfName` dans les disciplines 0 et 10 déclarent une unité
+#: dimensionnellement incompatible** avec la canonique de CF.
+#:
+#: Mesuré le 22/10/2026 sous ecCodes 2.49.0, rejoué sous 2.50.0 par
+#: `uv run --no-project --with eccodes==2.50.0 python`.
 #:
 #: **Piège vérifié** : `integral_of_…_wrt_time` est un **alias** au tableau
 #: CF, que le contrôle réseau rejette. La forme valide est
@@ -473,7 +493,7 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     **Le même paramètre gouverne une seconde perte**, de même nature et
     d'origine différente : deux paramètres qu'ecCodes ne résout pas reçoivent
     tous deux le nom `unknown`, et l'un écrase l'autre dans le jeu. Voir
-    `champs_perdus`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
+    `dropped_fields`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
     connaître.
     """
     datasets: list[xr.Dataset] = _cfgrib().open_datasets(
@@ -635,27 +655,36 @@ def dropped_fields(
 ) -> frozenset[tuple[int, int, int]]:
     """Identifiants présents dans le fichier et absents du décodage.
 
-    **Le troisième silence de la chaîne, mesuré le 13/10/2026.** `cfgrib`
-    nomme ses variables d'après le nom court qu'ecCodes résout. Deux
-    paramètres portant **le même nom court** se recouvrent donc dans un jeu,
-    et le second écrase le premier : quatre messages entrent, un champ sort.
-    Sans exception, sans avertissement, et le compte rendu dirait `success`.
+    **Le troisième silence de la chaîne, mesuré le 13/10/2026 et redressé le
+    22/10/2026.** Le mécanisme n'est pas celui que cette docstring décrivait :
+    `cfgrib` ne nomme pas d'après le nom court mais d'après `cfVarName`, et
+    `open_datasets` — notre seul appel — découpe le fichier **par `paramId`**.
+    Le recouvrement se produit donc **avant tout nommage**.
 
-    Deux familles de recouvrement, et la seconde surprend.
+    Ce que nous rencontrons est une **collision de `paramId`** : deux triplets
+    distincts qu'ecCodes résout en un même identifiant. Le survivant est
+    entier et porte son identité, l'autre n'est jamais lu. Quatre messages
+    entrent, un champ sort, sans exception ni avertissement, et le compte
+    rendu dirait `success`.
 
-    Les codes qu'ecCodes **ne résout pas** reçoivent tous `unknown`. Ce n'est
-    pas un cas d'école : `(0, 6, 11)` et `(0, 17, 4)`, du paquet SP3 d'ARPEGE
-    0,25°, ne sont résolus ni par ecCodes ni par la table du producteur.
+    Deux familles, et la seconde surprend.
 
-    Mais des codes **parfaitement résolus** se recouvrent aussi. Relevé sur
-    365 codes des disciplines 0 et 10 : **cinq noms courts** désignent
-    plusieurs triplets — dont `h` pour `(0, 3, 6)` et `(0, 3, 34)`, et `tmax`
-    pour une température maximale `(0, 0, 4)` et une période de houle
-    `(10, 0, 23)`. Le recouvrement n'est donc pas réservé aux codes exotiques.
+    Les codes qu'ecCodes **ne résout pas** reçoivent tous `paramId = 0`. Ce
+    n'est pas un cas d'école : `(0, 6, 11)` et `(0, 17, 4)`, du paquet SP3
+    d'ARPEGE 0,25°, ne sont résolus ni par ecCodes ni par la table du
+    producteur.
 
-    Ni `errors="raise"` ni `compat="equals"` n'y voient quoi que ce soit : le
-    premier porte sur les messages illisibles, le second sur la fusion de
-    jeux. La perte se produit **à l'intérieur** d'un jeu, au nommage.
+    Mais des codes **parfaitement résolus** collisionnent aussi. Recompté le
+    22/10/2026 au niveau de surface : sur **458 triplets** résolus des
+    disciplines 0 et 10, **six `paramId` sont portés par deux triplets** —
+    229, 230, 3008, 140101, 140102, 140218. Le cas emblématique, `(0, 3, 6)`
+    et `(0, 3, 34)`, ne partage **pas un nom** mais le `paramId` 3008 : aucune
+    liste de noms ne l'aurait attrapé, ce qui est l'argument même du contrôle
+    contre la liste.
+
+    `errors="raise"` n'y voit rien : il porte sur les messages illisibles. Et
+    deux paramètres de `paramId` distincts partageant un nom de variable **ne
+    perdent rien** sous `open_datasets`, qui les rend dans deux jeux séparés.
     """
     decodes = {
         code
