@@ -60,6 +60,19 @@ période des champs agrégés, à lire avant de toucher aux axes temporels. Enfi
 données, la compression et le découpage — à lire avant de changer la façon
 dont un fichier est écrit.
 
+**Une note par source** dit ce que chaque producteur expose réellement, et
+à quelles conditions —
+**[docs/copernicus-data-stores.md](docs/copernicus-data-stores.md)** pour les
+trois magasins de l'ECMWF,
+**[docs/meteofrance-portail-api.md](docs/meteofrance-portail-api.md)** pour le
+portail d'API de Météo-France, et les deux notes AROME et ARPEGE pour la voie
+des paquets. Les lire avant d'intégrer une source : elles portent des
+constats mesurés que le descriptif du producteur ne donne pas.
+
+**[docs/divergences-observees.md](docs/divergences-observees.md)** recense les
+écarts que ces mesures ont révélés, chacun avec un identifiant stable et, pour
+certains, une sonde qui le rejoue.
+
 Une note prend du recul sur l'ensemble :
 **[docs/standards-et-outillage.md](docs/standards-et-outillage.md)** établit
 qui fait autorité sur quoi dans la chaîne, pourquoi aucune correspondance de
