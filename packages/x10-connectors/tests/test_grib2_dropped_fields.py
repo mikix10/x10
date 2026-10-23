@@ -85,7 +85,7 @@ def test_le_recouvrement_ne_touche_pas_que_les_codes_irresolus(tmp_path):
     )
     datasets = grib2.open_granule(chemin, errors="ignore")
     assert sum(len(j.data_vars) for j in datasets) == 1
-    assert grib2.dropped_fields(chemin, datasets) == {(0, 3, 34)}
+    assert grib2.dropped_fields(chemin, datasets) == {(2, 0, 3, 34)}
 
 
 # --- La lecture des en-têtes --------------------------------------------------
@@ -134,7 +134,7 @@ def test_la_perte_est_nommee_par_le_code_disparu(tmp_path):
         [Field(category=16, number=192), Field(category=16, number=193)],
     )
     datasets = grib2.open_granule(chemin, errors="ignore")
-    assert grib2.dropped_fields(chemin, datasets) == {(0, 16, 193)}
+    assert grib2.dropped_fields(chemin, datasets) == {(2, 0, 16, 193)}
 
 
 def test_des_types_de_niveau_distincts_ne_perdent_rien(tmp_path):
@@ -160,7 +160,7 @@ def test_l_ouverture_leve_par_defaut(tmp_path):
     )
     with pytest.raises(grib2.DroppedFieldsError) as capture:
         grib2.open_granule(chemin)
-    assert "(0, 16, 193)" in str(capture.value)
+    assert "GRIB2 (0, 16, 193)" in str(capture.value)
 
 
 def test_la_tolerance_reste_accessible_et_journalise(tmp_path, caplog):

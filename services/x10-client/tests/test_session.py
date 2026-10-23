@@ -132,7 +132,7 @@ def test_un_granule_ampute_est_rapporte_et_non_refuse(session, tmp_path, monkeyp
     assert report.verdict is Verdict.PARTIAL
     assert granule.parameters_in == 2
     assert granule.fields_out == 1
-    assert granule.dropped == ("(0, 16, 193)",)
+    assert granule.dropped == ("GRIB2 (0, 16, 193)",)
     assert "short name" in granule.reason
     assert granule.outputs, "ce qui reste est écrit : amputé n'est pas perdu"
 

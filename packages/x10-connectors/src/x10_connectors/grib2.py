@@ -14,6 +14,7 @@ Dépendance optionnelle : installer l'extra `grib`.
 
 from __future__ import annotations
 
+import functools
 from types import ModuleType
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,21 @@ READ_KEYS = (
     "parameterCategory",
     "parameterNumber",
     "name",
+    # **L'édition du format, et de quoi identifier un champ dans chacune.**
+    # Mesuré le 20/10/2026 : l'édition 1 ne porte ni `discipline` ni
+    # `parameterCategory` ni `parameterNumber`, et l'édition 2 ne porte ni
+    # `table2Version` ni `indicatorOfParameter`. Demander les quatre ne
+    # coûte rien — une clé absente est simplement absente de l'attribut, et
+    # la bissection des dix-huit clés n'en a trouvé aucune qui fasse échouer
+    # l'ouverture d'un granule de l'une ou l'autre édition.
+    "editionNumber",
+    "table2Version",
+    "indicatorOfParameter",
+    # Le seul identifiant que **les deux éditions partagent**, et qu'ecCodes
+    # résout depuis l'une comme depuis l'autre : 167 est la température à 2 m
+    # dans ERA5 en édition 1 comme dans AROME en édition 2. C'est l'axe du
+    # nommage, là où l'identité d'un champ reste propre à son édition.
+    "paramId",
     # Unité de la fenêtre d'agrégation, table 4.4 du format. Elle reste un
     # **attribut** et non une coordonnée : contrairement à la longueur, elle
     # ne varie pas d'une échéance à l'autre.
@@ -90,6 +106,18 @@ LOCAL_USE_RANGE_START = 192
 #: Inutile de recoder la table 3.2 du format : ecCodes la résout et expose le
 #: résultat. `earthIsOblate` tranche entre sphère et ellipsoïde, puis `radius`
 #: ou le couple d'axes porte la valeur.
+#: Attributs que `cfgrib` pose à partir des clés ci-dessus. Les nommer évite
+#: de répandre des chaînes littérales dans les fonctions qui les lisent.
+ATTR_EDITION = "GRIB_editionNumber"
+ATTR_PARAM_ID = "GRIB_paramId"
+ATTR_TABLE2_VERSION = "GRIB_table2Version"
+ATTR_INDICATOR = "GRIB_indicatorOfParameter"
+
+#: Un `paramId` nul signifie « non résolu », pas « paramètre zéro ».
+#: Mesuré le 20/10/2026 : deux champs de tables locales de Météo-France le
+#: portent tous les deux. L'employer comme identité les confondrait.
+PARAM_ID_UNRESOLVED = 0
+
 GEO_KEYS = (
     "shapeOfTheEarth",
     "earthIsOblate",
@@ -343,6 +371,34 @@ WITHOUT_CF_NAME: frozenset[tuple[int, int, int]] = frozenset(
 #: et rien dans le message ne dit lequel le modèle emploie. Le classement
 #: reste le bon : il n'y a rien à proposer à CF, seulement un choix que nous
 #: ne pouvons pas faire.
+#: Noms CF que nous posons **par `paramId`**, pour les champs qu'aucune autre
+#: voie ne nomme.
+#:
+#: **Pourquoi une seconde table, et pas une seule.** L'identité d'un champ est
+#: propre à son édition — triplet en 2, `(table2Version, indicatorOfParameter)`
+#: en 1 — mais `paramId` vaut la même chose des deux côtés. Indexer le
+#: nommage par lui évite d'écrire deux fois le même nom ; indexer l'identité
+#: par lui serait faux, puisqu'il vaut zéro sur un paramètre non résolu.
+#:
+#: **Elle reste un complément, pas un remplacement.** Mesuré le 20/10/2026 sur
+#: les huit granules d'édition 1 du corpus : trois champs sur quatorze sont
+#: déjà nommés par ecCodes, six le sont par le second passage de
+#: `cf_name_for_param_id`, et cette table ne vise que le reste.
+#:
+#: Chaque nom est **vérifié présent au tableau CF**, version 95, le
+#: 20/10/2026 — et le test marqué `network` les y confronte avec les autres.
+CF_BY_PARAM_ID: dict[int, str] = {
+    # `tp` d'ERA5 et d'ERA5-Land, en **mètres** : une épaisseur d'eau
+    # liquide équivalente, et non une masse surfacique. ecCodes ne le nomme
+    # pas, et son encodage d'édition 2 est un code **local** `(0, 1, 193)`
+    # qu'aucune table maîtresse ne couvre.
+    228: "lwe_thickness_of_precipitation_amount",
+    # `swh` de MFWAM. Le même champ porte `(10, 0, 3)` en édition 2, que
+    # `CF_STANDARD_NAMES` couvre déjà ; ici l'identifiant est orphelin —
+    # voir X10-DIV-0016 — et ecCodes ne le connaît pas du tout.
+    3100: "sea_surface_wave_significant_height",
+}
+
 AMBIGUOUS_TRIPLETS: frozenset[tuple[int, int, int]] = frozenset({(0, 3, 6), (10, 4, 7)})
 
 #: Direction et force du vent. **Écartées au décodage** : elles se recalculent
@@ -365,6 +421,64 @@ def triplet(variable: xr.DataArray) -> tuple[int, int, int] | None:
             int(variable.attrs["GRIB_discipline"]),
             int(variable.attrs["GRIB_parameterCategory"]),
             int(variable.attrs["GRIB_parameterNumber"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def format_identity(code: tuple[object, ...]) -> str:
+    """Rend un identifiant lisible par un humain, édition comprise.
+
+    `identity` préfixe l'édition pour qu'un triplet et un couple ne se
+    confondent pas, mais `(2, 0, 16, 193)` ne dit rien à qui lit un compte
+    rendu : le premier chiffre n'y ressemble pas à une édition. On écrit
+    donc `GRIB2 (0, 16, 193)`, et `GRIB1 (128, 167)`.
+    """
+    if not code:
+        return "?"
+    edition, *reste = code
+    valeurs = ", ".join(str(v) for v in reste)
+    return f"GRIB{edition} ({valeurs})"
+
+
+def param_id(variable: xr.DataArray) -> int | None:
+    """Le `paramId` d'un champ décodé, ou `None` s'il n'identifie rien.
+
+    Zéro est écarté : ecCodes l'emploie pour dire « non résolu », et deux
+    champs inconnus le partageraient.
+    """
+    try:
+        valeur = int(variable.attrs[ATTR_PARAM_ID])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return None if valeur == PARAM_ID_UNRESOLVED else valeur
+
+
+def identity(variable: xr.DataArray) -> tuple[object, ...] | None:
+    """L'identifiant d'un champ **dans son édition**, ou `None`.
+
+    **Chaque édition identifie ses paramètres à sa façon, et il ne faut pas
+    l'uniformiser.** L'édition 2 emploie le triplet `(discipline, catégorie,
+    numéro)` ; l'édition 1 emploie `(table2Version, indicatorOfParameter)`.
+    Aucune des deux ne porte les clés de l'autre.
+
+    **Pourquoi pas `paramId`, qui vaut pourtant des deux côtés.** Parce qu'il
+    vaut **zéro** sur un paramètre qu'ecCodes ne résout pas — mesuré sur deux
+    champs de tables locales de Météo-France. S'en servir comme identité les
+    confondrait, et c'est précisément la confusion que `dropped_fields`
+    existe pour détecter. Le `paramId` sert au **nommage**, pas à l'identité.
+
+    L'édition est préfixée pour qu'un triplet et un couple ne puissent pas
+    se ressembler par accident.
+    """
+    code = triplet(variable)
+    if code is not None:
+        return (2, *code)
+    try:
+        return (
+            1,
+            int(variable.attrs[ATTR_TABLE2_VERSION]),
+            int(variable.attrs[ATTR_INDICATOR]),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -415,7 +529,7 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     # réponse — on la traite donc sous le **même paramètre**, pour que
     # l'appelant n'ait qu'un seul réglage de tolérance à connaître.
     if dropped := dropped_fields(source, granule):
-        detail = ", ".join(str(code) for code in sorted(dropped))
+        detail = ", ".join(format_identity(code) for code in sorted(dropped))
         message = (
             f"{len(dropped)} parameter(s) of the granule do not appear in the "
             f"decoded output: {detail}. Two parameters sharing a short name "
@@ -541,21 +655,71 @@ def file_triplets(source: Path) -> frozenset[tuple[int, int, int]]:
             if h is None:
                 break
             try:
-                seen.add(
-                    (
-                        int(eccodes.codes_get(h, "discipline")),
-                        int(eccodes.codes_get(h, "parameterCategory")),
-                        int(eccodes.codes_get(h, "parameterNumber")),
+                try:
+                    seen.add(
+                        (
+                            int(eccodes.codes_get(h, "discipline")),
+                            int(eccodes.codes_get(h, "parameterCategory")),
+                            int(eccodes.codes_get(h, "parameterNumber")),
+                        )
                     )
-                )
+                except Exception:
+                    # **Un message d'édition 1 n'a pas de triplet, et ce
+                    # n'est pas une anomalie.** Sans cette garde, ecCodes
+                    # lève `KeyValueNotFoundError` et l'exception remontait
+                    # jusqu'à `open_granule` : c'était l'unique raison pour
+                    # laquelle la chaîne ne lisait pas l'édition 1, alors que
+                    # `cfgrib` l'ouvre sans difficulté. Mesuré le 20/10/2026.
+                    #
+                    # Rendre les triplets **réellement présents** est la
+                    # bonne réponse : un fichier d'édition 1 n'en a aucun, et
+                    # cette fonction dit ce que le fichier contient. La perte
+                    # de champs, elle, se détecte par `file_identities`.
+                    continue
             finally:
                 eccodes.codes_release(h)
     return frozenset(seen)
 
 
-def dropped_fields(
-    source: Path, datasets: tuple[xr.Dataset, ...]
-) -> frozenset[tuple[int, int, int]]:
+def file_identities(source: Path) -> frozenset[tuple[object, ...]]:
+    """Les identifiants d'un granule, **dans l'édition de chaque message**.
+
+    Même parcours que `file_triplets`, et même prudence sur les messages
+    illisibles — mais l'identité suit l'édition, de sorte qu'un granule
+    d'édition 1 n'est pas vu comme vide.
+
+    C'est ce relevé, et non celui des triplets, que `dropped_fields`
+    confronte au décodage.
+    """
+    eccodes = _eccodes()
+    seen: set[tuple[object, ...]] = set()
+    with source.open("rb") as flux:
+        while True:
+            position = flux.tell()
+            try:
+                h = eccodes.codes_grib_new_from_file(flux)
+            except Exception:
+                if flux.tell() == position:
+                    break
+                continue
+            if h is None:
+                break
+            try:
+                for cles, prefixe in (
+                    (("discipline", "parameterCategory", "parameterNumber"), 2),
+                    (("table2Version", "indicatorOfParameter"), 1),
+                ):
+                    try:
+                        seen.add((prefixe, *(int(eccodes.codes_get(h, c)) for c in cles)))
+                    except Exception:
+                        continue
+                    break
+            finally:
+                eccodes.codes_release(h)
+    return frozenset(seen)
+
+
+def dropped_fields(source: Path, datasets: tuple[xr.Dataset, ...]) -> frozenset[tuple[object, ...]]:
     """Identifiants présents dans le fichier et absents du décodage.
 
     **Le troisième silence de la chaîne, mesuré le 13/10/2026.** `cfgrib`
@@ -584,9 +748,9 @@ def dropped_fields(
         code
         for dataset in datasets
         for var in dataset.data_vars.values()
-        if (code := triplet(var)) is not None
+        if (code := identity(var)) is not None
     }
-    return frozenset(file_triplets(source) - decodes)
+    return frozenset(file_identities(source) - decodes)
 
 
 def check_local_tables(datasets: tuple[xr.Dataset, ...]) -> str | None:
@@ -691,6 +855,55 @@ def _usable_cf_name(value: object) -> str | None:
     return value if isinstance(value, str) and value and value != PLACEHOLDER_CF else None
 
 
+@functools.cache
+def cf_name_for_param_id(identifiant: int) -> str | None:
+    """Le nom CF qu'ecCodes associe à un `paramId`, **hors ligne**.
+
+    **L'asymétrie que cette fonction contourne est mesurée**, et elle vaut
+    d'être connue. Sur un message d'édition 1, ecCodes rend
+    `cfName = unknown` ; le **même** `paramId` posé sur un échantillon
+    d'édition 2 rend le nom. Vérifié le 20/10/2026 sur les échantillons que
+    la roue embarque :
+
+    ```
+    GRIB1, paramId 167  →  cfName unknown
+    GRIB2, paramId 167  →  cfName air_temperature
+    ```
+
+    L'information est donc déjà là ; elle n'est simplement pas exposée. Ce
+    second passage explique à lui seul **six des quatorze** champs non nommés
+    du diagnostic d'édition 1, et il ne coûte ni réseau ni service — voir
+    `X10-DIV-0017` au registre des écarts.
+
+    **Un `paramId` inconnu lève chez ecCodes** plutôt que de rendre une
+    valeur : `ConceptNoMatchError`, dont le message renvoie à la base de
+    paramètres d'ECMWF. On rend `None`, un champ sans nom devant se voir
+    comme tel.
+
+    Le résultat est mis en cache : la table de concepts ne change pas en
+    cours d'exécution, et un granule répète les mêmes identifiants.
+    """
+    # **Un identifiant que nous avons déjà tranché n'est pas redemandé.**
+    # Ce n'est pas une préséance de notre table sur ecCodes : c'est qu'un
+    # `paramId` qu'il ne connaît pas le fait **écrire sur la sortie
+    # d'erreur** — quatre lignes pour 3100 — avant de lever. Une
+    # bibliothèque n'a pas à polluer la sortie de l'application qui
+    # l'intègre, et nous ne pouvons pas l'en empêcher ; nous pouvons
+    # seulement ne pas la provoquer pour rien.
+    if identifiant in CF_BY_PARAM_ID:
+        return None
+    eccodes = _eccodes()
+    handle = eccodes.codes_grib_new_from_samples("GRIB2")
+    try:
+        eccodes.codes_set(handle, "paramId", identifiant)
+        nom = eccodes.codes_get(handle, "cfName")
+    except Exception:
+        return None
+    finally:
+        eccodes.codes_release(handle)
+    return _usable_cf_name(nom)
+
+
 def _our_cf_name(variable: xr.DataArray) -> str | None:
     """Le nom de **notre** table, si le gabarit ne l'interdit pas.
 
@@ -711,20 +924,43 @@ def _our_cf_name(variable: xr.DataArray) -> str | None:
     return nom if gabarit in admis else None
 
 
+def _our_cf_name_by_param_id(variable: xr.DataArray) -> str | None:
+    """Le nom de notre table indexée par `paramId`, pour les derniers trous."""
+    identifiant = param_id(variable)
+    return None if identifiant is None else CF_BY_PARAM_ID.get(identifiant)
+
+
 def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """Pose `standard_name` sur les champs que notre table couvre.
 
-    Trois cas, dans cet ordre : un nom déjà posé et utilisable est conservé ;
-    sinon celui de la chaîne de décodage ; sinon le nôtre. Quand aucun des
-    trois ne donne de nom, **l'attribut est retiré** plutôt que laissé à sa
-    valeur de remplissage — un champ sans nom standard doit se voir comme tel.
+    **Quatre voies, dans cet ordre, et l'ordre est le sujet.**
+
+    1. Un nom déjà posé et utilisable est conservé.
+    2. Sinon celui que la chaîne de décodage a résolu, `GRIB_cfName`.
+    3. Sinon le **second passage par `paramId`** : ecCodes connaît le nom
+       mais ne l'expose pas en édition 1, et ce détour le récupère sans
+       réseau. Il vient avant nos tables parce qu'il vient d'ecCodes, dont
+       nous ne faisons que combler les trous.
+    4. Sinon les nôtres — par triplet d'abord, le plus précis puisqu'il
+       distingue les gabarits, puis par `paramId` pour ce qu'aucune des
+       autres voies n'atteint.
+
+    Quand aucune ne donne de nom, **l'attribut est retiré** plutôt que laissé
+    à sa valeur de remplissage — un champ sans nom standard doit se voir
+    comme tel.
     """
     out = dataset.copy()
     for name, var in out.data_vars.items():
         existing = _usable_cf_name(var.attrs.get("standard_name"))
         if existing:
             continue
-        chosen = _usable_cf_name(var.attrs.get("GRIB_cfName")) or _our_cf_name(var)
+        identifiant = param_id(var)
+        chosen = (
+            _usable_cf_name(var.attrs.get("GRIB_cfName"))
+            or (cf_name_for_param_id(identifiant) if identifiant is not None else None)
+            or _our_cf_name(var)
+            or _our_cf_name_by_param_id(var)
+        )
         if chosen:
             out[name].attrs["standard_name"] = chosen
         else:
@@ -739,9 +975,14 @@ def normalise(dataset: xr.Dataset) -> xr.Dataset:
 
 __all__ = [
     "AMBIGUOUS_TRIPLETS",
+    "ATTR_EDITION",
+    "ATTR_INDICATOR",
     "ATTR_LOCAL_TABLES",
+    "ATTR_PARAM_ID",
+    "ATTR_TABLE2_VERSION",
     "ATTR_TABLES_LATEST",
     "ATTR_TABLES_VERSION",
+    "CF_BY_PARAM_ID",
     "CF_DERIVED",
     "CF_STANDARD_NAMES",
     "COORD_UNDEFINED",
@@ -749,6 +990,7 @@ __all__ = [
     "GEO_KEYS",
     "LOCAL_USE_RANGE_START",
     "OPTIONS_CFGRIB",
+    "PARAM_ID_UNRESOLVED",
     "PLACEHOLDER_CF",
     "READ_KEYS",
     "TEMPLATE_RESTRICTED",
@@ -757,13 +999,18 @@ __all__ = [
     "DroppedFieldsError",
     "GribUnavailableError",
     "apply_cf_names",
+    "cf_name_for_param_id",
     "check_local_tables",
     "check_tables_version",
     "drop_derived_wind",
     "dropped_fields",
+    "file_identities",
     "file_triplets",
+    "format_identity",
+    "identity",
     "normalise",
     "open_granule",
+    "param_id",
     "tables_version",
     "triplet",
     "wind_from_direction",
