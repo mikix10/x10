@@ -18,7 +18,7 @@ Documents de cadrage à lire avant toute décision d'architecture :
 
 **Deux connecteurs réels existent**, et la donnée est décodée : `EcmwfIfsOpenDataConnector` télécharge des messages GRIB2 depuis ECMWF open data ; `MeteoFrancePntConnector` récupère les paquets AROME et ARPEGE republiés en open data, et le module `grib2` les ouvre en tableaux `xarray` avec les noms standards CF. Le catalogue est peuplé depuis le 19/10/2026, d'un inventaire dérivé des fichiers. Restent des ébauches : l'API n'expose aucun point d'entrée, et rien n'est stocké.
 
-Deux notes publiques établissent par la mesure ce que Météo-France expose réellement : [docs/arome-paquets-et-api-ciblee.md](docs/arome-paquets-et-api-ciblee.md) et [docs/arpege-paquets-et-api-ciblee.md](docs/arpege-paquets-et-api-ciblee.md).
+**Une note par source, établie par la mesure et non par le descriptif du producteur.** Météo-France : [docs/arome-paquets-et-api-ciblee.md](docs/arome-paquets-et-api-ciblee.md) et [docs/arpege-paquets-et-api-ciblee.md](docs/arpege-paquets-et-api-ciblee.md) pour la voie des paquets, [docs/meteofrance-portail-api.md](docs/meteofrance-portail-api.md) pour le portail d'API — 22 services, dont une suite océanique. Copernicus : [docs/copernicus-data-stores.md](docs/copernicus-data-stores.md) pour les trois magasins CDS, ADS et EWDS. Chacune renvoie au registre des écarts pour ce qui s'y écarte d'une norme.
 
 ## Structure
 
