@@ -1,0 +1,27 @@
+{
+  "version": "95",
+  "units": {
+    "air_pressure_at_mean_sea_level": "Pa",
+    "air_temperature": "K",
+    "atmosphere_boundary_layer_thickness": "m",
+    "atmosphere_convective_available_potential_energy": "J kg-1",
+    "cloud_base_altitude": "m",
+    "dew_point_temperature": "K",
+    "eastward_wind": "m s-1",
+    "geopotential": "m2 s-2",
+    "high_type_cloud_area_fraction": "1",
+    "integral_wrt_time_of_surface_downwelling_longwave_flux_in_air": "W s m-2",
+    "integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air": "W s m-2",
+    "integral_wrt_time_of_surface_net_downward_shortwave_flux": "W s m-2",
+    "low_type_cloud_area_fraction": "1",
+    "mass_fraction_of_cloud_ice_in_air": "1",
+    "mass_fraction_of_cloud_liquid_water_in_air": "1",
+    "medium_type_cloud_area_fraction": "1",
+    "northward_wind": "m s-1",
+    "precipitation_amount": "kg m-2",
+    "relative_humidity": "1",
+    "specific_humidity": "1",
+    "surface_air_pressure": "Pa",
+    "wind_speed_of_gust": "m s-1"
+  }
+}

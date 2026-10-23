@@ -85,7 +85,7 @@ def test_le_signalement_compte_les_codes_sans_les_repeter(tmp_path):
 
     Les deux codes portent des types de niveau distincts, donc des hypercubes
     distincts. Sans cela ils se recouvriraient au nommage — voir
-    `test_champs_perdus`.
+    `test_grib2_dropped_fields`.
     """
     chemin = granule(
         tmp_path / "granule.grib2",

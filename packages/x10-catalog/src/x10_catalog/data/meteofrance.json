@@ -926,7 +926,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_upward_latent_heat_flux",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -942,7 +942,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_upward_sensible_heat_flux",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -950,7 +950,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_downward_shortwave_flux",
+            "standard_name": "integral_wrt_time_of_surface_net_downward_shortwave_flux",
             "units": "J m-2"
           },
           {
@@ -958,7 +958,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_downward_shortwave_flux_assuming_clear_sky",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -966,7 +966,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_downwelling_shortwave_flux_in_air",
+            "standard_name": "integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air",
             "units": "J m-2"
           },
           {
@@ -974,7 +974,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_upward_longwave_flux",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -982,7 +982,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_downward_longwave_flux_assuming_clear_sky",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -990,7 +990,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_downwelling_longwave_flux_in_air",
+            "standard_name": "integral_wrt_time_of_surface_downwelling_longwave_flux_in_air",
             "units": "J m-2"
           },
           {
@@ -1066,7 +1066,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "precipitation_flux",
+            "standard_name": "precipitation_amount",
             "units": "kg m-2"
           },
           {
@@ -1444,7 +1444,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_downward_shortwave_flux_assuming_clear_sky",
+            "standard_name": null,
             "units": "J m-2"
           },
           {
@@ -1452,7 +1452,7 @@
             "level_reference": null,
             "level_units": null,
             "levels": [],
-            "standard_name": "surface_net_downward_longwave_flux_assuming_clear_sky",
+            "standard_name": null,
             "units": "J m-2"
           },
           {

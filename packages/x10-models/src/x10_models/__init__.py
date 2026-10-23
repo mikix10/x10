@@ -136,11 +136,19 @@ class Variable(BaseModel):
 
 
 class SourceTerms(BaseModel):
-    """Les termes du producteur pour une grandeur. **Aucune stabilité promise.**
+    """Les termes tels que la chaîne de décodage les rend. **Aucune stabilité promise.**
 
-    > Cette vue ne promet **rien, par construction, puisqu'elle suit le
-    > producteur**. Si Météo-France renomme `t2m`, elle change — c'est son
-    > objet. Qui l'interroge accepte ce régime en l'interrogeant.
+    > Cette vue ne promet **rien, par construction, puisqu'elle suit sa
+    > source**. Si le vocabulaire amont change, elle change — c'est son objet.
+    > Qui l'interroge accepte ce régime en l'interrogeant.
+
+    **Correction du 22/10/2026 : « les termes du producteur » était faux, et
+    ses exemples étaient des contre-exemples.** Ni Météo-France ni l'OMM ne
+    nomment `t2m` : la table 4.2 ne porte aucune colonne d'abréviation, le
+    message GRIB déclare `2t`, et `t2m` est le `cfVarName` qu'ecCodes en
+    dérive — identique sous les quatre centres essayés, donc **indépendant du
+    producteur**. La vue suit donc le vocabulaire d'**ecCodes**, ce qui ne la
+    rend pas moins utile mais désigne le bon responsable d'un changement.
 
     Elle existe pour l'usage expert : savoir demander « `t2m` d'AROME 0,025° »
     quand on connaît déjà la source. Elle n'est **pas encore exposée** par une
@@ -155,8 +163,20 @@ class SourceTerms(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    #: Nom court tel que le producteur le donne — `t2m`, `u10`.
+    #: Nom de la variable tel que la chaîne de décodage la nomme — `t2m`,
+    #: `u10`. C'est le `cfVarName` d'ecCodes, et c'est sous ce nom que la
+    #: grandeur apparaît dans nos fichiers NetCDF.
     short_name: str = Field(min_length=1)
+    #: Nom court que les tables résolvent — `2t`, `10u`. C'est l'idiome de
+    #: qui interroge une archive GRIB, et il diffère du précédent 949 fois
+    #: sur 6 566 paramètres. **Ni l'un ni l'autre n'est une abréviation du
+    #: producteur** : l'OMM n'en publie aucune, et le nom court n'est pas
+    #: dans le message — c'est une clé que la bibliothèque calcule, et
+    #: qu'elle a déjà renommée (ECC-2128, septembre 2025).
+    #:
+    #: `None` quand les tables ne résolvent pas le paramètre : la sentinelle
+    #: `unknown` d'ecCodes n'est pas un nom, et la publier en serait un faux.
+    grib_short_name: str | None = None
     #: Type de niveau dans le vocabulaire d'ecCodes — `heightAboveGround`.
     level_type: str | None = None
     #: Identité du champ chez le producteur, reprise telle quelle.

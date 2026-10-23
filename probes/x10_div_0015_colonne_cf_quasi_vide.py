@@ -26,10 +26,11 @@ encodage d'édition 1 et celui d'édition 2. C'est cela qui sert, et cela se
 compose avec notre propre table GRIB2 → CF.
 
 **Et le chemin principal n'a même pas besoin du service.** ecCodes traduit
-déjà `paramId` en nom CF **hors ligne, depuis la roue** ; il ne le fait
-simplement pas sur un message d'édition 1 — voir X10-DIV-0017. La base
-reste précieuse en recoupement, et pour les cas où le `paramId` est
-ambigu.
+`paramId` en nom CF **hors ligne, depuis la roue**, dans les deux éditions —
+ce qui lui manque est une **table locale**, non une édition : voir
+X10-DIV-0017. Sa couverture reste mince des deux côtés, 96,0 % des `paramId`
+encodables n'ayant de nom CF dans aucune édition. La base reste précieuse en
+recoupement, et pour les cas où le `paramId` est ambigu.
 
 L'entrée est classée `divergence` et non `non_conformity` : aucune clause
 n'oblige ECMWF à remplir cette colonne. Elle est au registre parce qu'un

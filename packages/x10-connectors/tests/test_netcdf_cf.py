@@ -13,7 +13,12 @@ import pytest
 import xarray as xr
 from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 
-from x10_connectors.grib2 import normalise, open_granule
+from x10_connectors.grib2 import (
+    CF_ACCUMULATED,
+    cf_tables_revision,
+    normalise,
+    open_granule,
+)
 from x10_connectors.netcdf_cf import (
     BOUNDS_SUFFIX,
     CELL_METHODS,
@@ -22,7 +27,9 @@ from x10_connectors.netcdf_cf import (
     CRS_VARIABLE,
     DECLARABLE_AXES,
     ECCODES_MISSING,
+    STEP_TYPE_DIFFERENCE,
     UDUNITS,
+    UNITS_METADATA_ON_SCALE,
     WITHOUT_CELL_METHOD,
     UnconvertibleUnitError,
     UnknownStatisticalProcessingError,
@@ -36,6 +43,7 @@ from x10_connectors.netcdf_cf import (
     production_source,
     time_bounds,
     udunits,
+    units_metadata,
     write_netcdf,
 )
 from x10_models import Retrieval
@@ -932,3 +940,143 @@ def test_les_deux_tables_de_methodes_sont_disjointes():
         "`WITHOUT_CELL_METHOD` étant consulté en premier, la méthode de "
         "`CELL_METHODS` serait ignorée sans un mot."
     )
+
+
+# --- Ce que la sortie doit dire d'elle-même -----------------------------------
+
+
+def _jeu_temperature(tmp_path):
+    return _jeu(tmp_path, [Field(category=0, number=0, values=np.full(N, 288.0))])
+
+
+def test_une_temperature_declare_son_echelle(tmp_path):
+    """Sans `units_metadata`, CF 1.11 prescrit de supposer `temperature:
+    unknown`, donc une conversion d'échelle **non garantie**. L'absence
+    affirme ; le fichier doit dire ce qu'il en est."""
+    jeu = _jeu_temperature(tmp_path)
+    assert units_metadata(jeu["t"].attrs) == UNITS_METADATA_ON_SCALE
+
+
+def test_une_difference_de_temperature_ne_declare_pas_d_echelle():
+    """Le seul cas où une grandeur en kelvins n'est pas sur une échelle, et
+    que rien d'autre ne signalerait : CF ne couvre pas ce `stepType`, qui est
+    recensé à `WITHOUT_CELL_METHOD`."""
+    assert units_metadata({"units": "K", "GRIB_stepType": STEP_TYPE_DIFFERENCE}) is None
+
+
+def test_une_grandeur_sans_kelvin_ne_declare_pas_d_echelle():
+    assert units_metadata({"units": "m s-1"}) is None
+    assert units_metadata({}) is None
+
+
+def test_la_sortie_porte_la_version_de_notre_outillage(tmp_path):
+    """**Le défaut que le redressement des noms cumulés avait créé.**
+
+    `GRIB_tablesVersion` dit la version des tables du producteur ; rien ne
+    disait la nôtre. Deux fichiers écrits depuis le même granule à six mois
+    d'écart peuvent porter deux `standard_name` différents, et le lecteur
+    doit pouvoir dire lequel de nous ou du producteur a bougé — c'est la
+    règle d'`InventorySource`, appliquée à la sortie.
+    """
+    import netCDF4
+
+    cible = write_netcdf(_jeu_temperature(tmp_path), tmp_path / "trace.nc")
+    with netCDF4.Dataset(cible) as lu:
+        histoire = lu.getncattr("history")
+    assert cf_tables_revision() in histoire
+    assert "x10 cf tables " in histoire
+
+
+def test_l_empreinte_des_tables_suit_leur_contenu():
+    """Dérivée plutôt que tenue à la main : une version qu'un mainteneur doit
+    penser à incrémenter ne l'est pas."""
+    avant = cf_tables_revision()
+    CF_ACCUMULATED["un_nom_de_test_flux"] = "un_nom_de_test_amount"
+    try:
+        cf_tables_revision.cache_clear()
+        assert cf_tables_revision() != avant
+    finally:
+        del CF_ACCUMULATED["un_nom_de_test_flux"]
+        cf_tables_revision.cache_clear()
+    assert cf_tables_revision() == avant
+
+
+def test_la_quantification_subie_voyage_en_attribut(tmp_path):
+    """La sortie est en `float32` ; rien n'y dirait sans ces clés que la
+    donnée ne porte que douze bits. Elles sont émises **hors** de CF § 8.4,
+    dont aucun des quatre algorithmes n'est l'empaquetage du GRIB2."""
+    import netCDF4
+
+    cible = write_netcdf(_jeu_temperature(tmp_path), tmp_path / "quantification.nc")
+    with netCDF4.Dataset(cible) as lu:
+        attrs = set(lu.variables["t"].ncattrs())
+    assert {"GRIB_bitsPerValue", "GRIB_packingType", "GRIB_bitmapPresent"} <= attrs
+    assert "quantization" not in attrs, "CF § 8.4 ne décrit pas l'empaquetage du GRIB2"
+
+
+def test_une_unite_intraduisible_ne_se_declare_pas_sans_dimension(tmp_path):
+    """CF § 3.1 : « a variable with no units attribute is assumed to be
+    dimensionless ». Retirer l'unité **affirme** ; le nom standard part donc
+    avec elle, et un commentaire nomme l'unité d'origine."""
+    jeu = _jeu_temperature(tmp_path)
+    jeu["t"].attrs["units"] = "parsecs par fortnight"
+
+    sortie = convert_units(jeu, strict=False)
+
+    assert "units" not in sortie["t"].attrs
+    assert "standard_name" not in sortie["t"].attrs
+    assert "parsecs par fortnight" in sortie["t"].attrs["comment"]
+
+
+# --- Ce qui aurait levé, et qui ne lève plus ---------------------------------
+
+
+def test_une_table_de_codes_n_a_pas_d_unite():
+    """Une **règle** plutôt qu'une liste : huit orthographes de « Code table »
+    circulent, et seule la 4.201 était traitée. La forme est celle d'ecCodes,
+    elle est stable, une énumération rouillerait."""
+    assert udunits("(Code table 4.201)") is None
+    assert udunits("(Code table 4.222)") is None
+    assert udunits("(Code table 4.5)") is None
+    assert udunits("~") is None
+
+
+def test_les_familles_mecaniques_ne_levent_plus():
+    """**Mesuré** : 42 chaînes qu'ecCodes émet n'avaient aucune entrée,
+    couvrant 127 triplets sur 451 — 28 %. Une source nouvelle avait plus
+    d'une chance sur quatre de bloquer l'écriture sur une traduction purement
+    mécanique."""
+    assert udunits("Numeric") == "1"
+    assert udunits("Proportion") == "1"
+    assert udunits("radians") == "rad"
+    assert udunits("kg m**-3") == "kg m-3"
+    assert udunits("Bq m**-3") == "Bq m-3"
+
+
+def test_le_metre_geopotentiel_leve_toujours():
+    """`gpm` vers `m` passerait la validation d'UDUNITS et serait **faux**.
+    C'est la faute corrigée sur `(0, 3, 6)` : une unité qui se convertit n'est
+    pas une unité qui veut dire la même chose."""
+    with pytest.raises(UnconvertibleUnitError):
+        udunits("gpm")
+
+
+def test_le_mode_est_traduit_et_la_mediane_ne_l_est_pas():
+    """Les deux figurent au tableau E.1 de CF et à la table 4.10 de l'OMM,
+    mais ecCodes n'expose que le premier : poser le traitement 13 fait lever
+    à la lecture de `stepType`. Une entrée pour la médiane serait du code
+    mort."""
+    assert CELL_METHODS["mode"] == "time: mode"
+    assert "median" not in CELL_METHODS
+    assert "median" not in WITHOUT_CELL_METHOD
+
+
+def test_le_datum_n_est_emis_que_s_il_est_declare():
+    """Le code 8 de la table 3.2 est le seul qui nomme un datum ; le code 6,
+    le nôtre, ne dit rien. Supposer à la place du producteur serait la faute
+    que `grid_mapping` corrige déjà en rendant `None`."""
+    from x10_connectors.netcdf_cf import _datum
+
+    assert _datum({"GRIB_shapeOfTheEarth": "8"}) == {"horizontal_datum_name": "WGS84"}
+    assert _datum({"GRIB_shapeOfTheEarth": "6"}) == {}
+    assert _datum({}) == {}

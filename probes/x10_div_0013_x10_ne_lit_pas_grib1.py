@@ -29,7 +29,7 @@ Sur les **14 champs distincts** des huit granules d'édition 1 :
 | Verdict | Champs | Ce qu'il faut |
 |---|---|---|
 | `eccodes_direct` | 3 | rien — déjà nommés |
-| `eccodes_paramid` | 6 | un second passage hors ligne par `paramId` |
+| `eccodes_paramid` | 6 | l'**union** des deux lectures par `paramId` |
 | `sans_nom` | 5 | du travail, et trois causes distinctes |
 
 **`paramId` est le bon axe.** Il vaut la même chose dans les deux

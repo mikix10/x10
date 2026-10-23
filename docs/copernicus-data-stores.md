@@ -195,9 +195,14 @@ l'unique clé est `cfName`.
 pas. Ce qui sert est le **pont entre éditions**, à 45,2 %. Voir
 `X10-DIV-0015`.
 
-Et le chemin principal n'a pas besoin de ce service : **ecCodes traduit déjà
-`paramId` en nom CF hors ligne**, il ne le fait simplement pas sur un
-message d'édition 1. Voir `X10-DIV-0017`.
+Et le chemin principal n'a pas besoin de ce service : **ecCodes traduit
+`paramId` en nom CF hors ligne**, dans les deux éditions. Ce qui manque n'est
+pas l'édition mais la **table** : mesuré le 22/10/2026 sur les 3 260 `paramId`
+encodables des deux côtés au centre `ecmf`, 104 sont nommés dans les deux,
+28 en édition 2 seulement, **zéro en édition 1 seulement**, et **3 128 —
+96,0 % — dans aucune des deux**. Les 28 écarts tombent tous dans une table
+**locale de l'ECMWF** en édition 1, que la concordance CF ne couvre pas. Voir
+`X10-DIV-0017`.
 
 ---
 

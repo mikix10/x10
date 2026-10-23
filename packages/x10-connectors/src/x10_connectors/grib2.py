@@ -15,6 +15,7 @@ Dépendance optionnelle : installer l'extra `grib`.
 from __future__ import annotations
 
 import functools
+import hashlib
 from types import ModuleType
 from typing import TYPE_CHECKING
 
@@ -77,9 +78,40 @@ READ_KEYS = (
     "localTablesVersion",
     # Gabarit de définition de produit, section 4. **Le triplet ne suffit
     # pas** : mesuré le 19/10/2026 sur le flux de vagues d'ECMWF, `swh` et
-    # les six hauteurs par bande de période partagent `(10, 0, 3)` et ne se
-    # distinguent que par leur gabarit — 4.0 contre 4.104.
+    # les six hauteurs par bande de période partagent `(10, 0, 3)`. Le
+    # gabarit sépare le total des bandes — 4.0 contre 4.104 — mais **pas les
+    # bandes entre elles**, rejoué le 22/10/2026 : l'entrée 104 de la table
+    # 4.0 nomme un produit « for waves selected by period range », et la
+    # bande vit à l'intérieur du gabarit.
     "productDefinitionTemplateNumber",
+    # **Le nom court que les tables résolvent**, et qui n'est pas celui que
+    # `cfgrib` donne à la variable : mesuré le 22/10/2026, les deux diffèrent
+    # 949 fois sur 6 566 paramètres — `2t` contre `t2m`, `10u` contre `u10`.
+    # Le premier est l'idiome que connaît qui interroge une archive ; le
+    # second nomme notre variable NetCDF. Les deux méritent d'être publiés,
+    # et ni l'un ni l'autre n'est une abréviation du **producteur** : l'OMM
+    # n'en publie aucune, et le nom court n'est pas dans le message.
+    "shortName",
+    # **La quantification subie**, section 5 du format. La sortie étant en
+    # `float32`, rien dans le fichier ne dirait sans elles que la donnée ne
+    # porte que douze bits significatifs. Mesuré sur un champ de 30 K : le pas
+    # de quantification vaut 0,0625 K à 8 bits, **0,0036 K à 12** — la valeur
+    # des paquets réels —, 0,00024 K à 16.
+    #
+    # Elles sont émises en attributs `GRIB_` et **rien n'est déclaré au titre
+    # de CF § 8.4** : aucun de ses quatre algorithmes n'est l'empaquetage du
+    # GRIB2, et une quantification déjà subie puis décodée en flottant n'y est
+    # pas exprimable. Mieux vaut une trace exacte hors convention qu'une
+    # déclaration fausse dedans.
+    #
+    # **Réserve connue** : `cfgrib` lit les attributs sur le **premier
+    # message** de chaque hypercube. Une valeur qui varierait d'un message à
+    # l'autre ne serait donc pas rendue fidèlement — voir le contrôle à
+    # ajouter sur `READ_KEYS`.
+    "bitsPerValue",
+    "packingType",
+    "decimalScaleFactor",
+    "bitmapPresent",
     # Taille de l'ensemble **déclarée par le message**. C'est le seul
     # discriminant fiable d'un axe de membres : mesuré sur trois gabarits, le
     # 4.104 remplit les octets d'ensemble de zéros, de sorte que `number` et
@@ -124,6 +156,20 @@ GEO_KEYS = (
     "radius",
     "earthMajorAxis",
     "earthMinorAxis",
+    # **L'orientation de balayage**, section 3. Une inversion nord-sud est
+    # bruyante sur une carte et **silencieuse sur une agrégation ou une
+    # extraction de point** — le cas est attesté, des grilles du NCEP
+    # affichées à l'envers. Pour une source déjà contractée, l'empreinte des
+    # coordonnées la verrait ; pour une source nouvelle, rien ne la verrait.
+    #
+    # Ce sont les **quatre drapeaux** et non l'octet `scanMode`, qui n'est
+    # pas une clé lisible en édition 2 — mesuré le 22/10/2026, il lève
+    # `KeyValueNotFoundError`. Le contrôle « chaque clé demandée ressort »
+    # l'a attrapé à son premier passage.
+    "jScansPositively",
+    "iScansNegatively",
+    "jPointsAreConsecutive",
+    "alternativeRowScanning",
 )
 
 #: Options d'ouverture **fixées explicitement**, relevées le 08/10/2026.
@@ -161,6 +207,15 @@ OPTIONS_CFGRIB: dict[str, object] = {
     #: Défaut : `('parameter', 'time', 'geography', 'vertical')`. Repris tel
     #: quel, mais écrit : ces quatre couches posent les noms CF, les axes
     #: temporels, les coordonnées et les niveaux.
+    #:
+    #: **Ce que la couche `parameter` décide, et qui n'était pas écrit.**
+    #: Mesuré le 22/10/2026 : c'est elle qui fait nommer les variables
+    #: d'après `cfVarName` plutôt que d'après le nom court. Le même fichier
+    #: ouvert sans elle rend `5wavh`, `ci` et `4lftx` là où il rend `wavh5`,
+    #: `siconc` et `lftx4` avec elle. Elle nous évite donc des noms de
+    #: variable commençant par un chiffre — qu'une variable NetCDF ne peut
+    #: pas porter sans gêner ses consommateurs — et elle fixe du même coup la
+    #: clé d'indexation du contrat de sortie.
     "encode_cf": ("parameter", "time", "geography", "vertical"),
     #: Défaut : `('time', 'step')`. Repris tel quel, et écrit pour la même
     #: raison — il décide de ce qui devient dimension plutôt que coordonnée.
@@ -325,6 +380,94 @@ CF_STANDARD_NAMES: dict[tuple[int, int, int], str] = {
 #: période ; les six restent donc **sans nom standard**, et l'absence se voit.
 TEMPLATE_RESTRICTED: dict[tuple[int, int, int], frozenset[int]] = {
     (10, 0, 3): frozenset({0}),
+}
+
+#: Les `stepType` qui désignent une **accumulation** sur la fenêtre de temps.
+#:
+#: Les deux, et pas seulement `accum` : `netcdf_cf.CELL_METHODS` rend
+#: `time: sum` pour `accum` **et** pour `sum`, et n'en retenir qu'un ferait
+#: échapper la moitié des cas. Un test apparie les deux tables.
+ACCUMULATED_STEP_TYPES = frozenset({"accum", "sum"})
+
+#: Jetons des noms CF qui désignent un **débit**, donc une grandeur rapportée
+#: à l'unité de temps.
+#:
+#: Une **règle** plutôt qu'une liste, sur le modèle de
+#: `netcdf_cf.DIRECTION_SUFFIXES` : CF documente qu'un *flux* est une quantité
+#: par unité de surface **et de temps**, et la construction est stable là où
+#: une énumération rouillerait. Elle ne sert qu'à **détecter** ; c'est
+#: `CF_ACCUMULATED` qui nomme, parce qu'un nom construit par concaténation
+#: échapperait au contrôle qui exige que tout nom émis soit valeur d'une
+#: table.
+#:
+#: **Des jetons, pas des terminaisons**, et c'est une correction du 22/10/2026 :
+#: CF compose ses noms par mots séparés d'un tiret bas, et le débit n'est pas
+#: toujours en dernier — `surface_downwelling_shortwave_flux_in_air` et
+#: `water_flux_into_sea_water` le portent au milieu. Une règle par suffixe en
+#: manquait la moitié.
+RATE_TOKENS = ("flux", "rate")
+
+#: Construction par laquelle CF nomme l'intégrale temporelle d'une grandeur.
+#:
+#: Elle **exclut** le nom de la règle ci-dessus, sans quoi le redressement se
+#: détruirait lui-même : l'intégrale d'un flux porte encore le mot `flux`, et
+#: un second passage la prendrait pour un débit qu'aucune table ne sait
+#: redresser — donc la retirerait. La correction doit être idempotente.
+INTEGRAL_PREFIX = "integral_wrt_time_of_"
+
+#: Nom de l'intégrale correspondant à un nom de débit, quand CF en offre un.
+#:
+#: **Indexée par le nom CF, pas par le triplet**, et c'est ce qui la rend
+#: juste. La correspondance est une propriété de la grandeur, non de son
+#: codage : elle vaut quel que soit le producteur ou le triplet employé. Une
+#: clé par triplet n'atteindrait en outre jamais les noms venus de la chaîne
+#: de décodage, qui sont posés sans passer par nos tables.
+#:
+#: **Le défaut qu'elle corrige est attesté sur donnée réelle**, et pour deux
+#: causes distinctes. `(0, 1, 52)` est nommé par l'OMM « Total precipitation
+#: rate » et **notre** table y posait `precipitation_flux` sur un cumul en
+#: `kg m-2` — voir la sonde `X10-DIV-0008`. **Trois producteurs indépendants
+#: font cet usage** : Météo-France, SMHI, et DWD, dont le `tot_prec` d'ICON-D2
+#: a été passé dans la chaîne le 22/10/2026. C'est une pratique établie, pas
+#: une singularité — et sans le redressement, ICON aurait produit un fichier
+#: non conforme dès le premier granule. Et sur `(0, 4, 7)`, ecCodes résout **deux paramètres
+#: distincts** que seul le traitement statistique départage — `sdswrf`,
+#: `paramId 260087`, en instantané, et `ssrd`, `paramId 169`, en cumul. Le
+#: second porte le nom CF du **débit** avec l'unité du **cumul**, `J m-2` ;
+#: `cfgrib` recopiant `cfName` dans `standard_name`, le nom fautif arrive
+#: déjà posé. Ce n'est pas une adaptation d'unité, c'est une entrée de table
+#: incohérente — et elle n'est pas isolée : **onze des 88 paramètres portant
+#: un `cfName` dans les disciplines 0 et 10 déclarent une unité
+#: dimensionnellement incompatible** avec la canonique de CF.
+#:
+#: Mesuré le 22/10/2026 sous ecCodes 2.49.0, rejoué sous 2.50.0 par
+#: `uv run --no-project --with eccodes==2.50.0 python`.
+#:
+#: **Piège vérifié** : `integral_of_…_wrt_time` est un **alias** au tableau
+#: CF, que le contrôle réseau rejette. La forme valide est
+#: `integral_wrt_time_of_…`.
+#: **Quatre entrées, et cinq absences délibérées.** Relevé au tableau CF
+#: version 95 le 22/10/2026, sur les onze débits que le catalogue Météo-France
+#: porte en cumul. CF publie l'intégrale de trois d'entre eux ; pour les cinq
+#: autres, aucune entrée n'est inscrite, et le repli les laisse sans nom :
+#:
+#: * `surface_upward_latent_heat_flux` et `surface_upward_sensible_heat_flux` —
+#:   CF ne publie que `integral_wrt_time_of_surface_downward_…`, de sens
+#:   **opposé**. Les y rattacher inverserait le signe des valeurs sans que rien
+#:   ne le signale ; une table nom vers nom ne sait pas changer un signe.
+#: * `surface_net_upward_longwave_flux`, et les deux variantes
+#:   `…_assuming_clear_sky` — CF n'offre rien, ni dans un sens ni dans l'autre.
+CF_ACCUMULATED: dict[str, str] = {
+    "precipitation_flux": "precipitation_amount",
+    "surface_downwelling_longwave_flux_in_air": (
+        "integral_wrt_time_of_surface_downwelling_longwave_flux_in_air"
+    ),
+    "surface_downwelling_shortwave_flux_in_air": (
+        "integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air"
+    ),
+    "surface_net_downward_shortwave_flux": (
+        "integral_wrt_time_of_surface_net_downward_shortwave_flux"
+    ),
 }
 
 #: Champs pour lesquels **CF n'a pas de nom**, vérifié et non supposé. Les
@@ -510,7 +653,7 @@ def open_granule(source: Path, *, errors: str = "raise") -> tuple[xr.Dataset, ..
     **Le même paramètre gouverne une seconde perte**, de même nature et
     d'origine différente : deux paramètres qu'ecCodes ne résout pas reçoivent
     tous deux le nom `unknown`, et l'un écrase l'autre dans le jeu. Voir
-    `champs_perdus`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
+    `dropped_fields`. L'appelant n'a ainsi qu'un seul réglage de tolérance à
     connaître.
     """
     datasets: list[xr.Dataset] = _cfgrib().open_datasets(
@@ -722,27 +865,36 @@ def file_identities(source: Path) -> frozenset[tuple[object, ...]]:
 def dropped_fields(source: Path, datasets: tuple[xr.Dataset, ...]) -> frozenset[tuple[object, ...]]:
     """Identifiants présents dans le fichier et absents du décodage.
 
-    **Le troisième silence de la chaîne, mesuré le 13/10/2026.** `cfgrib`
-    nomme ses variables d'après le nom court qu'ecCodes résout. Deux
-    paramètres portant **le même nom court** se recouvrent donc dans un jeu,
-    et le second écrase le premier : quatre messages entrent, un champ sort.
-    Sans exception, sans avertissement, et le compte rendu dirait `success`.
+    **Le troisième silence de la chaîne, mesuré le 13/10/2026 et redressé le
+    22/10/2026.** Le mécanisme n'est pas celui que cette docstring décrivait :
+    `cfgrib` ne nomme pas d'après le nom court mais d'après `cfVarName`, et
+    `open_datasets` — notre seul appel — découpe le fichier **par `paramId`**.
+    Le recouvrement se produit donc **avant tout nommage**.
 
-    Deux familles de recouvrement, et la seconde surprend.
+    Ce que nous rencontrons est une **collision de `paramId`** : deux triplets
+    distincts qu'ecCodes résout en un même identifiant. Le survivant est
+    entier et porte son identité, l'autre n'est jamais lu. Quatre messages
+    entrent, un champ sort, sans exception ni avertissement, et le compte
+    rendu dirait `success`.
 
-    Les codes qu'ecCodes **ne résout pas** reçoivent tous `unknown`. Ce n'est
-    pas un cas d'école : `(0, 6, 11)` et `(0, 17, 4)`, du paquet SP3 d'ARPEGE
-    0,25°, ne sont résolus ni par ecCodes ni par la table du producteur.
+    Deux familles, et la seconde surprend.
 
-    Mais des codes **parfaitement résolus** se recouvrent aussi. Relevé sur
-    365 codes des disciplines 0 et 10 : **cinq noms courts** désignent
-    plusieurs triplets — dont `h` pour `(0, 3, 6)` et `(0, 3, 34)`, et `tmax`
-    pour une température maximale `(0, 0, 4)` et une période de houle
-    `(10, 0, 23)`. Le recouvrement n'est donc pas réservé aux codes exotiques.
+    Les codes qu'ecCodes **ne résout pas** reçoivent tous `paramId = 0`. Ce
+    n'est pas un cas d'école : `(0, 6, 11)` et `(0, 17, 4)`, du paquet SP3
+    d'ARPEGE 0,25°, ne sont résolus ni par ecCodes ni par la table du
+    producteur.
 
-    Ni `errors="raise"` ni `compat="equals"` n'y voient quoi que ce soit : le
-    premier porte sur les messages illisibles, le second sur la fusion de
-    jeux. La perte se produit **à l'intérieur** d'un jeu, au nommage.
+    Mais des codes **parfaitement résolus** collisionnent aussi. Recompté le
+    22/10/2026 au niveau de surface : sur **458 triplets** résolus des
+    disciplines 0 et 10, **six `paramId` sont portés par deux triplets** —
+    229, 230, 3008, 140101, 140102, 140218. Le cas emblématique, `(0, 3, 6)`
+    et `(0, 3, 34)`, ne partage **pas un nom** mais le `paramId` 3008 : aucune
+    liste de noms ne l'aurait attrapé, ce qui est l'argument même du contrôle
+    contre la liste.
+
+    `errors="raise"` n'y voit rien : il porte sur les messages illisibles. Et
+    deux paramètres de `paramId` distincts partageant un nom de variable **ne
+    perdent rien** sous `open_datasets`, qui les rend dans deux jeux séparés.
     """
     decodes = {
         code
@@ -924,6 +1076,82 @@ def _our_cf_name(variable: xr.DataArray) -> str | None:
     return nom if gabarit in admis else None
 
 
+def decoder_versions() -> dict[str, str]:
+    """Versions de la chaîne de décodage, pour la trace de la sortie.
+
+    **Sans elles, une divergence est inattribuable.** Le fichier porte déjà
+    `GRIB_tablesVersion`, qui est la version des tables **du producteur** ;
+    rien n'y disait quelle version de notre outillage avait lu le message.
+    Deux fichiers écrits à six mois d'intervalle depuis le même granule
+    peuvent porter deux noms différents, et le lecteur doit pouvoir dire
+    lequel de nous ou du producteur a bougé. C'est la règle que le dépôt
+    applique à `InventorySource` pour l'inventaire, appliquée à la sortie.
+    """
+    import eccodes
+
+    return {
+        "eccodes": str(eccodes.codes_get_api_version()),
+        "cfgrib": str(_cfgrib().__version__),
+    }
+
+
+@functools.lru_cache(maxsize=1)
+def cf_tables_revision() -> str:
+    """Empreinte des tables qui décident d'un `standard_name`.
+
+    **Dérivée plutôt que tenue à la main.** Une version qu'un mainteneur doit
+    penser à incrémenter n'est pas incrémentée ; une empreinte du contenu ne
+    peut pas mentir. Elle répond à la seule question qui compte quand deux
+    fichiers divergent : *quelle table a parlé ?*
+    """
+    materiau = repr(
+        (
+            sorted(CF_STANDARD_NAMES.items()),
+            sorted(CF_ACCUMULATED.items()),
+            sorted(CF_BY_PARAM_ID.items()),
+            sorted(CF_DERIVED.items()),
+            sorted(WITHOUT_CF_NAME),
+            sorted(AMBIGUOUS_TRIPLETS),
+            sorted((code, sorted(gabarits)) for code, gabarits in TEMPLATE_RESTRICTED.items()),
+        )
+    )
+    return hashlib.sha256(materiau.encode("utf-8")).hexdigest()[:12]
+
+
+def denotes_a_rate(standard_name: object) -> bool:
+    """Le nom désigne-t-il un débit, donc une grandeur par unité de temps ?
+
+    Une intégrale temporelle n'en est pas un, bien qu'elle porte le mot : la
+    traiter comme tel rendrait le redressement non idempotent.
+    """
+    if not isinstance(standard_name, str) or standard_name.startswith(INTEGRAL_PREFIX):
+        return False
+    return bool(set(standard_name.split("_")) & set(RATE_TOKENS))
+
+
+def _is_accumulated(variable: xr.DataArray) -> bool:
+    return str(variable.attrs.get("GRIB_stepType", "")) in ACCUMULATED_STEP_TYPES
+
+
+def _redress_accumulated(name: str | None, variable: xr.DataArray) -> str | None:
+    """Un nom de débit ne peut pas nommer un cumul.
+
+    La correction s'applique **au nom retenu**, quelle que soit la branche qui
+    l'a produit : la nôtre comme celle de la chaîne de décodage. C'est ce qui
+    permet de traiter d'une seule pièce deux causes distinctes — notre table
+    pour `(0, 1, 52)`, ecCodes pour `(0, 4, 7)`.
+
+    **Le repli est le cœur du dispositif.** Un nom de débit sur un cumul dont
+    `CF_ACCUMULATED` ne connaît pas l'intégrale sort **sans nom**, et l'écart
+    se voit — plutôt que de sortir faux en silence, ce que `CLAUDE.md` tient
+    pour le défaut le plus coûteux. La classe reste ainsi fermée : le
+    prochain cas se signale de lui-même au lieu de passer.
+    """
+    if name is None or not _is_accumulated(variable) or not denotes_a_rate(name):
+        return name
+    return CF_ACCUMULATED.get(name)
+
+
 def _our_cf_name_by_param_id(variable: xr.DataArray) -> str | None:
     """Le nom de notre table indexée par `paramId`, pour les derniers trous."""
     identifiant = param_id(variable)
@@ -933,7 +1161,8 @@ def _our_cf_name_by_param_id(variable: xr.DataArray) -> str | None:
 def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """Pose `standard_name` sur les champs que notre table couvre.
 
-    **Quatre voies, dans cet ordre, et l'ordre est le sujet.**
+    **Cinq voies, dans cet ordre, puis une correction.** L'ordre est le
+    sujet, et la correction l'est tout autant.
 
     1. Un nom déjà posé et utilisable est conservé.
     2. Sinon celui que la chaîne de décodage a résolu, `GRIB_cfName`.
@@ -948,19 +1177,28 @@ def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     Quand aucune ne donne de nom, **l'attribut est retiré** plutôt que laissé
     à sa valeur de remplissage — un champ sans nom standard doit se voir
     comme tel.
+
+    **Puis la correction, sur le nom retenu quelle qu'en soit l'origine** :
+    un nom de débit posé sur un cumul est remplacé par celui de l'intégrale,
+    ou retiré si CF n'en offre aucune. Elle vient **après** le choix, et non
+    dans l'une des branches, parce que le défaut qu'elle corrige se produit
+    dans plusieurs — notre table pour `(0, 1, 52)`, ecCodes pour `(0, 4, 7)`,
+    dont `cfgrib` recopie le `cfName` dans `standard_name` avant même que
+    nous regardions. C'est pourquoi la voie 1 y passe aussi.
     """
     out = dataset.copy()
     for name, var in out.data_vars.items():
         existing = _usable_cf_name(var.attrs.get("standard_name"))
-        if existing:
-            continue
+        existing = _usable_cf_name(var.attrs.get("standard_name"))
         identifiant = param_id(var)
         chosen = (
-            _usable_cf_name(var.attrs.get("GRIB_cfName"))
+            existing
+            or _usable_cf_name(var.attrs.get("GRIB_cfName"))
             or (cf_name_for_param_id(identifiant) if identifiant is not None else None)
             or _our_cf_name(var)
             or _our_cf_name_by_param_id(var)
         )
+        chosen = _redress_accumulated(chosen, var)
         if chosen:
             out[name].attrs["standard_name"] = chosen
         else:
@@ -974,6 +1212,7 @@ def normalise(dataset: xr.Dataset) -> xr.Dataset:
 
 
 __all__ = [
+    "ACCUMULATED_STEP_TYPES",
     "AMBIGUOUS_TRIPLETS",
     "ATTR_EDITION",
     "ATTR_INDICATOR",
@@ -982,16 +1221,19 @@ __all__ = [
     "ATTR_TABLE2_VERSION",
     "ATTR_TABLES_LATEST",
     "ATTR_TABLES_VERSION",
+    "CF_ACCUMULATED",
     "CF_BY_PARAM_ID",
     "CF_DERIVED",
     "CF_STANDARD_NAMES",
     "COORD_UNDEFINED",
     "DERIVED_WIND",
     "GEO_KEYS",
+    "INTEGRAL_PREFIX",
     "LOCAL_USE_RANGE_START",
     "OPTIONS_CFGRIB",
     "PARAM_ID_UNRESOLVED",
     "PLACEHOLDER_CF",
+    "RATE_TOKENS",
     "READ_KEYS",
     "TEMPLATE_RESTRICTED",
     "VALUES_DTYPE",
@@ -1000,8 +1242,11 @@ __all__ = [
     "GribUnavailableError",
     "apply_cf_names",
     "cf_name_for_param_id",
+    "cf_tables_revision",
     "check_local_tables",
     "check_tables_version",
+    "decoder_versions",
+    "denotes_a_rate",
     "drop_derived_wind",
     "dropped_fields",
     "file_identities",

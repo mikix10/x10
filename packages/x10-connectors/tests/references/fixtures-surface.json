@@ -51,6 +51,7 @@
         "parameterCategory": "0",
         "parameterNumber": "0",
         "productDefinitionTemplateNumber": "0",
+        "shortName": "t",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
@@ -100,6 +101,7 @@
         "parameterCategory": "2",
         "parameterNumber": "2",
         "productDefinitionTemplateNumber": "0",
+        "shortName": "u",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },
@@ -148,6 +150,7 @@
         "parameterCategory": "1",
         "parameterNumber": "8",
         "productDefinitionTemplateNumber": "8",
+        "shortName": "unknown",
         "stepType": "accum",
         "typeOfLevel": "heightAboveGround"
       },
@@ -197,6 +200,7 @@
         "parameterCategory": "2",
         "parameterNumber": "3",
         "productDefinitionTemplateNumber": "0",
+        "shortName": "v",
         "stepType": "instant",
         "typeOfLevel": "heightAboveGround"
       },

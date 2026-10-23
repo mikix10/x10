@@ -15,15 +15,20 @@ from fixtures_grib2 import DEFAULT_GRID, Field, granule, wind_fields
 
 from x10_connectors.contract import CF_VERTICAL
 from x10_connectors.grib2 import (
+    ACCUMULATED_STEP_TYPES,
     AMBIGUOUS_TRIPLETS,
+    CF_ACCUMULATED,
     CF_BY_PARAM_ID,
     CF_DERIVED,
     CF_STANDARD_NAMES,
     DERIVED_WIND,
+    INTEGRAL_PREFIX,
     OPTIONS_CFGRIB,
+    RATE_TOKENS,
     TEMPLATE_RESTRICTED,
     WITHOUT_CF_NAME,
     apply_cf_names,
+    denotes_a_rate,
     drop_derived_wind,
     normalise,
     open_granule,
@@ -476,23 +481,24 @@ def test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale():
 def noms_cf_emis() -> set[str]:
     """Tous les noms standards CF que la chaîne peut écrire dans un fichier.
 
-    **Quatre sources désormais.** Le contrôle ne balayait d'abord que la
-    première, de sorte que deux gisements entiers échappaient à la
-    vérification : les références verticales, et les grandeurs que nous
-    calculons. La quatrième est arrivée avec l'édition 1 — `CF_BY_PARAM_ID`,
-    indexée par `paramId` et non par triplet. Les énumérer ici resterait
-    fragile sans `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui prouve par
-    analyse du code qu'aucune cinquième source n'existe.
+    **Cinq sources, et c'est le point.** Le contrôle ne balayait d'abord que
+    la première, de sorte que des gisements entiers échappaient à la
+    vérification : les références verticales, les grandeurs que nous
+    calculons, la table indexée par `paramId` qu'a demandée l'édition 1, et
+    les intégrales qui remplacent un nom de débit sur un cumul. Les énumérer
+    ici resterait fragile sans `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui
+    prouve par analyse du code qu'aucune sixième source n'existe.
     """
     return (
         set(CF_STANDARD_NAMES.values())
         | set(CF_BY_PARAM_ID.values())
         | set(CF_DERIVED)
         | {nom for nom, _ in CF_VERTICAL.values()}
+        | set(CF_ACCUMULATED.values())
     )
 
 
-def test_le_releve_des_noms_cf_couvre_les_quatre_sources():
+def test_le_releve_des_noms_cf_couvre_les_cinq_sources():
     """Un garde-fou du garde-fou : si une table cessait d'être relevée, le
     test réseau passerait en ne vérifiant plus rien."""
     emis = noms_cf_emis()
@@ -500,6 +506,7 @@ def test_le_releve_des_noms_cf_couvre_les_quatre_sources():
     assert set(CF_BY_PARAM_ID.values()) <= emis
     assert set(CF_DERIVED) <= emis
     assert {nom for nom, _ in CF_VERTICAL.values()} <= emis
+    assert set(CF_ACCUMULATED.values()) <= emis
     assert len(emis) >= len(CF_STANDARD_NAMES) + len(CF_DERIVED)
 
 
@@ -546,3 +553,156 @@ def test_aucun_nom_cf_n_est_ecrit_en_dur():
         "`CF_STANDARD_NAMES`, `CF_DERIVED` ou `CF_VERTICAL` — et les relever "
         "dans `noms_cf_emis`."
     )
+
+
+# --- Un nom de débit ne peut pas nommer un cumul -------------------------------
+
+
+def test_la_regle_reconnait_un_debit_ou_que_le_mot_se_trouve():
+    """La détection est une règle, pas une liste — comme pour les directions.
+
+    **Par jetons et non par terminaison** : CF compose ses noms par mots, et
+    le débit n'est pas toujours en dernier. Une règle par suffixe manquait
+    `surface_downwelling_shortwave_flux_in_air`, qui est précisément l'un des
+    deux cas mesurés.
+    """
+    assert denotes_a_rate("precipitation_flux")
+    assert denotes_a_rate("surface_downwelling_shortwave_flux_in_air")
+    assert denotes_a_rate("water_flux_into_sea_water")
+    assert denotes_a_rate("lwe_precipitation_rate")
+    assert denotes_a_rate("air_temperature") is False
+    assert denotes_a_rate("surface_snow_amount") is False
+    assert denotes_a_rate(None) is False
+    assert all("_" not in jeton for jeton in RATE_TOKENS)
+
+
+def test_une_integrale_n_est_pas_un_debit():
+    """Sans cette exclusion le redressement ne serait pas idempotent.
+
+    L'intégrale d'un flux porte encore le mot `flux`. Un second passage la
+    prendrait pour un débit dont aucune table ne connaît l'intégrale — et la
+    **retirerait**, détruisant le nom que le premier passage venait de poser.
+    """
+    for cible in CF_ACCUMULATED.values():
+        assert denotes_a_rate(cible) is False, (
+            f"{cible!r} serait repris pour un débit au second passage, "
+            "et retiré faute d'intégrale connue."
+        )
+    assert any(cible.startswith(INTEGRAL_PREFIX) for cible in CF_ACCUMULATED.values()), (
+        "aucune cible ne porte la construction de CF pour une intégrale "
+        "temporelle : l'exclusion de `denotes_a_rate` ne serait plus exercée."
+    )
+
+
+def test_les_types_de_pas_cumules_rendent_bien_une_somme():
+    """Apparie `ACCUMULATED_STEP_TYPES` à la table qui décide du sens.
+
+    Ne retenir que `accum` laisserait passer `sum`, que
+    `netcdf_cf.CELL_METHODS` traite identiquement : la moitié des cumuls
+    échapperait au redressement **sans un mot**, et c'est précisément le
+    régime d'erreur que ce dispositif existe pour fermer.
+    """
+    from x10_connectors.netcdf_cf import CELL_METHODS
+
+    sommes = {pas for pas, methode in CELL_METHODS.items() if methode == "time: sum"}
+    assert set(ACCUMULATED_STEP_TYPES) == sommes, (
+        f"`ACCUMULATED_STEP_TYPES` vaut {sorted(ACCUMULATED_STEP_TYPES)} quand "
+        f"`CELL_METHODS` rend `time: sum` pour {sorted(sommes)}. Un écart "
+        "laisserait un cumul porter le nom d'un débit."
+    )
+
+
+def test_la_table_des_cumuls_ne_se_chaine_pas():
+    """Une valeur qui serait aussi une clé produirait un redressement en deux
+    temps selon l'ordre d'itération — donc un résultat non déterministe."""
+    boucles = sorted(set(CF_ACCUMULATED) & set(CF_ACCUMULATED.values()))
+    assert boucles == [], f"nom à la fois source et cible du redressement : {boucles}"
+
+
+def test_toute_cle_de_la_table_des_cumuls_est_un_debit():
+    """Une clé qui n'est pas un débit ne serait jamais consultée : la règle
+    filtre avant la table. Elle serait morte sans que rien ne le dise."""
+    inertes = sorted(nom for nom in CF_ACCUMULATED if not denotes_a_rate(nom))
+    assert inertes == [], (
+        f"clé(s) que la règle n'atteindra jamais : {inertes}. "
+        "`denotes_a_rate` filtre avant `CF_ACCUMULATED`."
+    )
+
+
+def _jeu_cumul(tmp_path, *, number: int, nom_pose: str | None = None):
+    """Un champ cumulé, éventuellement muni d'un `standard_name` déjà posé.
+
+    Le second cas reproduit le chemin de la chaîne de décodage : `cfgrib`
+    recopie `cfName` dans `standard_name`, donc le nom fautif arrive **avant**
+    que nos tables soient consultées.
+    """
+    champs = [
+        Field(
+            category=1 if number == 52 else 4,
+            number=number,
+            accumulation=1,
+            step=1,
+            values=np.zeros(N),
+        )
+    ]
+    jeu = open_granule(granule(tmp_path / f"cumul-{number}.grib2", champs))[0]
+    if nom_pose is not None:
+        for variable in jeu.data_vars:
+            jeu[variable].attrs["standard_name"] = nom_pose
+    return jeu
+
+
+def test_un_nom_de_debit_de_notre_table_est_redresse_sur_un_cumul(tmp_path):
+    """Cas `(0, 1, 52)` : l'OMM le nomme « Total precipitation rate », deux
+    producteurs l'emploient pour un cumul, et **notre** table y posait
+    `precipitation_flux` sur une grandeur en `kg m-2`. Voir `X10-DIV-0008`."""
+    jeu = apply_cf_names(_jeu_cumul(tmp_path, number=52))
+    noms = {jeu[v].attrs.get("standard_name") for v in jeu.data_vars}
+
+    assert "precipitation_flux" not in noms
+    assert noms == {"precipitation_amount"}
+
+
+def test_un_nom_de_debit_venu_du_decodeur_est_redresse_aussi(tmp_path):
+    """La correction porte sur le **nom retenu**, pas sur la branche qui l'a
+    produit.
+
+    Mesuré le 22/10/2026 sous ecCodes 2.49.0, rejoué sous 2.50.0 par
+    `uv run --no-project --with eccodes==2.50.0 python` : sur `(0, 4, 7)`, le
+    décodeur résout **deux paramètres distincts** selon le traitement
+    statistique, et celui du cumul porte le nom CF du débit avec l'unité du
+    cumul. Et `cfgrib` recopiant `cfName` dans `standard_name`, ce nom arrive
+    déjà posé : une correction placée dans la branche « notre table » ne
+    l'aurait jamais vu.
+    """
+    jeu = _jeu_cumul(tmp_path, number=7, nom_pose="surface_downwelling_shortwave_flux_in_air")
+    sortie = apply_cf_names(jeu)
+    noms = {sortie[v].attrs.get("standard_name") for v in sortie.data_vars}
+
+    assert noms == {"integral_wrt_time_of_surface_downwelling_shortwave_flux_in_air"}
+
+
+def test_un_debit_sans_integrale_connue_sort_sans_nom(tmp_path):
+    """Le repli, et c'est lui qui ferme la classe.
+
+    CF n'offre pas d'intégrale pour tout débit — pour les flux de chaleur il
+    nomme la forme *downward* quand le GRIB compte *upward*, et une table
+    nom→nom ne sait pas changer un signe. Le champ sort alors **sans nom**,
+    donc visible, plutôt que faux en silence.
+    """
+    jeu = _jeu_cumul(tmp_path, number=7, nom_pose="an_invented_rate")
+    sortie = apply_cf_names(jeu)
+
+    assert "an_invented_rate" not in CF_ACCUMULATED
+    for variable in sortie.data_vars:
+        assert "standard_name" not in sortie[variable].attrs
+
+
+def test_un_instantane_garde_le_nom_du_debit(tmp_path):
+    """Le redressement ne doit pas déborder : hors cumul, un débit est un
+    débit, et `precipitation_flux` reste juste."""
+    champs = [Field(category=1, number=52, values=np.zeros(N))]
+    jeu = apply_cf_names(open_granule(granule(tmp_path / "instant.grib2", champs))[0])
+    noms = {jeu[v].attrs.get("standard_name") for v in jeu.data_vars}
+
+    assert noms == {"precipitation_flux"}

@@ -275,7 +275,9 @@ classes:
       la *relation* d'équivalence composée, pas l'objet composé.
 
       Le triplet ne suffit pas, et c'est mesuré : sept messages d'un même flux
-      portent le même triplet et ne se distinguent que par leur gabarit.
+      portent le même triplet. Le gabarit sépare le total des six hauteurs par
+      bande de période, mais pas les bandes entre elles — rejoué le
+      22/10/2026 : seules les clés de bande du gabarit 4.104 les départagent.
     attributes:
       discipline:
         range: integer
