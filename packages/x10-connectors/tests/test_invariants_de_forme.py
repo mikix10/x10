@@ -36,6 +36,13 @@ CONDITIONNELLES = frozenset(
         "indicatorOfUnitForTimeRange",
         # Une taille d'ensemble n'existe que sur un gabarit d'ensemble.
         "numberOfForecastsInEnsemble",
+        # L'identité d'édition 1 n'existe pas sur un message d'édition 2, et
+        # réciproquement : `identity` fait suivre l'une ou l'autre. Les
+        # fixtures de ce fichier sont en édition 2, donc ces deux clés y sont
+        # légitimement absentes — `test_grib_edition_1` les exerce de l'autre
+        # côté.
+        "table2Version",
+        "indicatorOfParameter",
         # Les axes d'un ellipsoïde ne sont posés que si la Terre en est un.
         "earthMajorAxis",
         "earthMinorAxis",

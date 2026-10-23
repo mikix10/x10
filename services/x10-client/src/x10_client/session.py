@@ -217,7 +217,10 @@ class Session:
             # refuse une perte silencieuse, le client la **nomme** plutôt que
             # d'abandonner un granule dont le reste est bon.
             datasets = grib2.open_granule(source, errors="ignore")
-            dropped = tuple(str(t) for t in sorted(grib2.dropped_fields(source, datasets)))
+            dropped = tuple(
+                grib2.format_identity(code)
+                for code in sorted(grib2.dropped_fields(source, datasets))
+            )
             verdict = Verdict.PARTIAL
             reason = (
                 f"{len(dropped)} parameter(s) present on input do not appear in "

@@ -18,6 +18,7 @@ from x10_connectors.grib2 import (
     ACCUMULATED_STEP_TYPES,
     AMBIGUOUS_TRIPLETS,
     CF_ACCUMULATED,
+    CF_BY_PARAM_ID,
     CF_DERIVED,
     CF_STANDARD_NAMES,
     DERIVED_WIND,
@@ -480,27 +481,29 @@ def test_le_nom_retenu_n_est_pas_celui_de_la_grandeur_spectrale():
 def noms_cf_emis() -> set[str]:
     """Tous les noms standards CF que la chaîne peut écrire dans un fichier.
 
-    **Quatre sources, et c'est le point.** Le contrôle ne balayait que la
-    première, de sorte que des gisements entiers échappaient à la
+    **Cinq sources, et c'est le point.** Le contrôle ne balayait d'abord que
+    la première, de sorte que des gisements entiers échappaient à la
     vérification : les références verticales, les grandeurs que nous
-    calculons, et les intégrales qui remplacent un nom de débit sur un
-    cumul. Les énumérer ici resterait fragile sans
-    `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui prouve par analyse du code
-    qu'aucune cinquième source n'existe.
+    calculons, la table indexée par `paramId` qu'a demandée l'édition 1, et
+    les intégrales qui remplacent un nom de débit sur un cumul. Les énumérer
+    ici resterait fragile sans `test_aucun_nom_cf_n_est_ecrit_en_dur`, qui
+    prouve par analyse du code qu'aucune sixième source n'existe.
     """
     return (
         set(CF_STANDARD_NAMES.values())
+        | set(CF_BY_PARAM_ID.values())
         | set(CF_DERIVED)
         | {nom for nom, _ in CF_VERTICAL.values()}
         | set(CF_ACCUMULATED.values())
     )
 
 
-def test_le_releve_des_noms_cf_couvre_les_quatre_sources():
+def test_le_releve_des_noms_cf_couvre_les_cinq_sources():
     """Un garde-fou du garde-fou : si une table cessait d'être relevée, le
     test réseau passerait en ne vérifiant plus rien."""
     emis = noms_cf_emis()
     assert set(CF_STANDARD_NAMES.values()) <= emis
+    assert set(CF_BY_PARAM_ID.values()) <= emis
     assert set(CF_DERIVED) <= emis
     assert {nom for nom, _ in CF_VERTICAL.values()} <= emis
     assert set(CF_ACCUMULATED.values()) <= emis
