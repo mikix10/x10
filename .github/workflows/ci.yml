@@ -207,6 +207,84 @@ jobs:
         run: echo "Label refonte-api set, base tests deliberately skipped."
 
 
+  instructions:
+    # Les fichiers qui gouvernent l'assistant, proteges comme tels.
+    #
+    # `CLAUDE.md` et `.claude/` ne sont pas de la documentation : ils sont lus
+    # a chaque session et presentes comme des consignes a appliquer. Une ligne
+    # ajoutee la change le comportement de l'assistant sur toutes les sessions
+    # suivantes -- et elle le change **sans qu'il puisse s'en apercevoir**. Il
+    # voit l'etat courant du fichier, jamais son historique : il ne sait donc
+    # pas distinguer une decision authentique d'une decision forgee, et sa
+    # resistance depend du caractere flagrant de l'instruction, pas de son
+    # authenticite. Une ligne plausible, datee, redigee dans le style des
+    # quatre-vingt-quinze autres, serait appliquee sans etre mise en doute.
+    #
+    # Le depot est public : n'importe qui peut proposer une telle ligne. Ce
+    # job la rend impossible a fusionner par inadvertance. Il echoue des que
+    # ces fichiers different de la base, et seule une etiquette le contourne
+    # -- or **poser une etiquette demande le droit d'ecriture**, qu'un
+    # contributeur exterieur n'a pas. C'est la meme frontiere d'autorisation
+    # que celle du job « Tests de la base », et pour la meme raison.
+    #
+    # **Ce job doit figurer aux verifications obligatoires**, sans quoi il
+    # n'empeche rien : un contexte non requis se fusionne rouge. Et c'est ce
+    # qui le protege a son tour -- un contexte requis sans job correspondant
+    # bloque la fusion definitivement, donc le retirer du workflow est
+    # auto-destructeur.
+    #
+    # Sa limite, a connaitre plutot qu'a ignorer : il protege d'une fusion
+    # **inapercue**, pas d'une relecture escamotee. La regression du « qui
+    # garde les gardiens » ne se ferme pas, elle se raccourcit jusqu'au point
+    # ou quelqu'un doit lire.
+    name: Instructions d'agent
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # `git diff` contre la base, et non contre un condensat enregistre : une
+      # reference commitee serait modifiable par la meme demande, donc sans
+      # valeur. La base, elle, n'est pas a portee de la demande.
+      #
+      # La reference passe par `env:` et non par interpolation directe dans le
+      # shell : une valeur de contexte inseree dans un `run:` est substituee
+      # **avant** que le shell ne lise la ligne, ce qui en fait du code. Le
+      # risque est nul ici -- une demande ne peut viser qu'une branche qui
+      # existe deja chez nous -- mais la forme sure coute deux lignes, et un
+      # job de securite n'a pas a porter le motif qu'il faudrait relever
+      # ailleurs.
+      - name: Compare agent instructions with the base
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'revision-instructions')
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if git diff --quiet "origin/$BASE_REF" -- CLAUDE.md .claude/; then
+            echo "CLAUDE.md et .claude/ sont identiques a la base."
+          else
+            git diff --stat "origin/$BASE_REF" -- CLAUDE.md .claude/
+            echo "::error::Les fichiers d'instruction de l'assistant different de la base.           Relisez le diff ci-dessus ligne a ligne. Si le changement est voulu, posez           l'etiquette revision-instructions -- ce qui demande le droit d'ecriture."
+            exit 1
+          fi
+
+      # Le job conclut quand meme en succes, pour que le contexte requis soit
+      # rapporte. Sans cette etape, une demande etiquetee n'aurait rien a
+      # executer et le contexte resterait muet.
+      - name: Comparison skipped by label
+        if: contains(github.event.pull_request.labels.*.name, 'revision-instructions')
+        run: >-
+          echo "Label revision-instructions set, the change to the agent
+          instructions is deliberate."
+
+      - name: Nothing to compare outside a pull request
+        if: github.event_name != 'pull_request'
+        run: echo "Push event, no base to compare against."
+
+
   portability:
     # Windows et macOS ne sont pas la plateforme de reference, mais une
     # bibliotheque publiee sur PyPI s'installe partout. Les pieges sont reels
