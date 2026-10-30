@@ -256,6 +256,15 @@ jobs:
       # existe deja chez nous -- mais la forme sure coute deux lignes, et un
       # job de securite n'a pas a porter le motif qu'il faudrait relever
       # ailleurs.
+      #
+      # La liste est **fermee, et plus large que ce que le depot contient**.
+      # Deposer un fichier d'instruction neuf est aussi efficace que modifier
+      # celui qui existe : plusieurs outils d'agent lisent d'autres noms, et
+      # un fichier absent aujourd'hui peut etre ajoute par la demande
+      # elle-meme. `git diff` accepte sans broncher un chemin absent des deux
+      # cotes, donc couvrir une convention que nous n'employons pas ne coute
+      # rien -- et fermer la classe plutot que le cas est la regle du depot.
+      # A completer le jour ou une convention nouvelle apparait.
       - name: Compare agent instructions with the base
         if: >-
           github.event_name == 'pull_request' &&
@@ -263,10 +272,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if git diff --quiet "origin/$BASE_REF" -- CLAUDE.md .claude/; then
-            echo "CLAUDE.md et .claude/ sont identiques a la base."
+          SURFACE=(
+            CLAUDE.md CLAUDE.local.md AGENTS.md GEMINI.md
+            .claude/ .cursor/ .cursorrules .windsurfrules
+            .github/copilot-instructions.md .mcp.json
+          )
+          if git diff --quiet "origin/$BASE_REF" -- "${SURFACE[@]}"; then
+            echo "Les fichiers d'instruction d'agent sont identiques a la base."
           else
-            git diff --stat "origin/$BASE_REF" -- CLAUDE.md .claude/
+            git diff --stat "origin/$BASE_REF" -- "${SURFACE[@]}"
             echo "::error::Les fichiers d'instruction de l'assistant different de la base.           Relisez le diff ci-dessus ligne a ligne. Si le changement est voulu, posez           l'etiquette revision-instructions -- ce qui demande le droit d'ecriture."
             exit 1
           fi
