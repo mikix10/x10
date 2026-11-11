@@ -234,6 +234,29 @@ def test_la_tolerance_au_recouvrement_est_une_option(session, tmp_path):
         session.normalise_granule(source, options=NormaliseOptions(dropped_fields="raise"))
 
 
+def test_l_unite_intraduisible_est_toleree_de_bout_en_bout(session, tmp_path):
+    """`strict_units` doit gouverner toute la chaîne, pas la seule écriture.
+
+    Le code GRIB2 `(0, 15, 1)` — réflectivité de base — sort d'ecCodes en
+    `dB`, absente de la table fermée `UDUNITS`. L'option existe exactement
+    pour ce cas ; encore faut-il qu'elle soit consultée **avant** que quoi
+    que ce soit ne lève.
+
+    Mesuré le 23/10/2026 : le contrat de sortie était calculé avant
+    l'écriture et sans l'option, de sorte que `strict_units=False` paraissait
+    sans effet. Le granule échouait trois lignes avant d'atteindre le code
+    que l'option gouverne.
+    """
+    source = minimal_granule(tmp_path / "db.grib2", ((15, 1),))
+
+    with pytest.raises(Exception, match="UDUNITS"):
+        session.normalise_granule(source)
+
+    tolere = session.normalise_granule(source, options=NormaliseOptions(strict_units=False))
+    assert tolere.verdict is Verdict.COMPLETE
+    assert tolere.outputs
+
+
 def test_run_est_la_composition_des_etapes_publiques(session, tmp_path, monkeypatch):
     """Si les deux chemins divergeaient, le découpage serait faux."""
     source = minimal_granule(tmp_path / "raw" / "comp.grib2", ((0, 0), (2, 2)))

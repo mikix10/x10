@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -264,24 +263,12 @@ def test_rien_ne_fuit_par_la_journalisation(caplog):
 
 
 # --- La règle de dépendance ----------------------------------------------------
-
-
-def test_aucun_paquet_ne_lit_l_environnement():
-    """**Le client résout, le connecteur reçoit.** Un paquet qui lirait
-    l'environnement détiendrait un secret, ce que la décision « X10 ne porte
-    aucun secret » interdit.
-
-    Vérifié le 16/10/2026 : zéro occurrence avant ce chantier. Le test rend
-    la règle structurelle plutôt que disciplinaire.
-    """
-    racine = Path(__file__).resolve().parents[3] / "packages"
-    fautifs = [
-        f"{p.relative_to(racine)}"
-        for p in racine.rglob("src/**/*.py")
-        if "__pycache__" not in p.parts
-        and any(motif in p.read_text(encoding="utf-8") for motif in ("os.environ", "getenv"))
-    ]
-    assert fautifs == [], f"un paquet lit l'environnement : {fautifs}"
+#
+# `test_aucun_paquet_ne_lit_l_environnement` vivait ici et porte sur **tous**
+# les paquets. Il est passé dans `workspace-tests/` le 23/10/2026 : une
+# garantie sur les paquets qui ne tourne qu'avec la suite d'un service
+# disparaît le jour où l'on ne construit que les paquets — ce que `CLAUDE.md`
+# nomme déjà « la règle à l'envers ».
 
 
 # --- Ce que l'imbrication a changé, et ce qu'elle n'a pas changé --------------

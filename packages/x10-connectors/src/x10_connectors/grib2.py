@@ -15,10 +15,11 @@ Dépendance optionnelle : installer l'extra `grib`.
 from __future__ import annotations
 
 import functools
-import hashlib
+import sys
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from .base import table_fingerprint
 from .observability import connector_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -1095,27 +1096,31 @@ def decoder_versions() -> dict[str, str]:
     }
 
 
+#: Constantes de module que `cf_tables_revision` **n'a pas à couvrir**, avec
+#: leur raison. Toute entrée nouvelle est une ligne de `git diff` qu'un
+#: relecteur lit — c'est la mécanique du lexique public, appliquée aux tables.
+#:
+#: `LOCAL_USE_RANGE_START` borne un **signalement**, pas un attribut émis :
+#: la déplacer change ce que `check_local_tables` rapporte, jamais ce que le
+#: fichier dit.
+UNFINGERPRINTED: frozenset[str] = frozenset({"LOCAL_USE_RANGE_START"})
+
+
 @functools.lru_cache(maxsize=1)
 def cf_tables_revision() -> str:
-    """Empreinte des tables qui décident d'un `standard_name`.
+    """Empreinte des tables de ce module, celles qui décident d'un nom.
 
     **Dérivée plutôt que tenue à la main.** Une version qu'un mainteneur doit
-    penser à incrémenter n'est pas incrémentée ; une empreinte du contenu ne
-    peut pas mentir. Elle répond à la seule question qui compte quand deux
-    fichiers divergent : *quelle table a parlé ?*
+    penser à incrémenter n'est pas incrémentée, et une liste de tables qu'il
+    doit penser à compléter ne l'est pas davantage — mesuré le 23/10/2026 :
+    trois constantes décidant pourtant du nom émis lui échappaient. Voir
+    `base.table_fingerprint`. Elle répond à la seule question qui compte
+    quand deux fichiers divergent : *quelle table a parlé ?*
+
+    Mise en cache : les tables ne bougent pas en cours d'exécution. Un
+    test qui en modifie une doit appeler `cf_tables_revision.cache_clear()`.
     """
-    materiau = repr(
-        (
-            sorted(CF_STANDARD_NAMES.items()),
-            sorted(CF_ACCUMULATED.items()),
-            sorted(CF_BY_PARAM_ID.items()),
-            sorted(CF_DERIVED.items()),
-            sorted(WITHOUT_CF_NAME),
-            sorted(AMBIGUOUS_TRIPLETS),
-            sorted((code, sorted(gabarits)) for code, gabarits in TEMPLATE_RESTRICTED.items()),
-        )
-    )
-    return hashlib.sha256(materiau.encode("utf-8")).hexdigest()[:12]
+    return table_fingerprint(sys.modules[__name__], exempt=UNFINGERPRINTED)
 
 
 def denotes_a_rate(standard_name: object) -> bool:
@@ -1188,7 +1193,6 @@ def apply_cf_names(dataset: xr.Dataset) -> xr.Dataset:
     """
     out = dataset.copy()
     for name, var in out.data_vars.items():
-        existing = _usable_cf_name(var.attrs.get("standard_name"))
         existing = _usable_cf_name(var.attrs.get("standard_name"))
         identifiant = param_id(var)
         chosen = (

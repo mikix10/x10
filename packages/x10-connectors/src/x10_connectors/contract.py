@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from x10_models import SourceTerms, Variable
 
 from .grib2 import PLACEHOLDER_CF, GribUnavailableError, _numpy
-from .netcdf_cf import cell_method, grid_mapping, udunits
+from .netcdf_cf import UnconvertibleUnitError, cell_method, grid_mapping, udunits
 from .observability import connector_logger
 
 _log = connector_logger(__name__)
@@ -239,7 +239,34 @@ def _coordinate(values: object) -> AxisSummary | tuple[float, ...]:
     )
 
 
-def output_contract(datasets: tuple[xr.Dataset, ...]) -> Contract:
+def _declared(var: xr.DataArray, *, strict_units: bool) -> tuple[str | None, str | None]:
+    """L'unité et le nom standard **tels que l'écriture les déclarera**.
+
+    Le couple est rendu ensemble, et c'est la correction du 23/10/2026 :
+    `netcdf_cf.convert_units` les retire **ensemble**, un nom standard dont
+    CF impose l'unité canonique ne survivant pas à une unité absente. Les
+    lire séparément faisait décrire au contrat un fichier jamais écrit —
+    mesuré sur la référence AROME commitée, où la variable `unknown` portait
+    `units=None` et `standard_name="cloud_area_fraction"` alors que le
+    fichier produit n'avait ni l'un ni l'autre.
+
+    `strict_units` reprend le réglage de l'écriture pour la même raison : un
+    contrat bâti sans lui levait trois lignes avant que l'option ne soit
+    consultée, de sorte que la tolérance paraissait sans effet.
+    """
+    try:
+        units = udunits(var.attrs.get("units"))
+    except UnconvertibleUnitError:
+        if strict_units:
+            raise
+        units = None
+    if units is None:
+        return None, None
+    standard_name = var.attrs.get("standard_name")
+    return units, str(standard_name) if standard_name is not None else None
+
+
+def output_contract(datasets: tuple[xr.Dataset, ...], *, strict_units: bool = True) -> Contract:
     """Construit le contrat d'un granule décodé et normalisé.
 
     Prend le tuple rendu par `open_granule`, chaque jeu passé par `normalise`.
@@ -266,14 +293,15 @@ def output_contract(datasets: tuple[xr.Dataset, ...]) -> Contract:
                     grid.setdefault(str(axis), decrit)
                 else:
                     coords[str(axis)] = decrit
+            declared_units, declared_name = _declared(var, strict_units=strict_units)
             variables[str(name)] = VariableContract(
                 dims=tuple(str(d) for d in var.dims),
                 dtype=str(var.dtype),
-                # L'unité **telle que la sortie la déclare**, donc après
-                # canonicalisation : le contrat décrit ce qu'un consommateur
-                # lit, pas ce que le GRIB portait.
-                units=udunits(var.attrs.get("units")),
-                standard_name=var.attrs.get("standard_name"),
+                # L'unité et le nom **tels que la sortie les déclare**, donc
+                # après canonicalisation : le contrat décrit ce qu'un
+                # consommateur lit, pas ce que le GRIB portait.
+                units=declared_units,
+                standard_name=declared_name,
                 long_name=var.attrs.get("long_name"),
                 cell_methods=cell_method(var.attrs),
                 grib={

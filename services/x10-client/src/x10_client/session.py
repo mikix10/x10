@@ -228,7 +228,12 @@ class Session:
             )
 
         normalised = tuple(grib2.normalise(dataset) for dataset in datasets)
-        reference = contract_fingerprint(output_contract(normalised).json_stable())
+        # Le contrat prend **le même réglage que l'écriture** : bâti sans lui,
+        # il levait sur une unité intraduisible trois lignes avant que
+        # `strict_units` ne soit consulté, et la tolérance paraissait sans effet.
+        reference = contract_fingerprint(
+            output_contract(normalised, strict_units=options.strict_units).json_stable()
+        )
 
         outputs: list[Path] = []
         if options.write:

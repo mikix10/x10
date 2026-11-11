@@ -28,12 +28,14 @@ Dépendance optionnelle : installer l'extra `grib`.
 from __future__ import annotations
 
 import contextlib
+import functools
 import re
+import sys
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from .base import AGENT, atomic_write
+from .base import AGENT, atomic_write, table_fingerprint
 from .grib2 import (
     COORD_UNDEFINED,
     GribUnavailableError,
@@ -297,7 +299,7 @@ def udunits(unit: str | None) -> str | None:
     """Traduit une unité GRIB en UDUNITS, ou renvoie `None` s'il n'y a rien à
     émettre.
 
-    Lève `UniteNonConvertible` pour une unité inconnue de la table. C'est
+    Lève `UnconvertibleUnitError` pour une unité inconnue de la table. C'est
     délibéré : deviner une conversion produirait un fichier faux, et un fichier
     faux qui se dit conforme est pire qu'une écriture qui refuse.
     """
@@ -797,6 +799,34 @@ def _maintenant() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+#: Constantes de module que `output_tables_revision` **n'a pas à couvrir**,
+#: avec leur raison. Chaque entrée est une ligne de `git diff` qu'un relecteur
+#: lit, sur le modèle du lexique public.
+#:
+#: `COMPRESSION` ne change que les **octets**, jamais le sens : deux fichiers
+#: qui n'en diffèrent disent la même chose, et l'appelant la passe de toute
+#: façon en paramètre. `MEDIAN_NOT_EXPOSED` ne décide rien — c'est le numéro
+#: de table de l'OMM qui documente pourquoi la médiane est absente, et aucun
+#: chemin d'exécution ne le consulte.
+UNFINGERPRINTED: frozenset[str] = frozenset({"COMPRESSION", "MEDIAN_NOT_EXPOSED"})
+
+
+@functools.lru_cache(maxsize=1)
+def output_tables_revision() -> str:
+    """Empreinte des tables de ce module, celles qui décident d'un attribut écrit.
+
+    **Pendant de `grib2.cf_tables_revision`, et il manquait.** L'empreinte
+    des noms CF ne dit rien de l'unité canonique, de la méthode de cellule,
+    des bornes d'intervalle, du datum ni des commentaires — toutes choses que
+    ce module écrit dans le fichier. Deux sorties pouvaient donc différer sur
+    chacune d'elles en portant la même signature.
+
+    Mise en cache pour la même raison, et avec la même réserve : un test qui
+    modifie une table doit appeler `output_tables_revision.cache_clear()`.
+    """
+    return table_fingerprint(sys.modules[__name__], exempt=UNFINGERPRINTED)
+
+
 def _outillage() -> str:
     """Les versions qui décident de ce que le fichier dira.
 
@@ -804,7 +834,10 @@ def _outillage() -> str:
     divergents posent : *laquelle a parlé ?* Elle est **dérivée du contenu**,
     donc elle ne peut pas être oubliée au moment d'un changement.
     """
-    pieces = [f"x10 cf tables {cf_tables_revision()}"]
+    pieces = [
+        f"x10 cf tables {cf_tables_revision()}",
+        f"x10 output tables {output_tables_revision()}",
+    ]
     # La pile GRIB est un extra : une sortie écrite sans elle reste traçable
     # par l'empreinte de nos tables, qui ne dépend d'aucune dépendance.
     with contextlib.suppress(Exception):  # pragma: no cover - extra absent
@@ -1040,6 +1073,7 @@ __all__ = [
     "global_attributes",
     "grid_mapping",
     "is_circular",
+    "output_tables_revision",
     "production_source",
     "time_bounds",
     "udunits",
