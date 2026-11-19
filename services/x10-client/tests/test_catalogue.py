@@ -145,11 +145,10 @@ def test_une_origine_inconnue_du_connecteur_est_refusee_a_la_construction():
 def test_le_registre_reel_se_charge_et_repond(registre):
     """Le catalogue commité, dérivé de granules réels, est utilisable tel
     quel par un client."""
+    from importlib.resources import files
     from pathlib import Path
 
-    import x10_catalog
-
-    source = Path(x10_catalog.__file__).parent / "data" / "meteofrance.json"
+    source = Path(str(files("x10_catalog"))) / "data" / "meteofrance.json"
     reel = Registry.from_file(source)
 
     assert len(reel.entries) == 2
@@ -161,11 +160,11 @@ def test_le_registre_reel_se_charge_et_repond(registre):
 def test_le_catalogue_reel_porte_la_provenance_de_sa_derivation():
     """Sans elle, une divergence future serait inattribuable : impossible de
     dire si le producteur a bougé ou si notre outillage a changé."""
+    from importlib.resources import files
     from pathlib import Path
 
-    import x10_catalog
-
-    reel = Registry.from_file(Path(x10_catalog.__file__).parent / "data" / "meteofrance.json")
+    racine = Path(str(files("x10_catalog")))
+    reel = Registry.from_file(racine / "data" / "meteofrance.json")
     for entree in reel.entries:
         source = entree.dataset.inventory_source
         assert source is not None
