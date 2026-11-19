@@ -128,7 +128,7 @@ def test_la_bibliotheque_n_installe_aucun_handler_sur_la_racine():
     avant = list(logging.getLogger().handlers)
     import importlib
 
-    import x10_connectors.observability as obs
+    from x10_connectors import observability as obs
 
     importlib.reload(obs)
     assert list(logging.getLogger().handlers) == avant

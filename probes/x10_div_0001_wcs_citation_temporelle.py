@@ -98,7 +98,7 @@ def check() -> Assertion:
     if cite == 200:
         resultat = Outcome.PASSED
         detail = "The quoted form is now accepted; the register must be updated."
-    elif cite != 200 and nu == 200:
+    elif nu == 200:
         resultat = Outcome.FAILED
         detail = f"Quoted form answered HTTP {cite}, bare form answered HTTP {nu}."
     else:

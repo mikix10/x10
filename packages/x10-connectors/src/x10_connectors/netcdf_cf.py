@@ -563,13 +563,13 @@ CELL_METHODS: dict[str, str] = {
     "mode": "time: mode",
 }
 
-#: **`median` n'entre pas, et ce n'est pas un oubli.** Le tableau E.1 de CF le
-#: porte, la table 4.10 de l'OMM aussi — traitement 13 —, mais mesuré le
-#: 22/10/2026 : poser `typeOfStatisticalProcessing = 13` fait lever
-#: `KeyValueNotFoundError` à la lecture de `stepType`. ecCodes ne l'expose
-#: pas, donc l'entrée serait du code mort. À rouvrir si une version
-#: ultérieure le rend.
-MEDIAN_NOT_EXPOSED = 13
+# **`median` n'entre pas, et ce n'est pas un oubli.** Le tableau E.1 de CF le
+# porte, la table 4.10 de l'OMM aussi — traitement 13 —, mais mesuré le
+# 22/10/2026 : la médiane — `typeOfStatisticalProcessing = 13` — fait lever
+# `KeyValueNotFoundError` à la lecture de `stepType`. ecCodes ne l'expose
+# pas, donc une entrée de table serait du code mort, et une constante qui la
+# nomme ne serait lue par personne. À rouvrir si une version ultérieure
+# l'expose.
 
 #: Traitements de la table 4.10 que **CF ne couvre pas**, recensés plutôt que
 #: rapprochés de force d'une méthode voisine :
@@ -805,10 +805,8 @@ def _maintenant() -> str:
 #:
 #: `COMPRESSION` ne change que les **octets**, jamais le sens : deux fichiers
 #: qui n'en diffèrent disent la même chose, et l'appelant la passe de toute
-#: façon en paramètre. `MEDIAN_NOT_EXPOSED` ne décide rien — c'est le numéro
-#: de table de l'OMM qui documente pourquoi la médiane est absente, et aucun
-#: chemin d'exécution ne le consulte.
-UNFINGERPRINTED: frozenset[str] = frozenset({"COMPRESSION", "MEDIAN_NOT_EXPOSED"})
+#: façon en paramètre.
+UNFINGERPRINTED: frozenset[str] = frozenset({"COMPRESSION"})
 
 
 @functools.lru_cache(maxsize=1)

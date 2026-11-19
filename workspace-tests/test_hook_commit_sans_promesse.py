@@ -52,7 +52,7 @@ def test_une_clause_prospective_est_refusee(message):
     [
         # Un comportement du code au futur n'est pas une promesse de travail.
         "test: confronter la version des tables\n\nLe test echouera si un\n"
-        "producteur prend de l'avance sur notre ecCodes.",
+        + "producteur prend de l'avance sur notre ecCodes.",
         # Un constat sur ce qui subsiste, sans engagement.
         "feat: deux connecteurs\n\nRestent des ebauches : l'API n'expose rien.",
         # Le pied de message structure n'est pas lu.

@@ -107,7 +107,7 @@ def test_un_champ_de_surface_ne_porte_aucun_niveau(tmp_path):
 def test_un_type_de_niveau_inconnu_ne_produit_pas_de_reference(surface, monkeypatch):
     """On ne devine pas : la grandeur reste exposable, sans référence, et
     l'absence se voit."""
-    import x10_connectors.contract as module
+    from x10_connectors import contract as module
 
     monkeypatch.setattr(module, "CF_VERTICAL", {})
     monkeypatch.setattr(module, "WITHOUT_VERTICAL_REFERENCE", frozenset())

@@ -4,7 +4,6 @@ import ast
 import hashlib
 import inspect
 import os
-import pathlib
 import re
 import uuid
 from collections.abc import Collection, Iterator, Mapping
@@ -216,7 +215,7 @@ def module_constants(module: ModuleType) -> dict[str, object]:
             f"Cannot read the source of {module.__name__!r} to list its constants. "
             "The fingerprint would silently differ, so it is refused."
         )
-    arbre = ast.parse(pathlib.Path(source).read_text(encoding="utf-8"), filename=source)
+    arbre = ast.parse(Path(source).read_text(encoding="utf-8"), filename=source)
     noms: list[str] = []
     for noeud in arbre.body:
         cibles: list[ast.expr] = []

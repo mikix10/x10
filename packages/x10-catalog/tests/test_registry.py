@@ -236,11 +236,10 @@ def test_le_catalogue_n_importe_pas_les_connecteurs():
     """Un registre ne décode rien : il reçoit des `Variable` déjà normalisées
     et ignore d'où elles viennent. L'inverse ferait entrer la pile GRIB dans
     un paquet qui n'en a aucun besoin."""
+    from importlib.resources import files
     from pathlib import Path
 
-    import x10_catalog
-
-    racine = Path(x10_catalog.__file__).parent
+    racine = Path(str(files("x10_catalog")))
     fautifs = [p for p in racine.rglob("*.py") if "x10_connectors" in p.read_text(encoding="utf-8")]
     assert fautifs == [], f"le catalogue importe les connecteurs : {fautifs}"
 
