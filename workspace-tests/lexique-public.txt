@@ -225,12 +225,15 @@ x10_connectors.base.ConnectorResult.started_at
 x10_connectors.base.__all__: AGENT
 x10_connectors.base.__all__: BaseConnector
 x10_connectors.base.__all__: ConnectorResult
+x10_connectors.base.__all__: FingerprintUnavailableError
 x10_connectors.base.__all__: NoOutputFileError
 x10_connectors.base.__all__: Outcome
 x10_connectors.base.__all__: PARTIAL_SUFFIX
 x10_connectors.base.__all__: UnsafeDestinationError
 x10_connectors.base.__all__: atomic_write
+x10_connectors.base.__all__: module_constants
 x10_connectors.base.__all__: safe_target
+x10_connectors.base.__all__: table_fingerprint
 x10_connectors.contract.AxisSummary.fingerprint
 x10_connectors.contract.AxisSummary.first
 x10_connectors.contract.AxisSummary.last
@@ -413,6 +416,7 @@ x10_connectors.netcdf_cf.__all__: convert_units
 x10_connectors.netcdf_cf.__all__: global_attributes
 x10_connectors.netcdf_cf.__all__: grid_mapping
 x10_connectors.netcdf_cf.__all__: is_circular
+x10_connectors.netcdf_cf.__all__: output_tables_revision
 x10_connectors.netcdf_cf.__all__: production_source
 x10_connectors.netcdf_cf.__all__: time_bounds
 x10_connectors.netcdf_cf.__all__: udunits
