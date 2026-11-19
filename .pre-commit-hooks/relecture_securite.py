@@ -42,6 +42,13 @@ SENSIBLES = (
     ".pre-commit-config.yaml",
     ".pre-commit-hooks/",
     ".github/workflows/",
+    # La définition versionnée des protections : le ruleset de `main` et les
+    # réglages du dépôt. Ajoutés le 19/11/2026 — le hook gardait le workflow
+    # qui *vérifie*, jamais le fichier qui *décide* de ce qui bloque une
+    # fusion. Retirer un contexte requis ici ne casse rien, ne rougit aucune
+    # vérification, et désarme la barrière : le cas même que ce hook existe
+    # pour attraper.
+    ".claude/skills/github-protection/",
 )
 
 #: Le `pyproject.toml` racine n'est sensible que par son bloc de typage : le
