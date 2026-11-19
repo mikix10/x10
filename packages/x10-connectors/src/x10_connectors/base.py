@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import ast
+import hashlib
+import inspect
 import os
+import pathlib
+import re
 import uuid
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -161,14 +167,108 @@ class BaseConnector:
         raise NotImplementedError("Subclasses must implement fetch().")
 
 
+class FingerprintUnavailableError(RuntimeError):
+    """Le source d'un module n'est pas lisible, donc son empreinte est refusée."""
+
+
+def _canonical(value: object) -> object:
+    """Rend une valeur sous une forme dont le `repr` est stable d'une exécution
+    à l'autre.
+
+    Un `set` n'a pas d'ordre d'itération garanti et une expression régulière
+    compilée porte son adresse mémoire : sans canonicalisation, l'empreinte
+    changerait sans que rien n'ait changé, ce qui la rendrait inutile au
+    premier diagnostic.
+    """
+    if isinstance(value, re.Pattern):
+        return ("re", value.pattern, value.flags)
+    if isinstance(value, Mapping):
+        return sorted((repr(k), _canonical(v)) for k, v in value.items())
+    if isinstance(value, (set, frozenset)):
+        return sorted(repr(_canonical(v)) for v in value)
+    if isinstance(value, (list, tuple)):
+        return [_canonical(v) for v in value]
+    return value
+
+
+def module_constants(module: ModuleType) -> dict[str, object]:
+    """Les constantes publiques **affectées dans** ce module, et leurs valeurs.
+
+    **L'affectation, pas l'espace de noms, et la nuance est le défaut qu'elle
+    corrige.** Filtrer `vars(module)` sur les noms en capitales y fait entrer
+    tout ce que le module a *importé* sous un tel nom. Mesuré le 23/10/2026 :
+    `UTC`, `TYPE_CHECKING` et surtout `AGENT` entraient dans l'empreinte de
+    `netcdf_cf`. Or `AGENT` porte la version du paquet — **une simple montée
+    de version déplaçait donc l'empreinte sans qu'aucune table ait changé**,
+    soit le faux témoignage inverse de celui qu'on cherchait à empêcher.
+
+    La liste est donc dressée par analyse syntaxique du source : affectations
+    de niveau module dont la cible est un nom en capitales, sans souligné
+    initial. Un import, une fonction, une classe n'en est pas une.
+
+    Lève si le source est introuvable, plutôt que de retomber sur
+    `vars(module)` : un repli silencieux rendrait une empreinte différente
+    sans le dire, ce qui est exactement le défaut que tout ceci corrige.
+    """
+    source = inspect.getsourcefile(module)
+    if source is None:  # pragma: no cover - module sans source sur disque
+        raise FingerprintUnavailableError(
+            f"Cannot read the source of {module.__name__!r} to list its constants. "
+            "The fingerprint would silently differ, so it is refused."
+        )
+    arbre = ast.parse(pathlib.Path(source).read_text(encoding="utf-8"), filename=source)
+    noms: list[str] = []
+    for noeud in arbre.body:
+        cibles: list[ast.expr] = []
+        if isinstance(noeud, ast.Assign):
+            cibles = list(noeud.targets)
+        elif isinstance(noeud, ast.AnnAssign):
+            cibles = [noeud.target]
+        noms += [
+            c.id for c in cibles if isinstance(c, ast.Name) and c.id.isupper() and c.id[0] != "_"
+        ]
+    valeurs = vars(module)
+    return {nom: valeurs[nom] for nom in sorted(set(noms)) if nom in valeurs}
+
+
+def table_fingerprint(module: ModuleType, *, exempt: Collection[str]) -> str:
+    """Empreinte des tables d'un module, **dérivée de ses affectations**.
+
+    **Pourquoi dériver plutôt qu'énumérer.** Une empreinte bâtie sur une liste
+    écrite à la main ne couvre que ce qu'on a pensé à y mettre, et le prochain
+    oubli sera une table nouvelle. Mesuré le 23/10/2026 : l'empreinte des noms
+    CF en couvrait sept, et trois constantes décidant pourtant du nom émis —
+    `RATE_TOKENS`, `INTEGRAL_PREFIX`, `ACCUMULATED_STEP_TYPES` — lui
+    échappaient. Ramener `RATE_TOKENS` à une seule entrée aurait changé le
+    `standard_name` de tout champ cumulé **sans déplacer l'empreinte**, qui
+    aurait alors rendu le faux témoignage qu'elle existe pour empêcher.
+
+    Dérivée, une table nouvelle y entre d'elle-même. Ce qui reste à décider
+    n'est plus *quoi couvrir* mais *quoi exclure*, et `exempt` rend chaque
+    exclusion visible en une ligne de `git diff`.
+
+    Le périmètre exact est celui de `module_constants`, dont la docstring
+    explique pourquoi l'espace de noms ne convenait pas.
+    """
+    materiau = sorted(
+        (nom, _canonical(valeur))
+        for nom, valeur in module_constants(module).items()
+        if nom not in exempt
+    )
+    return hashlib.sha256(repr(materiau).encode("utf-8")).hexdigest()[:12]
+
+
 __all__ = [
     "AGENT",
     "PARTIAL_SUFFIX",
     "BaseConnector",
     "ConnectorResult",
+    "FingerprintUnavailableError",
     "NoOutputFileError",
     "Outcome",
     "UnsafeDestinationError",
     "atomic_write",
+    "module_constants",
     "safe_target",
+    "table_fingerprint",
 ]
