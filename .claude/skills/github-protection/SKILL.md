@@ -27,6 +27,18 @@ Le piège est dans l'interface web, où un ruleset créé à la souris expose un
 gh api repos/mikix10/x10/rulesets --jq '.[] | "\(.name): \(.enforcement)"'
 ```
 
+## Toute modification passe par une relecture déclarée
+
+Depuis le 19/11/2026, `.claude/skills/github-protection/` figure aux chemins
+sensibles du hook `relecture-securite` : un commit qui touche le ruleset ou les
+réglages du dépôt échoue tant que son message ne porte pas une ligne
+`Security-Review: <date>`.
+
+Le hook gardait jusque-là le workflow qui **vérifie**, et jamais le fichier qui
+**décide** de ce qui bloque une fusion. Retirer un contexte requis ne casse
+rien, ne rougit aucune vérification, et désarme la barrière — c'est exactement
+la classe de défaut que ce hook existe pour attraper.
+
 ## Appliquer
 
 ```bash
@@ -63,7 +75,7 @@ git push origin main
 | `required_linear_history` | pas de commit de fusion, cohérent avec le squash |
 | `required_signatures` | tout commit doit être signé |
 | `pull_request` | PR obligatoire, **0 approbation requise**, squash uniquement |
-| `required_status_checks` | `Signatures des commits`, `Lint et typage`, `Tests (Python 3.12)`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, branche à jour avant merge |
+| `required_status_checks` | `Signatures des commits`, `Instructions d'agent`, `Lint et typage`, `Tests (Python 3.12)`, `Tests de la base`, `Build des packages`, `Portabilite (Python 3.12 / windows-latest)`, branche à jour avant merge |
 
 ### Pourquoi `Signatures des commits` est un contexte requis
 
@@ -180,7 +192,7 @@ gh api -X POST  repos/<owner>/<repo>/rulesets --input ruleset-main.json
 
 `ruleset-main.json` cible `~DEFAULT_BRANCH` et non un nom en dur, il s'applique donc quelle que soit la branche par défaut.
 
-**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Signatures des commits`, `Lint et typage`, `Tests (Python 3.12)`, `Build des packages` et le contexte de portabilité Windows. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
+**Un seul point à adapter** : les `required_status_checks` portent les noms des jobs de la CI de X10 — `Signatures des commits`, `Instructions d'agent`, `Lint et typage`, `Tests (Python 3.12)`, `Tests de la base`, `Build des packages` et le contexte de portabilité Windows. Sur un autre dépôt, les remplacer par les noms exacts de ses propres jobs. Un nom qui ne correspond à aucun job existant **bloque toute fusion définitivement**, la vérification ne remontant jamais.
 
 ### Réglages de sécurité
 
