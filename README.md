@@ -102,8 +102,9 @@ IFS d'ECMWF, et les paquets AROME et ARPEGE de Météo-France. La donnée est
 téléchargée avec sa provenance et sa licence, décodée en tableaux maillés, et
 normalisée vers les noms standards des conventions CF.
 
-Restent des ébauches : l'API n'expose aucun point d'entrée, le catalogue
-n'est pas peuplé, rien n'est stocké durablement.
+Le catalogue est peuplé depuis le 19/10/2026, d'un inventaire **dérivé des
+fichiers** plutôt que des descriptifs des producteurs. Restent des ébauches :
+l'API n'expose aucun point d'entrée, et rien n'est stocké durablement.
 
 Deux relevés publiés établissent **par la mesure** ce que les sources
 exposent réellement, là où les descriptifs des producteurs s'en écartent :
