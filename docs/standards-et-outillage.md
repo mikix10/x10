@@ -454,3 +454,17 @@ INSPIRE ; [triplet-et-tables-grib.md](triplet-et-tables-grib.md) pour
 l'enquête sur l'ambiguïté des codes ;
 [unites-et-interoperabilite.md](unites-et-interoperabilite.md) pour la
 validation des unités.
+
+---
+
+## Décisions arrêtées, déplacées du guide le 20/11/2026
+
+*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
+y renvoie désormais ; le texte est inchangé.*
+
+- **La chaîne de standards et d'outillage a son propre modèle**, distinct du vocabulaire de catalogue : **cette note** pour la justification, [standards-et-outillage.yaml](standards-et-outillage.yaml) pour le modèle lui-même, en LinkML.
+  **Quatre vocabulaires s'y ajoutent à la pierre de Rosette** — SKOS, ADMS, SSSOM et EARL. Deux méritent d'être connus : **SSSOM** sait dire qu'une correspondance a été **examinée et refusée**, ce qu'aucun autre format d'alignement n'exprime et qui est exactement le contenu de `WITHOUT_CF_NAME` et d'`AMBIGUOUS_TRIPLETS` ; **EARL** admet le verdict `untested`, qui rend visible un invariant énoncé mais non outillé.
+  **SKOS est écarté pour la couche correspondance, et c'est une décision.** Sa distinction `exactMatch` / `closeMatch` ne mécanise aucun arbitrage — c'est le même jugement rangé dans un casier —, et un `closeMatch` serait **inémettable** : `standard_name` est une chaîne unique, sans qualificatif de degré. SKOS garde une place et une seule : **un outil qui publie un vocabulaire est un schéma de concepts non normatif**, ce qu'ecCodes est.
+  **Le modèle est écrit, pas instancié.** Aucune génération n'est lancée, `linkml` n'entre pas aux dépendances, aucune correspondance n'est transcrite : les tables de `src/` restent la seule source exécutée. Le schéma est néanmoins validé par LinkML lui-même, et sa génération vérifiée — douze classes Pydantic importables, le 19/10/2026.
+  **Et il a servi dès le lendemain de son écriture** : trois des invariants qu'il nommait `untested` sont outillés. Le contrôle qui confronte nos noms CF au tableau officiel ne balayait qu'**une table sur trois** — ni les références verticales, ni les grandeurs calculées. Pire, `wind_speed` et `wind_from_direction` étaient écrits **en dur** dans deux fonctions, donc invisibles de tout contrôle. Ils passent en table, et une **analyse du code interdit désormais qu'un nom CF réapparaisse en littéral** : la classe est fermée, pas seulement le cas.
+  **Les deux disjonctions manquantes avaient la même forme et le même silence.** `cell_method` consulte `WITHOUT_CELL_METHOD` **avant** `CELL_METHODS`, et `_vertical` consulte `WITHOUT_VERTICAL_REFERENCE` avant `CF_VERTICAL` : une entrée présente des deux côtés aurait gagné sans un mot, et un cumul se serait présenté comme un instantané. Les trois paires sont désormais vérifiées, là où une seule l'était.

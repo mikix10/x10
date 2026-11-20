@@ -232,3 +232,25 @@ Même date de validité, six heures d'écart. C'était l'objet de cette note.
 Rien de ce qui précède n'aurait pu être établi sans les conventions, les
 documentations et les codes que ces équipes publient librement. Qu'elles en
 soient ici remerciées.
+
+---
+
+## Décisions arrêtées, déplacées du guide le 20/11/2026
+
+*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
+y renvoie désormais ; le texte est inchangé.*
+
+- **La nature du traitement statistique est déclarée.** Décodés, un cumul et un instantané ont mêmes dimensions, même unité, mêmes coordonnées : sans `cell_methods`, rien ne les distingue et un consommateur moyenne des cumuls — la faute même écartée sur les directions de vent. `netcdf_cf.CELL_METHODS` traduit les huit `stepType` qu'ecCodes tire de la table 4.10, **chaque méthode vérifiée présente au tableau E.1 de CF**, et la résolution se fait **par variable**. `WITHOUT_CELL_METHOD` recense les quatre que CF ne couvre pas — `diff`, `cov`, `ratio`, `stdanom` —, et un `stepType` inconnu **lève** : se taire produirait un cumul qui se présente comme un instantané.
+  **Deux points de lecture de CF.** Le `time` de `time: sum` est le **nom standard**, ce que la section 7.3 autorise, et non la dimension `time` qui porte chez `cfgrib` la date de réseau — la coordonnée concernée est `valid_time`. Et **`interval:` ne dit pas la période de cumul** : la section 7.3.2 s'en sert pour l'espacement de la donnée source agrégée. L'employer ainsi écrirait une contre-vérité.
+
+- **Un jeu `cfgrib` n'est pas homogène en traitement statistique.** Le découpage en plusieurs jeux se fait par **forme d'hypercube**, pas par `stepType` : mesuré le 08/10/2026 sur un paquet AROME de surface réel, où un même jeu réunit quatre champs cumulés et un instantané. Une méthode de cellule par jeu y serait fausse. Les fixtures ne le montraient pas — elles ne produisent que des jeux homogènes —, et c'est la **seconde fois** qu'un fichier du producteur corrige une hypothèse que les tests hors ligne confortaient, après l'unité `J m**-2`. Le test marqué `network` vérifie désormais la résolution par variable, la présence du référentiel, et que le paquet porte bien les trois traitements attendus.
+  Au même relevé : **18 messages sur 97 portent un maximum**, statistique non linéaire sur grille rééchantillonnée. Et le convertisseur officiel `cfgrib to_netcdf` **échoue** sur ce fichier — niveaux 2 m et 10 m dans un hypercube unique —, le fichier partiel qu'il laisse ne portant ni `cell_methods` ni `grid_mapping`.
+
+- **La période des champs agrégés est déclarée.** `cell_methods` dit la nature du traitement, pas la durée sur laquelle il porte.
+  **Le fond du problème n'est pas l'implémentation.** Une **date** ne peut pas représenter un **intervalle** : un cumul sur [0, 6 h] n'a pas de date de validité, il a une période. Or la chaîne de décodage ne produit qu'un `valid_time` scalaire, qui vaut la **fin de l'échéance** et non l'étendue de validité du champ. Le défaut est donc dans la représentation, pas dans une clé manquante : CF y répond par des **bornes de coordonnée**, que `GRIB_lengthOfTimeRange` et `indicatorOfUnitForTimeRange` permettraient de construire.
+  Conséquence pratique mesurée le 08/10/2026 : les cumuls AROME courent depuis le début du réseau — (0→1), (0→2), … (0→6) — tandis que les maxima portent sur l'heure écoulée. Deux champs du même fichier, portant le même `valid_time`, n'ont pas la même période de validité.
+  **Fait.** Enquête, mesures et références **ci-dessus**. `netcdf_cf.cf_shape` réduit l'axe de réseau en **coordonnée scalaire** — cinq dimensions deviennent quatre, rien n'est perdu — et `netcdf_cf.time_bounds` en déduit les bornes. Vérifié le 09/10/2026 sur un granule réel : les rafales portent (17 h → 18 h) à la dernière échéance, les cumuls (12 h → 18 h). La distinction est enfin dans le fichier.
+  **La longueur de fenêtre se lit en coordonnée, jamais en attribut.** `cfgrib` prend l'attribut au **premier message** : sur des fenêtres variables — les cumuls AROME croissent de une à six heures — il rend `1` partout, et les bornes seraient fausses à cinq échéances sur six. D'où `extra_coords` dans `OPTIONS_CFGRIB`, dix-septième des dix-huit options.
+  **Effet de bord bienvenu** : la coordonnée distingue les hypercubes, donc `cfgrib` sépare désormais cumuls et instantanés qu'il réunissait — cinq jeux deviennent six sur un granule de surface, et **chacun est homogène en structure d'intervalle**. Le découpage que nous allions coder vient d'une option.
+  **Deux garde-fous.** Les unités de durée variable — mois, année — **lèvent** plutôt que de produire une fenêtre fausse selon la date ; et la valeur `'undef'` que `cfgrib` pose sur un champ sans intervalle est une **chaîne**, pas un manquant, donc traitée nommément.
+  La solution d'Unidata — plusieurs axes temporels dans un fichier — n'a pas été reprise : elle convient à THREDDS qui sert une collection, alors que nous écrivons **un fichier par jeu**, chacun n'ayant dès lors qu'un seul axe.
