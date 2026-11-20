@@ -178,3 +178,16 @@ empreints, et les sondes se suffisent à elles-mêmes pour rejouer.
   triplet GRIB2 n'identifie pas un paramètre.
 - [vocabulaire.md](vocabulaire.md) — la correspondance avec DCAT, PROV-O,
   INSPIRE, SSSOM et EARL.
+
+---
+
+## Décisions arrêtées, déplacées du guide le 20/11/2026
+
+*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
+y renvoie désormais ; le texte est inchangé.*
+
+- **Les écarts des sources sont recensés, datés et rejouables.** **Cette note** pour le raisonnement, [divergences.tsv](divergences.tsv) pour le registre — **engendré** depuis `probes/` et vérifié par `workspace-tests/test_divergences.py`, jamais tenu à la main. Le mécanisme vit dans `x10_client.probes`, le catalogue dans `probes/` : *le paquet fournit le mécanisme, l'application fournit les valeurs*, comme pour `SecretRedactor`.
+  **Pourquoi ce registre justifie la couche de normalisation.** Quatorze entrées disent, cas par cas, ce qui sépare ce qu'un producteur sert de ce qu'un consommateur peut exploiter sans se tromper. « Redresser » est le mot retenu contre « absorber », qui ne dit que l'entrée, et contre « corriger », qui accuserait une source dont la divergence ne viole rien.
+  **Trois natures qu'on ne confond pas** : une `non_conformity` **cite sa clause** — le modèle refuse de la porter sans —, une `divergence` surprend sans rien enfreindre, une `data_quality` est une coquille. Les mélanger abîmerait un signalement. Et un `status` distingue `confirmed` de `under_investigation` : le dépôt s'est trompé trois fois en une journée sur ce corpus, un registre qui nomme des organismes doit pouvoir le dire.
+  **Une sonde n'est pas un test**, et le mot évite la confusion : un test dit si notre code est juste, une sonde si un constat daté sur un **tiers** tient toujours. Verdicts d'EARL, et le sens est inversé — le sujet est le producteur, donc `failed` veut dire que l'écart persiste et `passed` qu'il a été corrigé. Le rejeu est **libre** : nos sources s'ouvrent à qui s'inscrit, ce qui rend le registre contradictoire plutôt que déclaratif.
+  **Une sonde ne justifie jamais à elle seule une dépendance nouvelle.** Elle se limite au nécessaire et suffisant — `urllib.request`, comme les connecteurs — et se renforcera le jour où une bibliothèque arrivera pour une raison produit. L'intégration continue ne les lance pas : elles exigent des identifiants, donc les dates disent quand nous avons regardé, pas que l'état décrit vaut aujourd'hui.

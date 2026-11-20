@@ -269,3 +269,17 @@ grandeur, au lieu de supposer qu'elle le fait.
 Rien de ce qui précède n'aurait pu être vérifié si les mainteneurs
 d'UDUNITS-2, d'ecCodes, de cfgrib et de cf-units ne publiaient pas leurs
 sources sous licence libre. Qu'ils en soient ici remerciés.
+
+---
+
+## Décisions arrêtées, déplacées du guide le 20/11/2026
+
+*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
+y renvoie désormais ; le texte est inchangé.*
+
+- **Les unités sont ramenées à la forme canonique d'UDUNITS, par une table fermée.** ecCodes écrit `m s**-1`, la forme canonique est `m s-1`. **Vérifié dans la grammaire d'UDUNITS-2 le 08/10/2026 : `**` y est un opérateur d'exposant valide**, donc la forme d'ecCodes n'est pas non conforme — j'avais d'abord soutenu le contraire. La conversion se justifie autrement : la suite de tests d'UDUNITS n'emploie que la forme à tiret, tous les producteurs aussi, et la forme `**` ne tient qu'à la correspondance la plus longue puisqu'un `*` seul vaut multiplication. Un consommateur sans analyseur UDUNITS complet peut donc la mal lire.
+  `netcdf_cf.UDUNITS` traduit et **lève plutôt que de deviner** sur une unité inconnue ; l'unité d'origine reste dans `GRIB_units`.
+  **La table est validée par UDUNITS lui-même, pas par une relecture.** `cfchecker` exige la bibliothèque C UDUNITS-2, mais **`cf-units` l'embarque dans ses roues** — trois systèmes, ABI stable, BSD-3-Clause — et figure donc au **groupe de développement**, sans effet sur les paquets publiés. Deux tests en découlent : chaque unité émise est soumise à UDUNITS, et la **définition réduite est comparée des deux côtés** de la conversion, ce qui prouve que la canonicalisation ne change pas la grandeur. Vérifier plutôt qu'affirmer.
+  **Piège écarté nommément** : `cf-units` court-circuite `unknown` et `no_unit`, traités en sentinelles internes sans passer par UDUNITS ; elles franchiraient sa validation alors qu'UDUNITS les refuse. Un test vérifie qu'aucune n'est émise, plutôt que de le supposer.
+  L'ensemble fermé demeure, pour ce que la validation ne couvre pas : la **correspondance** d'ecCodes vers UDUNITS. Un test marqué `network` la confronte aux paquets réels — c'est ainsi qu'`J m**-2` a été trouvée manquante, après 1,3 Go balayés.
+  **Tout ce qui précède est établi et daté ci-dessus**, avec la méthode pour le rejouer.

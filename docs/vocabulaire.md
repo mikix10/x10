@@ -145,3 +145,20 @@ STAC reste pertinent pour le catalogage d'imagerie et pour consommer les sources
 **Compatible, non conforme.** X10 n'émet pas de métadonnées INSPIRE et ne prétend à aucune conformité. L'alignement du vocabulaire rend cette production mécanique le jour où elle serait exigée, par exemple si X10 alimentait une infrastructure de données géographiques publique.
 
 Trois écarts subsisteraient à combler ce jour-là : les éléments de métadonnée obligatoires du profil INSPIRE que nous ne portons pas — identifiant de ressource, emprise géographique, référentiel de coordonnées, contact de la métadonnée ; la sérialisation, INSPIRE attendant du XML ISO 19139 ; et l'énoncé de lignée en texte libre, à dériver de `Retrieval`.
+
+---
+
+## Décisions arrêtées, déplacées du guide le 20/11/2026
+
+*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
+y renvoie désormais ; le texte est inchangé.*
+
+- **Vocabulaire aligné sur DCAT, PROV-O et INSPIRE.** La correspondance complète est **ci-dessus** — notre pierre de Rosette, qui joue le rôle que GeoDCAT-AP joue entre INSPIRE et DCAT. **La consulter avant d'ajouter ou de renommer un terme du vocabulaire** : la plupart des notions sont déjà normalisées.
+  Deux points vérifiés le 02/10/2026. La codelist INSPIRE des rôles est gouvernée au niveau **« Legal (EU) »**, donc réglementaire. Et `dcterms:publisher` n'est **pas** une propriété de `dcat:Distribution` : elle appartient à la ressource, d'où `Dataset.publisher` et une extension X10 nommée `Distribution.provider`, DCAT ne modélisant aucun agent par distribution.
+
+- **Licence et restriction d'accès sont deux notions.** `Distribution.license` porte les conditions d'usage, `Distribution.access_rights` les motifs juridiques de restriction, repris verbatim de la codelist INSPIRE des alinéas de l'article 13. Les confondre produit des métadonnées fausses.
+
+- **Vocabulaire du catalogue aligné sur DCAT et PROV-O**, sans sérialisation RDF. Ces standards distinguent depuis longtemps ce que notre premier modèle confondait : `dcterms:creator` le producteur, `dcterms:publisher` le diffuseur, `dcat:Distribution` un accès concret, `dcat:CatalogRecord` une ré-exposition après moissonnage, et PROV-O le lignage. Les réinventer aurait été une faute ; un export DCAT ou STAC reste possible sans rien reprendre.
+  **`DataSource` est supprimé** — question en suspens depuis le premier connecteur, désormais tranchée. Le vocabulaire (`Agent`, `Dataset`, `Distribution`, `Retrieval`) vit dans `x10-models` parce que ce sont des modèles de domaine ; le registre et la politique de résolution vivent dans `x10-catalog` parce qu'un registre est un comportement, pas un type — `Registry` le porte depuis le 16/10/2026, l'écart entre cette intention et le code ayant duré deux semaines.
+
+- **L'unité téléchargeable s'appelle un `granule`, pas un « paquet ».** Le mot du producteur entre en collision deux fois : avec le **paquet Python**, et avec **GeoPackage**, norme OGC que X10 produira dès qu'il fera de la géographie. `granule` vient de l'OMM elle-même : **WCMP2 l'emploie en clause normative** — « a dataset is the primary granularity of a WCMP record describing a collection of data granules » — et pose la relation `item` pour un granule unique, comme OGC API – Records dont il est l'extension, et comme STAC. Le mot n'a aucun sens logiciel. Il ne remplace pas `Distribution`, qui dit **où aller chercher** ; un granule est ce qu'on rapporte. « Paquet » reste employé pour un produit **nommé** du producteur — le paquet SP1 —, où le mot est le sien. Correspondance complète **ci-dessus**.
