@@ -53,3 +53,30 @@ pour le modèle de la chaîne d'outillage.
   **Deux effets voulus.** Un échec **préserve la version précédente**, là où l'ancien code supprimait la cible ; une acquisition ratée ne détruit plus la bonne. Et un bloc qui n'écrit rien **lève** `NoOutputFileError` : publier une absence en silence serait la même faute à l'envers.
   Limite assumée : un processus tué sans remontée d'exception laisse le provisoire en place. C'est un déchet, non un faux fichier complet, et le suffixe `.partiel` le désigne comme tel.
   **Deux autres limites, nommées le 22/10/2026, et elles sont en amont de l'écriture.** L'écriture atomique garantit qu'un fichier est **entier**, jamais qu'il est **juste**. Un cache de diffusion peut rendre la **même copie fausse** au re-téléchargement — incident mesuré chez un magasin Copernicus — et nos empreintes ne protègent alors de rien : les octets sont stables, et faux. Et une description peut désigner **un tout autre champ** : un masque de glacier décrit par ses clés GRIB comme un vent à 10 m, que `cfgrib` nomme `si10` en conséquence. Dans les deux cas le fichier est complet, conforme, et sans rapport avec ce qu'on croit tenir. **La parade n'est pas dans l'écriture, elle est dans la redondance** — un second chemin vers la même grandeur, et un écart qu'on mesure.
+
+---
+
+## Typage : pourquoi la dérogation est nommée
+
+`strict = true` porte sur **notre** code : fonctions annotées, pas d'appel non typé, pas d'`Any` implicite. C'est un choix durable, pas une position provisoire.
+
+Une dépendance sans types ne remet pas ce réglage en cause. Elle déclenche une erreur distincte, `import-untyped`, qui n'appartient d'ailleurs pas à `strict` : mypy refuse par défaut un import sans stubs ni marqueur `py.typed`. La réponse est une dérogation nommée et limitée au module fautif, jamais un abaissement du réglage global :
+
+```toml
+[[tool.mypy.overrides]]
+module = ["cfgrib.*", "eccodes.*"]
+ignore_missing_imports = true
+```
+
+Même principe si un appel dans une bibliothèque non typée bloque `disallow_untyped_calls` : on désactive le contrôle sur ce module précis. L'intérêt est la lisibilité — on lit dans le `pyproject.toml` exactement quelles bibliothèques ne sont pas typées, au lieu d'un affaissement silencieux de tout le projet.
+
+Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont surtout les liaisons GRIB (`cfgrib`, `eccodes`) qui risquent d'exiger une dérogation.
+
+## Nommer un module par ce qu'il traite
+
+La règle et le tableau des trois couches sont dans
+[AGENTS.md](../AGENTS.md). Voici ce qui les a produits.
+
+Un nom générique pour un travail spécifique à un format est le défaut à éviter : `decoding.py` portait 53 références au GRIB2 et `output.py` 71 au NetCDF-CF, de sorte que rien dans leur nom — ni dans celui de leurs tests — ne disait à quoi ils se rattachaient. Ils sont devenus `grib2.py` et `netcdf_cf.py`.
+
+Le sens de lecture n'est pas perdu : nous ne produisons jamais de GRIB et ne relisons jamais notre NetCDF hors tests. Le jour où nous relirons du NetCDF, le code ira dans `netcdf_cf.py` — là où `decoding`/`output` auraient imposé un arbitrage. Et la question « où vont les tests d'un modèle numérique de terrain ? » a désormais une réponse : `dem.py` ou `geotiff.py` à côté de `grib2.py`, avec `test_geotiff*.py`.

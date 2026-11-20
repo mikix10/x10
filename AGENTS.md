@@ -13,6 +13,8 @@ Guide de travail des agents sur le dépôt X10.
 
 X10 est la composante d'exploitation de données **géo-hydro-océano-météo open data**. L'objectif est d'exposer ces données via une API à des systèmes clients, à partir d'un socle de packages Python indépendants, publiables et réutilisables.
 
+**Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
+
 > Le dépôt est public et ne nomme aucun projet utilisateur ni aucune source sans accord : voir « Confidentialité des tiers ».
 
 Documents de cadrage à lire avant toute décision d'architecture :
@@ -44,15 +46,13 @@ Règle de dépendance : `x10-api` → packages ; `x10-connectors` / `x10-storage
 
 **`services/` consomme, il n'est jamais consommé.** Aucun fichier de `packages/` ne doit importer `x10_client` ni `x10_api` — un test le vérifie. La conséquence pratique est que les paquets restent **validables seuls** par qui les installe : un test déplacé vers un membre de `services/` ferait dépendre la couverture d'un paquet de ce membre, soit la règle à l'envers. **L'API sert, le client consomme** : l'un expose une surface HTTP à des systèmes extérieurs, l'autre appelle la chaîne pour notre propre compte.
 
-**Un module se nomme par ce qu'il traite, et les trois couches sont distinctes.** Un nom générique pour un travail spécifique à un format est le défaut à éviter : `decoding.py` portait 53 références au GRIB2 et `output.py` 71 au NetCDF-CF, de sorte que rien dans leur nom — ni dans celui de leurs tests — ne disait à quoi ils se rattachaient. Ils sont devenus `grib2.py` et `netcdf_cf.py`.
+**Un module se nomme par ce qu'il traite, et les trois couches sont distinctes.**
 
 | Couche | Modules | Nommage |
 |---|---|---|
 | **Transverse** | `base`, `observability`, `contract` | nom fonctionnel, aucun format |
 | **Par source** | `ecmwf_ifs`, `meteofrance_pnt` | `<producteur>_<produit>` |
 | **Par format** | `grib2`, `netcdf_cf` | **le format**, pas le sens de lecture |
-
-Le sens de lecture n'est pas perdu : nous ne produisons jamais de GRIB et ne relisons jamais notre NetCDF hors tests. Le jour où nous relirons du NetCDF, le code ira dans `netcdf_cf.py` — là où `decoding`/`output` auraient imposé un arbitrage. Et la question « où vont les tests d'un modèle numérique de terrain ? » a désormais une réponse : `dem.py` ou `geotiff.py` à côté de `grib2.py`, avec `test_geotiff*.py`.
 
 **Les tests suivent le module, et leur docstring nomme le format dès la première ligne** — `test_grib2_local_tables.py`, `test_base_atomic_write.py`, `test_netcdf_cf.py`. Le nom de fichier ne porte pas tout : qui ouvre le fichier doit savoir à quoi il se rattache sans remonter l'arborescence.
 
@@ -99,37 +99,65 @@ Python **3.12** (pin dans [.python-version](.python-version)). Le `.venv/` local
 
 ### Typage : `mypy --strict` ne se relâche jamais globalement
 
-`strict = true` porte sur **notre** code : fonctions annotées, pas d'appel non typé, pas d'`Any` implicite. C'est un choix durable, pas une position provisoire.
+`strict = true` porte sur **notre** code, et c'est un choix durable. Une
+dépendance sans types ne le remet pas en cause : elle reçoit une **dérogation
+nommée et limitée à son module** dans le `pyproject.toml`, jamais un
+abaissement global. On y lit alors exactement quelles bibliothèques ne sont
+pas typées, au lieu d'un affaissement silencieux.
 
-Une dépendance sans types ne remet pas ce réglage en cause. Elle déclenche une erreur distincte, `import-untyped`, qui n'appartient d'ailleurs pas à `strict` : mypy refuse par défaut un import sans stubs ni marqueur `py.typed`. La réponse est une dérogation nommée et limitée au module fautif, jamais un abaissement du réglage global :
+Le détail et la forme exacte : [docs/socle-et-paquetage.md](docs/socle-et-paquetage.md).
 
-```toml
-[[tool.mypy.overrides]]
-module = ["cfgrib.*", "eccodes.*"]
-ignore_missing_imports = true
-```
+## Les principes qui gouvernent
 
-Même principe si un appel dans une bibliothèque non typée bloque `disallow_untyped_calls` : on désactive le contrôle sur ce module précis. L'intérêt est la lisibilité — on lit dans le `pyproject.toml` exactement quelles bibliothèques ne sont pas typées, au lieu d'un affaissement silencieux de tout le projet.
+Onze critères tranchent ce qu'aucune note de `docs/` ne couvre. **Leur ordre
+compte** :
 
-Pydantic, FastAPI, xarray embarquent `py.typed` et numpy a ses stubs ; ce sont surtout les liaisons GRIB (`cfgrib`, `eccodes`) qui risquent d'exiger une dérogation.
+> **L'ordre est celui du coût d'ignorer.** Une valeur fausse qui ne se
+> signale pas passe avant un refus de servir, qui passe avant une imprécision
+> de prose.
+
+| | Critère | Un cas qui l'a produit |
+|---|---|---|
+| **C1** | **Entre deux défauts, le plus cher est celui qui ne se voit pas.** Il arbitre les dix autres | `standard_name = "unknown"`, retiré : pire qu'une absence |
+| **C2** | **Mesurer plutôt qu'affirmer** — et une **inexistence** se mesure comme le reste | la moitié des corrections du dépôt portent sur un « aucun » ou un « jamais » |
+| **C3** | **Ne pas deviner à la place du producteur** | `grid_mapping` rend `None` ; `(0, 3, 6)` retiré plutôt que renommé |
+| **C4** | **Fermer la classe, pas le cas** | une analyse interdit tout nom CF en littéral, pas seulement les deux trouvés |
+| **C5** | **Rendre l'écart lisible dans un `git diff`** plutôt que le trancher | cinq références engendrées, jamais tenues à la main |
+| **C6** | **Le paquet fournit le mécanisme, l'application fournit les valeurs** | le client résout un secret, le connecteur le reçoit en paramètre |
+| **C7** | **Deux notions voisines, deux noms** — et on écrit ce que produirait la confusion | licence, droits d'accès et authentification sont **trois** notions |
+| **C8** | **Pas de mécanique générale sous trois cas** | le catalogue ne construit aucune requête : il n'y a que deux sources |
+| **C9** | **Un contrôle qui s'exécute vaut mieux qu'une consigne qui se lit** | deux garanties que la documentation déclarait acquises ne l'étaient pas |
+| **C10** | **Une autorité se vérifie avant d'être reprise** | les libellés d'ecCodes sont d'ecCodes, pas de la norme |
+| **C11** | **Une révision reste écrite à côté de l'énoncé qu'elle corrige** | le dépôt s'est contredit une quinzaine de fois, et l'a écrit |
+
+**Trois tensions, et elles sont tranchées.** Entre *deviner* et *exposer*, ce
+qui cède est **l'affirmation, jamais le champ** : il sort sans nom, mais il
+sort. On **signale** quand la sortie peut porter l'écart, on **lève** quand
+elle ne le peut pas — un champ perdu n'est pas une métadonnée dégradée. Et
+l'exploitabilité l'emporte sur la fidélité **à condition que la forme
+d'origine reste lisible à côté**.
+
+**Quand s'arrêter d'instruire.** Une question paie quand elle change une
+table, un contrôle, un refus, ou une affirmation fausse. **Deux tours
+d'argument sans mesure nouvelle la closent.**
+
+Les cas, les tensions et la règle de coût en entier :
+[docs/criteres-de-choix.md](docs/criteres-de-choix.md).
 
 ## Décisions arrêtées — où les lire
 
 **Soixante-deux décisions, avec leurs mesures et leurs dates, vivent dans
-`docs/`**, rangées par sujet. Le guide ne les recopie pas : il est relu **en
-entier à chaque session**, elles y occupaient la moitié des lignes, et ce qui
-s'y noie cesse d'être appliqué.
+`docs/`**, rangées par sujet.
 
-**Les consulter avant de trancher dans leur domaine.** La plupart des
-questions qui se posent y ont déjà reçu une réponse mesurée et datée ;
-rouvrir sans les lire, c'est refaire le travail.
+**Les consulter avant de trancher dans leur domaine** : la plupart des
+questions qui s'y posent ont déjà reçu une réponse mesurée et datée.
 
 | Sujet | Note | Ce qu'elle tranche |
 |---|---|---|
 | **Socle et paquetage** | [docs/socle-et-paquetage.md](docs/socle-et-paquetage.md) | Python, Pydantic, volumétrie, backend de build, langue, journalisation ECS, écriture atomique, lexique public |
 | **Catalogue** | [docs/catalogue.md](docs/catalogue.md) | les deux vues, la gradation de ce qu'on expose, l'inventaire dérivé, les facettes, les origines et la bascule |
 | **Sources et accès** | [docs/sources-et-acces.md](docs/sources-et-acces.md) | ECMWF, Météo-France, plages d'octets, place d'un secret, cadence d'un producteur |
-| **Triplet et tables GRIB** | [docs/triplet-et-tables-grib.md](docs/triplet-et-tables-grib.md) | la correspondance GRIB vers CF, les versions de tables, les deux contrôles de conformité |
+| **Triplet et tables GRIB** | [docs/triplet-et-tables-grib.md](docs/triplet-et-tables-grib.md) | la correspondance GRIB vers CF, les versions de tables, les deux contrôles, et le troisième producteur traversé |
 | **Formats de sortie** | [docs/formats-de-sortie.md](docs/formats-de-sortie.md) | NetCDF-CF, options de `cfgrib`, référentiel géodésique, compression, assemblage |
 | **Tests et couverture** | [docs/tests-et-couverture.md](docs/tests-et-couverture.md) | corpus hors ligne, deux vues de couverture, contrat de sortie, signatures, CodeQL |
 | **Vocabulaire** | [docs/vocabulaire.md](docs/vocabulaire.md) | DCAT, PROV-O, INSPIRE, licence contre droits d'accès, le mot `granule` |
@@ -138,14 +166,6 @@ rouvrir sans les lire, c'est refaire le travail.
 | **Unités** | [docs/unites-et-interoperabilite.md](docs/unites-et-interoperabilite.md) | la forme canonique d'UDUNITS, et comment elle est validée |
 | **Standards et outillage** | [docs/standards-et-outillage.md](docs/standards-et-outillage.md) | le modèle LinkML de la chaîne, et les quatre vocabulaires ajoutés |
 | **Écarts des sources** | [docs/divergences-observees.md](docs/divergences-observees.md) | le registre engendré depuis les sondes, et ce qu'une sonde établit |
-
-**Deux décisions restent ici**, parce qu'elles cadrent tout le reste :
-
-- **La chaîne a été éprouvée sur un troisième vocabulaire, le 22/10/2026.** Tout ce que le dépôt savait décrivait **la cohérence interne d'un écosystème** : ecCodes est un logiciel de l'ECMWF, et Météo-France en est État membre. Un granule **DWD ICON-D2** — `opendata.dwd.de`, sans authentification ni quota, concepts locaux `edzw` — a traversé le décodage, la normalisation, le contrat et l'écriture **sans rien perdre** : aucun champ disparu, aucune version de tables à signaler, aucune table locale en défaut.
-  **Et il a validé deux corrections du jour.** `tot_prec` porte `(0, 1, 52)` en cumul — le triplet même que le redressement des noms corrige —, et sort en `precipitation_amount` ; **sans ce redressement, ICON aurait produit un fichier non conforme dès le premier granule.** `t_2m` donne une variable `t2m` pour un nom court `2t`, ce qui démontre sur un troisième producteur que les deux ne sont pas le même.
-  **Ce n'est pas une source intégrée** : aucun connecteur, aucune entrée de catalogue, aucune donnée commise. C'est l'échantillon qui manquait pour que « concevoir une mécanique générale sur un échantillon de deux produit une mécanique fausse » cesse de s'appliquer à nous.
-
-- **Domaine pilote : météo, ECMWF IFS open data.** Techniques visées : téléchargement sélectif par paramètre et par échéance, requêtes HTTP Byte-Range sur les GRIB2 pour éviter le transfert intégral, normalisation vers NetCDF-CF.
 
 ## Reste à faire
 
