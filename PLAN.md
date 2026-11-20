@@ -52,7 +52,7 @@ Aucun paquet n'importe un membre de `services/`, et un test l'exige.
 ## Phase 1 — Initialisation du dépôt — **faite**
 
 - [x] Structure du monorepo et configuration racine
-- [x] Python 3.12 en cible, 3.13 en canari non bloquant
+- [x] Python 3.12 en cible, 3.13 et 3.14 en canaris non bloquants
 - [x] Licence BSD-3-Clause, à la racine et dans chaque paquet publiable
 - [x] `uv` en espace de travail, `uv.lock` commité
 - [x] Portes de qualité : `ruff` (lint et format), `mypy --strict`, `pytest`
