@@ -29,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Client officiel du producteur. Optionnel : le noyau doit rester installable
-# sans la pile scientifique. Voir la section « Portee » de CLAUDE.md.
+# sans la pile scientifique. Voir la section « Portee » de AGENTS.md.
 ecmwf = [
   "ecmwf-opendata>=0.3.34",
 ]

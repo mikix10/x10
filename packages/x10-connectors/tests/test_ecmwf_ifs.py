@@ -236,7 +236,7 @@ def test_telechargement_reel_de_messages_grib2(tmp_path):
 def test_l_ensemble_porte_un_axe_de_membres_et_un_niveau_de_sol(tmp_path):
     """Confronte au service réel les deux inconnues de l'ouverture à l'ensemble.
 
-    **Le `typeOfLevel` de `levtype=sol` n'est pas supposé.** `CLAUDE.md`
+    **Le `typeOfLevel` de `levtype=sol` n'est pas supposé.** `AGENTS.md`
     proscrit d'ajouter une entrée à `CF_VERTICAL` sur une déduction ; ce test
     la demande au producteur. `depthBelowLandLayer` y figure déjà, donc il
     passera si ECMWF emploie ce type — et désignera nommément le type à

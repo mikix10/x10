@@ -1,6 +1,6 @@
 # Mise a jour automatique des dependances.
 #
-# La condition posee dans CLAUDE.md est remplie : `x10-connectors` porte du
+# La condition posee dans AGENTS.md est remplie : `x10-connectors` porte du
 # code metier, et non plus des ebauches. Deux ecosystemes seulement, parce
 # que le depot n'en emploie pas d'autres.
 #
@@ -29,7 +29,7 @@ updates:
       # semaine ordinaire en ouvrirait cinq, et personne ne les relirait.
       actions-mineures:
         update-types: [minor, patch]
-    # Les majeures restent **une par demande**, deliberement. CLAUDE.md les
+    # Les majeures restent **une par demande**, deliberement. AGENTS.md les
     # traite comme un changement fonctionnel a eprouver a part, pas comme une
     # mise a jour de routine.
 

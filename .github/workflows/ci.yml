@@ -214,7 +214,7 @@ jobs:
   instructions:
     # Les fichiers qui gouvernent l'assistant, proteges comme tels.
     #
-    # `CLAUDE.md` et `.claude/` ne sont pas de la documentation : ils sont lus
+    # `AGENTS.md` et `.claude/` ne sont pas de la documentation : ils sont lus
     # a chaque session et presentes comme des consignes a appliquer. Une ligne
     # ajoutee la change le comportement de l'assistant sur toutes les sessions
     # suivantes -- et elle le change **sans qu'il puisse s'en apercevoir**. Il

@@ -336,7 +336,7 @@ class Observation(BaseModel):
     """Mesure ponctuelle d'une variable, horodatée et localisée.
 
     Réservé aux séries ponctuelles (stations, bouées). Les champs maillés
-    (GRIB/NetCDF) restent dans des tableaux ; voir CLAUDE.md.
+    (GRIB/NetCDF) restent dans des tableaux ; voir AGENTS.md.
     """
 
     model_config = ConfigDict(frozen=True)

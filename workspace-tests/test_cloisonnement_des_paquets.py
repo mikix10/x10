@@ -3,11 +3,11 @@
 **Ces deux garanties étaient déclarées acquises et ne l'étaient pas.** Relevé
 le 23/10/2026 :
 
-* `CLAUDE.md` écrit « Aucun fichier de `packages/` ne doit importer
+* `AGENTS.md` écrit « Aucun fichier de `packages/` ne doit importer
   `x10_client` ni `x10_api` — **un test le vérifie** », et `PLAN.md` répète
   « et un test l'exige ». **Ce test n'existait pas.** La propriété était
   vraie en fait, et disciplinaire seulement ;
-* `CLAUDE.md` justifie la règle de couche en disant qu'un test de paquet
+* `AGENTS.md` justifie la règle de couche en disant qu'un test de paquet
   déplacé dans `services/` ferait dépendre la couverture d'un paquet de ce
   membre, « **soit la règle à l'envers** ». Or
   `test_aucun_paquet_ne_lit_l_environnement` vivait dans

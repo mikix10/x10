@@ -23,7 +23,7 @@ REFERENCE = Path(__file__).parent / "derogations.txt"
 #: Clés qu'une dérogation mypy a le droit de porter. **Fermé.**
 #:
 #: `ignore_missing_imports` relâche la seule **résolution d'import** d'une
-#: bibliothèque sans marqueur `py.typed`, ce que `CLAUDE.md` autorise
+#: bibliothèque sans marqueur `py.typed`, ce que `AGENTS.md` autorise
 #: nommément. Tout le reste — `ignore_errors`, `disable_error_code`,
 #: `strict`, `warn_unused_ignores` — désactiverait des contrôles **sur notre
 #: code**, ce que la décision « `mypy --strict` ne se relâche jamais

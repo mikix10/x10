@@ -31,7 +31,7 @@ Document vivant, à compléter au fil des sources et des moyens d'accès intégr
 
 Le hook `no-personal-identifiers` comble cet angle mort. Voir le skill `commit`.
 
-La configuration personnelle du mainteneur — identité, chemins, outillage du poste — vit dans un `CLAUDE.local.md` non versionné, jamais dans `CLAUDE.md` ni dans un skill.
+La configuration personnelle du mainteneur — identité, chemins, outillage du poste — vit dans un `CLAUDE.local.md` non versionné, jamais dans `AGENTS.md` ni dans un skill.
 
 ### En cas de fuite — l'ordre compte
 

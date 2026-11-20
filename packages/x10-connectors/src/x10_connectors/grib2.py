@@ -1148,7 +1148,7 @@ def _redress_accumulated(name: str | None, variable: xr.DataArray) -> str | None
 
     **Le repli est le cœur du dispositif.** Un nom de débit sur un cumul dont
     `CF_ACCUMULATED` ne connaît pas l'intégrale sort **sans nom**, et l'écart
-    se voit — plutôt que de sortir faux en silence, ce que `CLAUDE.md` tient
+    se voit — plutôt que de sortir faux en silence, ce que `AGENTS.md` tient
     pour le défaut le plus coûteux. La classe reste ainsi fermée : le
     prochain cas se signale de lui-même au lieu de passer.
     """
