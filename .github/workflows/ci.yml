@@ -86,7 +86,9 @@ jobs:
 
   test:
     # Python 3.12 est la cible supportée et bloque la CI.
-    # Python 3.13 est un canari de compatibilité ascendante : il ne bloque pas.
+    # 3.13 et 3.14 sont des canaris de compatibilité ascendante : ils ne
+    # bloquent pas. 3.14 est ajouté le 20/11/2026 parce que des cibles de
+    # déploiement le servent déjà ; la pile scientifique y résout, mesuré.
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
@@ -97,6 +99,8 @@ jobs:
           - python-version: "3.12"
             experimental: false
           - python-version: "3.13"
+            experimental: true
+          - python-version: "3.14"
             experimental: true
 
     steps:
