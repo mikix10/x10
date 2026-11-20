@@ -418,7 +418,7 @@ CF_TABLE_URL = (
 
 @pytest.mark.network
 def test_chaque_nom_cf_emis_existe_au_tableau_officiel():
-    """Rend automatique ce que `AGENTS.md` exigeait à la main.
+    """Rend automatique ce qu'`AGENTS.md` exigeait à la main.
 
     **Un nom inventé produirait un fichier qui se dit conforme sans
     l'être** — le défaut le plus coûteux de notre correspondance, puisqu'il

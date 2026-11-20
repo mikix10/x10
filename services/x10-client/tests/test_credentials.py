@@ -267,7 +267,7 @@ def test_rien_ne_fuit_par_la_journalisation(caplog):
 # `test_aucun_paquet_ne_lit_l_environnement` vivait ici et porte sur **tous**
 # les paquets. Il est passé dans `workspace-tests/` le 23/10/2026 : une
 # garantie sur les paquets qui ne tourne qu'avec la suite d'un service
-# disparaît le jour où l'on ne construit que les paquets — ce que `AGENTS.md`
+# disparaît le jour où l'on ne construit que les paquets — ce qu'`AGENTS.md`
 # nomme déjà « la règle à l'envers ».
 
 
