@@ -4,8 +4,9 @@ Vue **macroscopique** : les phases et leur état. Le *pourquoi* des choix est
 dans la section « Décisions arrêtées » de [CLAUDE.md](CLAUDE.md) ; le *comment
 contribuer* dans [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**État au 16 octobre 2026**, après une analyse d'architecture complète dont
-les constats sont repris phase par phase.
+**État au 19 novembre 2026.** Les constats repris phase par phase viennent
+de l'analyse d'architecture du 16/10/2026 ; les volumes et l'état des
+chantiers sont remesurés à la date du document.
 
 ## Objectif
 
@@ -19,14 +20,14 @@ Six membres, et un déséquilibre qui oriente la suite.
 
 | Membre | Source | Rôle tenu aujourd'hui |
 |---|---:|---|
-| `x10-connectors` | 2 945 l. | acquisition, décodage, normalisation, écriture, contrat |
-| `x10-client` | 1 049 l. | assemblage de la chaîne et compte rendu |
-| `x10-models` | 232 l. | vocabulaire de domaine |
-| `x10-catalog` | ~330 l. | registre, interrogation à facettes, catalogue peuplé |
+| `x10-connectors` | 4 443 l. | acquisition, décodage, normalisation, écriture, contrat |
+| `x10-client` | 1 857 l. | assemblage de la chaîne et compte rendu |
+| `x10-models` | 366 l. | vocabulaire de domaine |
+| `x10-catalog` | 300 l. | registre, interrogation à facettes, catalogue peuplé |
 | `x10-storage` | 25 l. | **une interface sans implémentation ni appelant** |
 | `x10-api` | 8 l. | une fonction `hello()` |
 
-`x10-connectors` porte **73 % du code source**. Ce n'est pas un défaut en soi
+`x10-connectors` porte **63 % des 6 999 lignes de source**. Ce n'est pas un défaut en soi
 — c'est là que vit le métier — mais cela dit où se trouve le risque de
 concentration, et que trois membres sont encore des déclarations d'intention.
 
@@ -37,10 +38,6 @@ Aucun paquet n'importe un membre de `services/`, et un test l'exige.
 
 **Ce qui ne tient pas encore**, et devient donc du travail :
 
-- **Le catalogue n'a pas de registre.** `CatalogEntry` décrit une entrée ;
-  rien ne les enregistre, ne les cherche ni ne les résout depuis un besoin.
-  C'est l'écart entre l'intention écrite — « un registre est un comportement »
-  — et le code.
 - **`x10-storage` n'est dans le chemin de personne.** La seule écriture du
   dépôt passe par `netcdf_cf.write_netcdf` et `base.atomic_write`. L'abstraction
   de persistance est contournée, pas utilisée.
@@ -169,9 +166,16 @@ consommateur sans exiger qu'il connaisse le découpage en granules.
 
 ## Prochaine action
 
-**Écrire le registre de catalogue**, puis le peupler avec les deux sources
-déjà intégrées, l'inventaire des variables étant dérivé des fichiers.
+Le registre est écrit et le catalogue peuplé depuis le 19/10/2026 : cette
+action est close.
 
-Plusieurs choix y dépendent de la manière dont le système sera exploité ;
-voir la section « Préciser la cible d'exploitation avant de trancher » de
-[CLAUDE.md](CLAUDE.md).
+**La suivante n'est pas arrêtée, et c'est délibéré.** Trois des points
+restants de la phase 3 — ce que `x10-storage` doit porter, où vivent les
+modèles que l'API expose, le sort de Zarr — dépendent de la manière dont le
+système sera exploité, et cette cible vit hors du dépôt. Les trancher par
+défaut produirait une architecture à défaire ; voir « Préciser la cible
+d'exploitation avant de trancher » dans [CLAUDE.md](CLAUDE.md).
+
+**Ce qui avance sans cette réponse** : l'inventaire de l'IFS, qui manque au
+catalogue faute de granule au corpus, et les modèles de domaine encore
+absents — emprises géographiques, séries temporelles, qualité.
