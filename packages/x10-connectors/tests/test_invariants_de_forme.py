@@ -161,7 +161,7 @@ def test_l_axe_du_temps_est_monotone_et_sans_doublon(tmp_path):
     """Des échéances qui se recouvrent produisent un fichier que l'aval lit
     sans protester et qui fausse toute agrégation.
 
-    `CLAUDE.md` nomme `index.is_unique` comme la détection en une ligne, et
+    `AGENTS.md` nomme `index.is_unique` comme la détection en une ligne, et
     rien ne l'appliquait.
     """
     champs = [Field(category=0, number=0, step=pas, values=np.zeros(N)) for pas in (0, 1, 2)]

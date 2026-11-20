@@ -49,7 +49,7 @@ Les quatre derniers sont **employés par le modèle de la chaîne de normalisati
 
 L'unité **téléchargeable** d'une collection n'avait pas de nom chez nous. Le
 mot du producteur, « paquet », entre en collision deux fois : avec le paquet
-**Python** — `CLAUDE.md` employait les deux sens à quelques lignes d'écart,
+**Python** — `AGENTS.md` employait les deux sens à quelques lignes d'écart,
 jusqu'à ce que ce relevé le mette au jour — et avec **GeoPackage**, norme OGC
 et format `.gpkg` que X10 produira dès qu'il fera de la géographie.
 

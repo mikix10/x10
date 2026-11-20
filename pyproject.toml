@@ -136,7 +136,7 @@ module = ["ecmwf.opendata.*", "multiurl.*"]
 ignore_missing_imports = true
 
 # Liaisons GRIB. `strict` reste entier sur notre code : seule la resolution
-# d'import est relachee, module par module, comme le prevoit CLAUDE.md.
+# d'import est relachee, module par module, comme le prevoit AGENTS.md.
 [[tool.mypy.overrides]]
 module = ["cfgrib.*", "eccodes.*", "gribapi.*"]
 ignore_missing_imports = true

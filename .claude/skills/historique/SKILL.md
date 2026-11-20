@@ -23,7 +23,7 @@ montrait pourtant reconnues noir sur blanc au moment où elles ont été faites.
 - toute rétrospective, tout point d'étape qui s'appuie sur le fil
 
 **Ne pas l'invoquer** pour une question sur l'état du code, les décisions
-arrêtées ou la configuration : `CLAUDE.md`, le code et `git log` font foi,
+arrêtées ou la configuration : `AGENTS.md`, le code et `git log` font foi,
 et ils sont plus sûrs.
 
 ## Où est le transcrit

@@ -1,7 +1,7 @@
 # Plan de travail X10
 
 Vue **macroscopique** : les phases et leur état. Le *pourquoi* des choix est
-dans la section « Décisions arrêtées » de [CLAUDE.md](CLAUDE.md) ; le *comment
+dans la section « Décisions arrêtées » de [AGENTS.md](AGENTS.md) ; le *comment
 contribuer* dans [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **État au 19 novembre 2026.** Les constats repris phase par phase viennent
@@ -174,7 +174,7 @@ restants de la phase 3 — ce que `x10-storage` doit porter, où vivent les
 modèles que l'API expose, le sort de Zarr — dépendent de la manière dont le
 système sera exploité, et cette cible vit hors du dépôt. Les trancher par
 défaut produirait une architecture à défaire ; voir « Préciser la cible
-d'exploitation avant de trancher » dans [CLAUDE.md](CLAUDE.md).
+d'exploitation avant de trancher » dans [AGENTS.md](AGENTS.md).
 
 **Ce qui avance sans cette réponse** : l'inventaire de l'IFS, qui manque au
 catalogue faute de granule au corpus, et les modèles de domaine encore

@@ -143,7 +143,7 @@ passeraient sans encombre.
 
 ## Conventions de code
 
-Elles vivent dans **[CLAUDE.md](CLAUDE.md)**, à la racine. Ce fichier est
+Elles vivent dans **[AGENTS.md](AGENTS.md)**, à la racine. Ce fichier est
 écrit comme un guide pour l'assistant qui travaille sur le dépôt, mais son
 contenu vaut pour tout le monde : structure des paquets, règles de typage,
 choix entre Pydantic et dataclass, et surtout la section **« Décisions

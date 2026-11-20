@@ -105,7 +105,7 @@ class RemoteObject:
     Le champ s'appelle `package` et non `granule` : il porte le nom que le
     producteur donne à son produit — SP1, HP2 —, là où un granule est le
     fichier que l'on rapporte. Voir la décision sur le vocabulaire dans
-    `CLAUDE.md`.
+    `AGENTS.md`.
     """
 
     key: str
