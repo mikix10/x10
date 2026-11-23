@@ -78,3 +78,7 @@ CLAUDE.local.md
 docs-local/
 .claude/skills/positioning/
 .claude/skills/echanges/
+
+# Procedure de poste : elle nomme une cible d'exploitation que le depot
+# public ne nomme pas (voir « Confidentialite des tiers » dans AGENTS.md)
+.claude/skills/deploiement/
