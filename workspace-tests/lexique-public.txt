@@ -307,6 +307,7 @@ x10_connectors.ecmwf_ifs.__all__: SOURCE_KIND
 x10_connectors.ecmwf_ifs.__all__: SOURCE_LICENSE
 x10_connectors.ecmwf_ifs.__all__: SOURCE_NAME
 x10_connectors.ecmwf_ifs.__all__: SOURCE_PROVIDER
+x10_connectors.ecmwf_ifs.__all__: SOURCE_RIGHTS
 x10_connectors.ecmwf_ifs.__all__: SOURCE_URL
 x10_connectors.ecmwf_ifs.__all__: STREAMS
 x10_connectors.ecmwf_ifs.__all__: TYPES
@@ -364,6 +365,7 @@ x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.packages
 x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.run
 x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.time_ranges
 x10_connectors.meteofrance_pnt.RemoteObject.key
+x10_connectors.meteofrance_pnt.RemoteObject.last_modified
 x10_connectors.meteofrance_pnt.RemoteObject.package
 x10_connectors.meteofrance_pnt.RemoteObject.size_bytes
 x10_connectors.meteofrance_pnt.RemoteObject.time_range
@@ -382,6 +384,7 @@ x10_connectors.meteofrance_pnt.__all__: SOURCE_KIND
 x10_connectors.meteofrance_pnt.__all__: SOURCE_LICENSE
 x10_connectors.meteofrance_pnt.__all__: SOURCE_NAME
 x10_connectors.meteofrance_pnt.__all__: SOURCE_PRODUCER
+x10_connectors.meteofrance_pnt.__all__: SOURCE_RIGHTS
 x10_connectors.meteofrance_pnt.__all__: SOURCE_URL
 x10_connectors.meteofrance_pnt.__all__: Transport
 x10_connectors.meteofrance_pnt.__all__: TransportHttp
@@ -476,8 +479,17 @@ x10_models.Retrieval.artefacts
 x10_models.Retrieval.dataset
 x10_models.Retrieval.license
 x10_models.Retrieval.origin
+x10_models.Retrieval.origin_last_modified
 x10_models.Retrieval.retrieved_at
+x10_models.Retrieval.rights
 x10_models.Retrieval.selection
+x10_models.Rights.additional_terms
+x10_models.Rights.attribution
+x10_models.Rights.copyright_notice
+x10_models.Rights.disclaimer
+x10_models.Rights.license_id
+x10_models.Rights.license_url
+x10_models.Rights.licensor
 x10_models.SourceTerms.grib
 x10_models.SourceTerms.grib_short_name
 x10_models.SourceTerms.level_type
@@ -500,6 +512,7 @@ x10_models.__all__: Observation
 x10_models.__all__: PhysicalDomain
 x10_models.__all__: Provenance
 x10_models.__all__: Retrieval
+x10_models.__all__: Rights
 x10_models.__all__: SourceTerms
 x10_models.__all__: Variable
 x10_storage.StorageRecord.key

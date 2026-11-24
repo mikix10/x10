@@ -46,12 +46,14 @@ from x10_connectors.netcdf_cf import (
     units_metadata,
     write_netcdf,
 )
-from x10_models import Retrieval
+from x10_models import Agent, Retrieval, Rights
 
 N = int(DEFAULT_GRID["ni"] * DEFAULT_GRID["nj"])
 
 
-def _lignage(licence: str | None = "etalab-2.0") -> Retrieval:
+def _lignage(
+    licence: str | None = "etalab-2.0", droits: Rights | None = None, maj: datetime | None = None
+) -> Retrieval:
     return Retrieval(
         artefacts=(),
         retrieved_at=datetime(2026, 10, 8, 3, 0, tzinfo=UTC),
@@ -59,6 +61,8 @@ def _lignage(licence: str | None = "etalab-2.0") -> Retrieval:
         origin="data.gouv.fr",
         agent="x10-connectors 0.1.0",
         license=licence,
+        rights=droits,
+        origin_last_modified=maj,
     )
 
 
@@ -222,6 +226,98 @@ def test_sans_lignage_la_licence_n_est_pas_inventee(tmp_path):
 def test_un_lignage_sans_licence_ne_pose_pas_l_attribut(tmp_path):
     attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage(licence=None))
     assert "license" not in attrs
+
+
+def _droits(**remplaces) -> Rights:
+    """Des droits au gabarit de ce qu'un concedant fournit reellement."""
+    defauts = {
+        "licensor": Agent(name="Un concedant", roles=("producer", "licensor")),
+        "license_id": "CC-BY-4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    }
+    return Rights(**{**defauts, **remplaces})
+
+
+def test_les_mentions_fournies_par_le_concedant_voyagent_avec_le_fichier(tmp_path):
+    """CC BY §3(a)(1) oblige à **conserver** ce que le concédant fournit.
+
+    Les quatre mentions sortent donc, et `license` porte l'URI : c'est ce
+    que la clause (C) exige — « include the text of, or the URI […] to,
+    this Public License » — et ce qu'ACDD demande en premier choix.
+    """
+    droits = _droits(
+        licensor=Agent(name="Un concedant", roles=("licensor",), url="https://exemple.invalid"),
+        attribution="This data is based on data and products of Un concedant.",
+        copyright_notice='Copyright "Un concedant".',
+        disclaimer="Un concedant accepts no liability.",
+        additional_terms=("Un concedant Terms of Use: https://exemple.invalid/terms",),
+    )
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage(droits=droits))
+
+    assert attrs["license"] == "https://creativecommons.org/licenses/by/4.0/"
+    assert attrs["x10_license_id"] == "CC-BY-4.0"
+    assert attrs["creator_name"] == "Un concedant"
+    assert attrs["creator_url"] == "https://exemple.invalid"
+    assert attrs["acknowledgement"] == droits.attribution
+    assert attrs["x10_copyright_notice"] == droits.copyright_notice
+    assert attrs["x10_disclaimer"] == droits.disclaimer
+    assert "terms" in attrs["x10_additional_terms"].lower()
+
+
+def test_ce_que_le_concedant_ne_fournit_pas_ne_s_invente_pas(tmp_path):
+    """La Licence Ouverte n'impose aucune phrase et ne fournit ni avis de
+    droit d'auteur ni exclusion de garantie. **Les attributs correspondants
+    doivent être absents, et non vides** : une mention vide se lirait comme
+    une mention, c'est la gradation déjà retenue pour `standard_name`."""
+    attrs = global_attributes(
+        _jeu(tmp_path),
+        retrieval=_lignage(droits=_droits(license_id="etalab-2.0", license_url=None)),
+    )
+
+    assert attrs["license"] == "etalab-2.0", "sans URI, l'identifiant tient la place"
+    assert attrs["creator_name"] == "Un concedant"
+    for absent in (
+        "acknowledgement",
+        "creator_url",
+        "x10_copyright_notice",
+        "x10_disclaimer",
+        "x10_additional_terms",
+    ):
+        assert absent not in attrs
+
+
+def test_un_instrument_additionnel_n_est_jamais_taise(tmp_path):
+    """Annoncer la seule licence quand un second instrument s'y ajoute
+    déclarerait des conditions plus permissives que celles qui
+    s'appliquent."""
+    attrs = global_attributes(
+        _jeu(tmp_path),
+        retrieval=_lignage(droits=_droits(additional_terms=("Terms A", "Terms B"))),
+    )
+    assert "Terms A" in attrs["x10_additional_terms"]
+    assert "Terms B" in attrs["x10_additional_terms"]
+
+
+def test_sans_droits_le_comportement_anterieur_tient(tmp_path):
+    """Un lignage qui ne porte pas de droits continue d'émettre sa licence
+    telle quelle : l'ajout ne retire rien à ce qui existait."""
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage())
+    assert attrs["license"] == "etalab-2.0"
+    assert "x10_license_id" not in attrs
+
+
+def test_la_date_declaree_par_l_origine_voyage_avec_le_fichier(tmp_path):
+    """La Licence Ouverte exige une date de dernière mise à jour. Le nom de
+    l'attribut dit qu'elle vient du stockage, pas du producteur : surnommer
+    cette valeur « date du producteur » serait affirmer plus qu'on ne sait."""
+    maj = datetime(2026, 11, 24, 13, 15, 33, tzinfo=UTC)
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage(maj=maj))
+    assert attrs["x10_origin_last_modified"].startswith("2026-11-24T13:15:33")
+
+
+def test_sans_date_declaree_l_attribut_est_absent(tmp_path):
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage())
+    assert "x10_origin_last_modified" not in attrs
 
 
 def test_acdd_n_est_pas_declare(tmp_path):

@@ -27,7 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from x10_models import Retrieval
+from x10_models import Agent, Retrieval, Rights
 
 from .base import AGENT, BaseConnector, ConnectorResult, atomic_write, safe_target
 from .observability import (
@@ -51,6 +51,37 @@ SOURCE_KIND = "forecast"
 SOURCE_FORMAT = "grib2"
 SOURCE_LICENSE = "CC-BY-4.0"
 SOURCE_URL = "https://data.ecmwf.int/forecasts"
+
+#: Ce que l'ECMWF **fournit**, et que CC BY §3(a)(1) oblige donc à conserver.
+#: Les trois mentions sont reprises mot pour mot de sa page de licence,
+#: relevée le 24/11/2026 ; seule la phrase d'attribution est adaptée, et
+#: uniquement dans les termes que le concédant rend lui-même
+#: interchangeables — « this document/data/output/Results ».
+SOURCE_RIGHTS = Rights(
+    licensor=Agent(
+        name="European Centre for Medium-Range Weather Forecasts (ECMWF)",
+        roles=("producer", "licensor"),
+        url="https://www.ecmwf.int",
+    ),
+    license_id=SOURCE_LICENSE,
+    license_url="https://creativecommons.org/licenses/by/4.0/",
+    attribution=(
+        "This data is based on data and products of the European Centre "
+        "for Medium-Range Weather Forecasts (ECMWF)."
+    ),
+    copyright_notice=(
+        'Copyright "This service is based on data and products of the '
+        'European Centre for Medium-Range Weather Forecasts (ECMWF)".'
+    ),
+    disclaimer=(
+        "ECMWF does not accept any liability whatsoever for any error or "
+        "omission in the data, their availability, or for any loss or "
+        "damage arising from their use."
+    ),
+    #: Le second instrument. Le taire annoncerait une licence plus
+    #: permissive que celle qui s'applique réellement.
+    additional_terms=("ECMWF Terms of Use: https://apps.ecmwf.int/datasets/licences/general/",),
+)
 
 #: Origines équivalentes exposées par le client officiel. Les trois miroirs
 #: infonuagiques servent de repli quand le portail d'ECMWF est saturé.
@@ -387,6 +418,7 @@ class EcmwfIfsOpenDataConnector(BaseConnector):
                 },
                 agent=AGENT,
                 license=SOURCE_LICENSE,
+                rights=SOURCE_RIGHTS,
             ),
         )
         _log.info("ECMWF IFS retrieval finished", extra=fetch_finished_fields(result))
@@ -407,6 +439,7 @@ __all__ = [
     "SOURCE_LICENSE",
     "SOURCE_NAME",
     "SOURCE_PROVIDER",
+    "SOURCE_RIGHTS",
     "SOURCE_URL",
     "STREAMS",
     "TYPES",

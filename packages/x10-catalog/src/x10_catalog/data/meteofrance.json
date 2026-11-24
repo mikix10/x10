@@ -1200,7 +1200,7 @@
             "producer",
             "licensor"
           ],
-          "url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
+          "url": "https://www.data.gouv.fr/datasets/paquets-arpege-resolution-0-25deg"
         },
         "publisher": {
           "name": "data.gouv.fr",
@@ -1484,7 +1484,7 @@
       "distributions": [
         {
           "access_rights": "noLimitations",
-          "access_url": "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg",
+          "access_url": "https://www.data.gouv.fr/datasets/paquets-arpege-resolution-0-25deg",
           "dataset": "meteofrance-arpege-025",
           "license": "etalab-2.0",
           "media_type": "application/x-grib2",

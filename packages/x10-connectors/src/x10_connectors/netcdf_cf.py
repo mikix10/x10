@@ -864,7 +864,7 @@ def global_attributes(
     source: str | None = None,
     references: str | None = None,
 ) -> dict[str, str]:
-    """Attributs globaux à poser, les six de CF plus la licence.
+    """Attributs globaux à poser : les six de CF, plus les droits.
 
     Sans `retrieval`, ni `license` ni `source` ne sont produits : **l'absence
     de provenance doit se voir dans le fichier**, et non être comblée par une
@@ -897,8 +897,48 @@ def global_attributes(
         attrs["institution"] = str(institution)
     if (methode := source or production_source(dataset)) is not None:
         attrs["source"] = methode
-    if retrieval is not None and retrieval.license:
+    # **Ce qu'une licence oblige à conserver.** CC BY 4.0 §3(a)(1) impose de
+    # retenir ce que le concédant fournit — avis de droit d'auteur, avis de
+    # licence, exclusion de garantie, identification du créateur — et son
+    # §3(a)(2) admet qu'on s'en acquitte « in any reasonable manner based on
+    # the medium ». Les attributs portent donc ces mentions telles quelles.
+    #
+    # **Les noms viennent d'ACDD quand ACDD en a un**, même régime d'emprunt
+    # que `license` lui-même : `creator_name` y est « the name of the person
+    # […] principally responsible for creating this data », et
+    # `acknowledgement` « a place to acknowledge […] support for the project
+    # that produced this data ». Mesuré le 24/11/2026 : **ACDD ne définit ni
+    # avis de droit d'auteur, ni exclusion de garantie** — zéro occurrence —
+    # donc ces deux-là sortent sous un nom à nous, faute d'emplacement
+    # normalisé.
+    rights = retrieval.rights if retrieval is not None else None
+    if rights is not None:
+        # ACDD demande une URL en premier choix ; l'identifiant SPDX reste
+        # émis à côté, parce qu'il *identifie* là où l'URL *localise*.
+        attrs["license"] = rights.license_url or rights.license_id
+        attrs["x10_license_id"] = rights.license_id
+        attrs["creator_name"] = rights.licensor.name
+        if rights.licensor.url:
+            attrs["creator_url"] = rights.licensor.url
+        if rights.attribution:
+            attrs["acknowledgement"] = rights.attribution
+        if rights.copyright_notice:
+            attrs["x10_copyright_notice"] = rights.copyright_notice
+        if rights.disclaimer:
+            attrs["x10_disclaimer"] = rights.disclaimer
+        if rights.additional_terms:
+            # Taire un instrument qui s'ajoute annoncerait une licence plus
+            # permissive que celle qui s'applique.
+            attrs["x10_additional_terms"] = " ; ".join(rights.additional_terms)
+    elif retrieval is not None and retrieval.license:
         attrs["license"] = retrieval.license
+
+    # La Licence Ouverte 2.0 demande « la date de la dernière mise à jour de
+    # l'Information réutilisée ». Le nom de l'attribut dit d'où elle vient :
+    # c'est l'horodatage que l'origine déclare pour les objets rapportés, et
+    # non une affirmation du producteur sur sa donnée.
+    if retrieval is not None and retrieval.origin_last_modified is not None:
+        attrs["x10_origin_last_modified"] = retrieval.origin_last_modified.isoformat()
     if title:
         attrs["title"] = title
     elif retrieval is not None:

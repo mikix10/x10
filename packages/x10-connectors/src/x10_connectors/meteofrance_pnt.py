@@ -32,12 +32,13 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 from urllib.request import Request, urlopen
 
-from x10_models import Retrieval
+from x10_models import Agent, Retrieval, Rights
 
 from .base import AGENT, BaseConnector, ConnectorResult, atomic_write, safe_target
 from .observability import (
@@ -67,6 +68,21 @@ SOURCE_FORMAT = "grib2"
 SOURCE_LICENSE = "etalab-2.0"
 SOURCE_URL = "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
 
+#: Ce que la Licence Ouverte 2.0 exige, et **rien de plus** : elle demande
+#: « la paternité de l'Information : sa source, a minima le nom du
+#: Concédant ». Elle n'impose aucune phrase d'attribution, et le concédant
+#: ne fournit ni avis de droit d'auteur ni exclusion de garantie — les
+#: champs restent donc vides, ce qui est un constat et non une omission.
+#:
+#: L'adresse du concédant n'est pas portée ici : la page qui renvoie vers
+#: l'Information dépend du jeu, donc elle relève de la distribution au
+#: catalogue, et non de ce niveau.
+SOURCE_RIGHTS = Rights(
+    licensor=Agent(name="Météo-France", roles=("producer", "licensor")),
+    license_id=SOURCE_LICENSE,
+    license_url="https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+)
+
 BASE_URL = "https://meteofrance-pnt.s3.rbx.io.cloud.ovh.net"
 PREFIX = "pnt"
 
@@ -90,12 +106,49 @@ VALID_KEY = re.compile(
     r"/[A-Za-z0-9_.:-]{1,128}\.grib2$"
 )
 
-_XML_KEY = re.compile(r"<Key>(.*?)</Key>.*?<Size>(\d+)</Size>", re.S)
+#: Un bloc `<Contents>` du listage, pris entier.
+#:
+#: **On extrait ensuite champ par champ à l'intérieur du bloc, jamais par
+#: une expression qui traverse les éléments.** Une expression traversante
+#: non gourmande qui ne trouve pas l'un de ses champs ne rate pas le champ :
+#: elle rate **l'objet entier**, et un granule disparaîtrait en silence. Le
+#: listage réel porte `LastModified`, `ETag` et `StorageClass` entre la clé
+#: et la taille ; leur ordre et leur présence ne nous appartiennent pas.
+_XML_CONTENTS = re.compile(r"<Contents>(.*?)</Contents>", re.S)
 _XML_PREFIX = re.compile(r"<CommonPrefixes><Prefix>(.+?)</Prefix></CommonPrefixes>")
 
 
 class MeteoFrancePntError(RuntimeError):
     """Échec d'une récupération de paquets Météo-France."""
+
+
+def _champ(bloc: str, nom: str) -> str | None:
+    """La valeur d'un élément dans un bloc, ou `None` s'il n'y est pas."""
+    debut, fin = f"<{nom}>", f"</{nom}>"
+    i = bloc.find(debut)
+    if i < 0:
+        return None
+    j = bloc.find(fin, i)
+    return bloc[i + len(debut) : j] if j > 0 else None
+
+
+def _horodatage(valeur: str | None) -> datetime | None:
+    """La date que l'origine déclare pour l'objet, ramenée en UTC.
+
+    **C'est la date du stockage, pas une déclaration du producteur** — le nom
+    du champ qui la porte le dit, et c'est voulu : le dépôt a mesuré ailleurs
+    qu'un horodatage d'objet bouge à la recopie sans que la donnée ait changé.
+
+    Une valeur illisible rend `None` plutôt que d'interrompre : l'absence se
+    verra dans la sortie, là où une exception ferait perdre l'acquisition
+    entière pour un champ accessoire.
+    """
+    if not valeur:
+        return None
+    try:
+        return datetime.fromisoformat(valeur).astimezone(UTC)
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -112,6 +165,11 @@ class RemoteObject:
     package: str
     time_range: str
     size_bytes: int
+    #: Date de dernière écriture **déclarée par l'origine** pour cet objet.
+    #: La Licence Ouverte 2.0 exige « la date de la dernière mise à jour de
+    #: l'Information réutilisée » ; le listage la rend déjà, et nous la
+    #: jetions. `None` quand l'origine ne la donne pas.
+    last_modified: datetime | None = None
 
     @property
     def url(self) -> str:
@@ -177,6 +235,18 @@ class TransportHttp:  # couvert par les tests reseau
         return received
 
 
+def _derniere_mise_a_jour(objets: Sequence[RemoteObject]) -> datetime | None:
+    """La plus récente des dates déclarées, ou `None` si aucune ne l'est.
+
+    Une acquisition porte sur plusieurs paquets ; ce qu'on peut dire de
+    l'ensemble est la date du plus récemment écrit. Prendre la plus ancienne
+    annoncerait une donnée plus vieille qu'elle n'est, et une moyenne ne
+    désignerait rien.
+    """
+    dates = [o.last_modified for o in objets if o.last_modified is not None]
+    return max(dates) if dates else None
+
+
 @dataclass(frozen=True)
 class MeteoFrancePntRequest:
     """Sélection à télécharger.
@@ -238,7 +308,11 @@ class MeteoFrancePntConnector(BaseConnector):
         prefix = f"{PREFIX}/{run}/{self.request.model}/{self.request.grid}/"
         xml = self._lister(prefix)
         out: list[RemoteObject] = []
-        for key, size in _XML_KEY.findall(xml):
+        for bloc in _XML_CONTENTS.findall(xml):
+            key = _champ(bloc, "Key")
+            size = _champ(bloc, "Size")
+            if key is None or size is None or not size.isdigit():
+                continue
             if not VALID_KEY.match(key):
                 continue
             parts = key.split("/")
@@ -246,7 +320,11 @@ class MeteoFrancePntConnector(BaseConnector):
             time_range = name.split("__")[-2] if name.count("__") >= 3 else ""
             out.append(
                 RemoteObject(
-                    key=key, package=parts[-2], time_range=time_range, size_bytes=int(size)
+                    key=key,
+                    package=parts[-2],
+                    time_range=time_range,
+                    size_bytes=int(size),
+                    last_modified=_horodatage(_champ(bloc, "LastModified")),
                 )
             )
         return tuple(sorted(out, key=lambda o: (o.package, o.time_range)))
@@ -370,6 +448,8 @@ class MeteoFrancePntConnector(BaseConnector):
                 },
                 agent=AGENT,
                 license=SOURCE_LICENSE,
+                rights=SOURCE_RIGHTS,
+                origin_last_modified=_derniere_mise_a_jour(objects),
             ),
         )
         _log.info("Meteo-France retrieval finished", extra=fetch_finished_fields(result))
@@ -388,6 +468,7 @@ __all__ = [
     "SOURCE_LICENSE",
     "SOURCE_NAME",
     "SOURCE_PRODUCER",
+    "SOURCE_RIGHTS",
     "SOURCE_URL",
     "VALID_KEY",
     "MeteoFrancePntConnector",
