@@ -1,0 +1,66 @@
+# Verification de deploiement X10 -- tache ponctuelle.
+#
+# Ce manifeste ne nomme NI espace de noms, NI hote, NI stockage : `kubectl
+# apply` prend l'espace de noms du contexte courant. C'est precisement ce
+# qui lui permet de vivre dans un depot public -- voir « Confidentialite des
+# tiers » dans AGENTS.md. Tout ce qui designerait une cible reste hors depot.
+#
+# Les durcissements ci-dessous ne sont pas des defauts : rien ne les impose,
+# et personne ne les ajoute apres coup.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: x10-verification
+spec:
+  # Pas de reprise : un echec est un verdict, pas un incident a rejouer.
+  backoffLimit: 0
+  # L'objet s'efface une heure apres sa fin, pour qu'un rejeu ne bute pas
+  # sur le precedent et qu'aucun debris ne subsiste.
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      # La tache n'a aucune raison de parler a l'API de l'orchestrateur.
+      # Lui laisser un jeton monte offrirait un chemin de deplacement
+      # lateral a tout code s'executant dans le conteneur -- et le decodage
+      # GRIB est du traitement natif sur une entree distante non maitrisee.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # Concorde avec l'utilisateur cree dans `deploy/Dockerfile`.
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verifier
+          # Epinglee par EMPREINTE, jamais par etiquette : c'est l'empreinte
+          # qui identifie le code ET les tables embarquees. A renseigner
+          # depuis la sortie du workflow de construction.
+          image: ghcr.io/mikix10/x10/verifier@sha256:A_RENSEIGNER
+          args:
+            # Renseigner les empreintes relevees en integration continue
+            # pour que l'ecart entre deux deploiements devienne un echec
+            # plutot qu'une ligne a lire.
+            # - --expect-cf-tables=...
+            # - --expect-output-tables=...
+            []
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # Le systeme de fichiers racine est en lecture seule ; les
+        # bibliotheques natives veulent neanmoins un `/tmp` accessible.
+        - name: tmp
+          emptyDir: {}

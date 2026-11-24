@@ -1,0 +1,34 @@
+# Contexte de construction de l'image -- voir `deploy/Dockerfile`.
+#
+# L'image publiee est PUBLIQUE, donc chacune de ses couches est inspectable
+# par quiconque. Ce fichier n'est donc pas une optimisation de taille : il
+# decide de ce qui devient lisible par tous. Une couche supprimee reste dans
+# l'image ; ce qui n'entre pas dans le contexte n'y entre jamais.
+
+# Historique et metadonnees de depot.
+.git/
+.github/
+
+# Environnements et caches locaux : ils portent des chemins de poste.
+.venv/
+.venv-*/
+**/__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+*.pyc
+
+# Non versionne, et c'est precisement ce qui ne doit pas sortir.
+.denylist
+CLAUDE.local.md
+docs-local/
+.claude/
+
+# Sans objet dans une image.
+docs/
+probes/
+workspace-tests/
+dist/
+*.md

@@ -1,0 +1,82 @@
+# Construction et publication de l'image de verification.
+#
+# Aucune action tierce n'est employee en dehors de `checkout` : le runner
+# porte deja `docker`, et chaque action ajoutee serait une dependance de
+# chaine d'approvisionnement de plus a epingler et a suivre. Le depot
+# epingle ses actions par empreinte ; le moyen le plus sur d'en epingler une
+# est de ne pas l'ajouter.
+#
+# Aucun secret n'est ajoute non plus : `GITHUB_TOKEN` suffit a pousser vers
+# le registre du depot, et c'est la raison documentee du choix de ce
+# registre plutot qu'un autre.
+name: Image de verification
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "verifier-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  construire:
+    name: Construire et publier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Le seul droit ajoute, et il est borne a la publication de paquets.
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Refuser une empreinte de base non renseignee
+        # Le Dockerfile epingle son image de base par empreinte. Si un jour
+        # elle est remplacee par une etiquette ou un marqueur, la
+        # reproductibilite tombe en silence -- et c'est elle qui fonde la
+        # promesse « une empreinte d'image identifie le code et les tables ».
+        run: |
+          grep -qE '^FROM .+@sha256:[0-9a-f]{64}$' deploy/Dockerfile \
+            || { echo "::error::l'image de base doit etre epinglee par empreinte"; exit 1; }
+
+      - name: Connexion au registre
+        env:
+          JETON: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$JETON" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Construire
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/verifier
+        run: |
+          docker build -f deploy/Dockerfile -t "$IMAGE:${{ github.sha }}" .
+
+      - name: Verifier que l'image repond hors ligne
+        # Le sortant du runner n'est pas celui de la cible : on ne sonde donc
+        # pas les producteurs ici. On verifie ce qui ne depend que de
+        # l'image -- qu'elle demarre, importe la pile et rende ses empreintes.
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/verifier
+        run: docker run --rm "$IMAGE:${{ github.sha }}" --skip-network
+
+      - name: Publier
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/verifier
+        run: docker push "$IMAGE:${{ github.sha }}"
+
+      - name: Rendre l'empreinte a epingler
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/verifier
+        run: |
+          EMPREINTE=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:${{ github.sha }}")
+          echo "### Image publiee" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo "A reporter dans \`deploy/job.yaml\` :" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$EMPREINTE" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
