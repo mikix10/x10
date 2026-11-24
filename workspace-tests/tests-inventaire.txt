@@ -227,6 +227,7 @@ packages/x10-connectors/tests/test_invariants_de_forme.py::test_les_bornes_de_pe
 packages/x10-connectors/tests/test_invariants_de_forme.py::test_les_points_manquants_traversent_la_chaine
 packages/x10-connectors/tests/test_invariants_de_forme.py::test_une_cle_conditionnelle_ressort_quand_sa_condition_tient
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_la_date_que_l_origine_declare_est_lue
+packages/x10-connectors/tests/test_meteofrance_pnt.py::test_la_date_retenue_est_la_plus_recente
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_le_compte_rendu_fait_l_aller_retour_json
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_le_compte_rendu_porte_provenance_licence_et_selection
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_le_nom_local_est_portable
@@ -236,6 +237,7 @@ packages/x10-connectors/tests/test_meteofrance_pnt.py::test_le_reseau_le_plus_re
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_le_vent_se_reconstitue_depuis_les_composantes_sur_donnees_reelles
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_les_objets_portent_paquet_tranche_et_taille
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_les_reseaux_se_decouvrent_par_listage
+packages/x10-connectors/tests/test_meteofrance_pnt.py::test_sans_aucune_date_declaree_rien_n_est_affirme
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_telechargement_reel_d_un_paquet_de_surface
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_un_nom_local_qui_remonte_l_arborescence_est_refuse
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_un_objet_sans_date_reste_servi
@@ -245,6 +247,7 @@ packages/x10-connectors/tests/test_meteofrance_pnt.py::test_un_reseau_incomplet_
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_cle_hors_forme_attendue_est_ignoree
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_cle_malformee_n_est_pas_retenue_par_l_inventaire
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_date_illisible_ne_fait_pas_disparaitre_l_objet
+packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_date_manquante_n_empeche_pas_de_retenir_les_autres
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_requete_sans_paquet_est_refusee
 packages/x10-connectors/tests/test_meteofrance_pnt.py::test_une_selection_introuvable_echoue_clairement
 packages/x10-connectors/tests/test_netcdf_cf.py::test_acdd_n_est_pas_declare
@@ -264,6 +267,7 @@ packages/x10-connectors/tests/test_netcdf_cf.py::test_la_compression_se_desactiv
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_conversion_preserve_l_unite_d_origine_dans_les_cles_grib
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_conversion_preserve_la_grandeur
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_conversion_remplace_les_unites_du_jeu
+packages/x10-connectors/tests/test_netcdf_cf.py::test_la_date_declaree_par_l_origine_voyage_avec_le_fichier
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_licence_du_lignage_voyage_avec_le_fichier
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_longueur_de_fenetre_est_etiquetee
 packages/x10-connectors/tests/test_netcdf_cf.py::test_la_longueur_vient_de_la_coordonnee_et_non_de_l_attribut
@@ -293,6 +297,7 @@ packages/x10-connectors/tests/test_netcdf_cf.py::test_les_mentions_fournies_par_
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_unites_connues_se_traduisent_en_udunits
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_valeurs_explicites_l_emportent_sur_celles_du_lignage
 packages/x10-connectors/tests/test_netcdf_cf.py::test_les_valeurs_manquantes_restent_manquantes
+packages/x10-connectors/tests/test_netcdf_cf.py::test_sans_date_declaree_l_attribut_est_absent
 packages/x10-connectors/tests/test_netcdf_cf.py::test_sans_droits_le_comportement_anterieur_tient
 packages/x10-connectors/tests/test_netcdf_cf.py::test_sans_information_aucun_referentiel_n_est_invente
 packages/x10-connectors/tests/test_netcdf_cf.py::test_sans_lignage_la_licence_n_est_pas_inventee

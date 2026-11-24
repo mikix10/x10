@@ -932,6 +932,13 @@ def global_attributes(
             attrs["x10_additional_terms"] = " ; ".join(rights.additional_terms)
     elif retrieval is not None and retrieval.license:
         attrs["license"] = retrieval.license
+
+    # La Licence Ouverte 2.0 demande « la date de la dernière mise à jour de
+    # l'Information réutilisée ». Le nom de l'attribut dit d'où elle vient :
+    # c'est l'horodatage que l'origine déclare pour les objets rapportés, et
+    # non une affirmation du producteur sur sa donnée.
+    if retrieval is not None and retrieval.origin_last_modified is not None:
+        attrs["x10_origin_last_modified"] = retrieval.origin_last_modified.isoformat()
     if title:
         attrs["title"] = title
     elif retrieval is not None:

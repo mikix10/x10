@@ -8,6 +8,7 @@ exécutable hors ligne.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -23,6 +24,7 @@ from x10_connectors.meteofrance_pnt import (
     SOURCE_NAME,
     VALID_KEY,
     RemoteObject,
+    _derniere_mise_a_jour,
 )
 
 RESEAUX = ("2026-10-05T00:00:00Z", "2026-10-05T03:00:00Z")
@@ -88,6 +90,31 @@ def test_les_reseaux_se_decouvrent_par_listage(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)
     assert connecteur.reseaux() == RESEAUX
+
+
+def _objet(nom: str, date: datetime | None) -> RemoteObject:
+    return RemoteObject(
+        key=f"pnt/{nom}", package=nom, time_range="", size_bytes=1, last_modified=date
+    )
+
+
+def test_la_date_retenue_est_la_plus_recente():
+    """Une acquisition porte plusieurs paquets ; ce qu'on peut dire de
+    l'ensemble est la date du plus récemment écrit. La plus ancienne
+    annoncerait une donnée plus vieille qu'elle n'est."""
+    vieille = datetime(2026, 11, 24, 6, 0, tzinfo=UTC)
+    recente = datetime(2026, 11, 24, 13, 0, tzinfo=UTC)
+    assert _derniere_mise_a_jour((_objet("SP1", vieille), _objet("SP2", recente))) == recente
+
+
+def test_sans_aucune_date_declaree_rien_n_est_affirme():
+    assert _derniere_mise_a_jour((_objet("SP1", None), _objet("SP2", None))) is None
+    assert _derniere_mise_a_jour(()) is None
+
+
+def test_une_date_manquante_n_empeche_pas_de_retenir_les_autres():
+    recente = datetime(2026, 11, 24, 13, 0, tzinfo=UTC)
+    assert _derniere_mise_a_jour((_objet("SP1", None), _objet("SP2", recente))) == recente
 
 
 class _TransportFige:

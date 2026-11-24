@@ -479,6 +479,7 @@ x10_models.Retrieval.artefacts
 x10_models.Retrieval.dataset
 x10_models.Retrieval.license
 x10_models.Retrieval.origin
+x10_models.Retrieval.origin_last_modified
 x10_models.Retrieval.retrieved_at
 x10_models.Retrieval.rights
 x10_models.Retrieval.selection

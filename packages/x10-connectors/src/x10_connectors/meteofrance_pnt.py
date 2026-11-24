@@ -32,6 +32,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
@@ -232,6 +233,18 @@ class TransportHttp:  # couvert par les tests reseau
                     )
                 out.write(morceau)
         return received
+
+
+def _derniere_mise_a_jour(objets: Sequence[RemoteObject]) -> datetime | None:
+    """La plus récente des dates déclarées, ou `None` si aucune ne l'est.
+
+    Une acquisition porte sur plusieurs paquets ; ce qu'on peut dire de
+    l'ensemble est la date du plus récemment écrit. Prendre la plus ancienne
+    annoncerait une donnée plus vieille qu'elle n'est, et une moyenne ne
+    désignerait rien.
+    """
+    dates = [o.last_modified for o in objets if o.last_modified is not None]
+    return max(dates) if dates else None
 
 
 @dataclass(frozen=True)
@@ -436,6 +449,7 @@ class MeteoFrancePntConnector(BaseConnector):
                 agent=AGENT,
                 license=SOURCE_LICENSE,
                 rights=SOURCE_RIGHTS,
+                origin_last_modified=_derniere_mise_a_jour(objects),
             ),
         )
         _log.info("Meteo-France retrieval finished", extra=fetch_finished_fields(result))

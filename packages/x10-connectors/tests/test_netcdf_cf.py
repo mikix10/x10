@@ -51,7 +51,9 @@ from x10_models import Agent, Retrieval, Rights
 N = int(DEFAULT_GRID["ni"] * DEFAULT_GRID["nj"])
 
 
-def _lignage(licence: str | None = "etalab-2.0", droits: Rights | None = None) -> Retrieval:
+def _lignage(
+    licence: str | None = "etalab-2.0", droits: Rights | None = None, maj: datetime | None = None
+) -> Retrieval:
     return Retrieval(
         artefacts=(),
         retrieved_at=datetime(2026, 10, 8, 3, 0, tzinfo=UTC),
@@ -60,6 +62,7 @@ def _lignage(licence: str | None = "etalab-2.0", droits: Rights | None = None) -
         agent="x10-connectors 0.1.0",
         license=licence,
         rights=droits,
+        origin_last_modified=maj,
     )
 
 
@@ -301,6 +304,20 @@ def test_sans_droits_le_comportement_anterieur_tient(tmp_path):
     attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage())
     assert attrs["license"] == "etalab-2.0"
     assert "x10_license_id" not in attrs
+
+
+def test_la_date_declaree_par_l_origine_voyage_avec_le_fichier(tmp_path):
+    """La Licence Ouverte exige une date de dernière mise à jour. Le nom de
+    l'attribut dit qu'elle vient du stockage, pas du producteur : surnommer
+    cette valeur « date du producteur » serait affirmer plus qu'on ne sait."""
+    maj = datetime(2026, 11, 24, 13, 15, 33, tzinfo=UTC)
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage(maj=maj))
+    assert attrs["x10_origin_last_modified"].startswith("2026-11-24T13:15:33")
+
+
+def test_sans_date_declaree_l_attribut_est_absent(tmp_path):
+    attrs = global_attributes(_jeu(tmp_path), retrieval=_lignage())
+    assert "x10_origin_last_modified" not in attrs
 
 
 def test_acdd_n_est_pas_declare(tmp_path):

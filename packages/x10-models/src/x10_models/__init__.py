@@ -348,6 +348,12 @@ class Retrieval(BaseModel):
     #: Ce que la licence oblige à conserver. `None` quand l'origine n'a pas
     #: été instruite — l'absence doit se voir, et non se combler.
     rights: Rights | None = None
+    #: Date de dernière écriture **déclarée par l'origine** pour ce qui a été
+    #: rapporté — la plus récente quand l'acquisition porte sur plusieurs
+    #: objets. La Licence Ouverte 2.0 exige une date de dernière mise à jour ;
+    #: celle-ci est la meilleure dont nous disposions sans requête de plus,
+    #: et son nom dit qu'elle vient du stockage et non du producteur.
+    origin_last_modified: datetime | None = None
 
 
 class GeoPoint(BaseModel):
