@@ -90,6 +90,87 @@ def test_les_reseaux_se_decouvrent_par_listage(tmp_path):
     assert connecteur.reseaux() == RESEAUX
 
 
+class _TransportFige:
+    """Transport qui rend un listage figé, pour éprouver le parseur seul."""
+
+    def __init__(self, xml: str) -> None:
+        self.xml = xml
+
+    def lire(self, url: str) -> bytes:
+        if "delimiter=/" in url:
+            return _xml_prefixes((RESEAUX[0],)).encode()
+        return self.xml.encode()
+
+    def telecharger(self, url, cible, plafond) -> int:
+        raise AssertionError("ce transport ne telecharge pas")
+
+
+def _listage(*blocs: str) -> str:
+    return f"<?xml version='1.0'?><ListBucketResult>{''.join(blocs)}</ListBucketResult>"
+
+
+def _contents(cle: str, **champs: str) -> str:
+    corps = "".join(f"<{nom}>{valeur}</{nom}>" for nom, valeur in champs.items())
+    return f"<Contents><Key>{cle}</Key>{corps}</Contents>"
+
+
+def _objets_de(tmp_path, xml: str):
+    connecteur = MeteoFrancePntConnector(tmp_path, transport=_TransportFige(xml))
+    return connecteur.objects(RESEAUX[0])
+
+
+def test_la_date_que_l_origine_declare_est_lue(tmp_path):
+    """La Licence Ouverte exige une date de dernière mise à jour, et le
+    listage la rend déjà : nous la jetions."""
+    cle = _cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H")
+    xml = _listage(
+        _contents(cle, LastModified="2026-11-24T13:15:33.000Z", ETag='"abc"', Size="1000")
+    )
+    (objet,) = _objets_de(tmp_path, xml)
+    assert objet.last_modified is not None
+    assert objet.last_modified.year == 2026
+    assert objet.last_modified.hour == 13
+    assert objet.last_modified.tzinfo is not None, "la date sort en UTC, jamais naïve"
+
+
+def test_un_objet_sans_date_reste_servi(tmp_path):
+    """L'absence d'un champ accessoire ne retire pas un granule."""
+    cle = _cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H")
+    (objet,) = _objets_de(tmp_path, _listage(_contents(cle, Size="1000")))
+    assert objet.size_bytes == 1000
+    assert objet.last_modified is None
+
+
+def test_une_date_illisible_ne_fait_pas_disparaitre_l_objet(tmp_path):
+    """Une date que nous ne savons pas lire est une métadonnée perdue ; le
+    granule, lui, n'est pas perdu. L'inverse serait la classe de défaut la
+    plus coûteuse — une donnée absente sans que rien ne le signale."""
+    cle = _cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H")
+    xml = _listage(_contents(cle, LastModified="pas une date", Size="1000"))
+    (objet,) = _objets_de(tmp_path, xml)
+    assert objet.size_bytes == 1000
+    assert objet.last_modified is None
+
+
+def test_un_objet_sans_taille_ne_vole_pas_celle_du_suivant(tmp_path):
+    r"""**Le défaut que la lecture par bloc ferme.**
+
+    Une expression régulière traversante — `<Key>(.*?)</Key>.*?<Size>(\d+)`
+    — appariait la clé d'un objet sans taille avec la taille de l'objet
+    **suivant**, et consommait ce dernier au passage : une taille fausse sur
+    le premier, et le second disparaissait sans un mot. Lire chaque bloc
+    `<Contents>` séparément rend les deux cas distincts.
+    """
+    premier = _cle(RESEAUX[0], "arome", "0025", "SP1", "00H06H")
+    second = _cle(RESEAUX[0], "arome", "0025", "SP2", "07H12H")
+    xml = _listage(_contents(premier), _contents(second, Size="4242"))
+
+    objets = _objets_de(tmp_path, xml)
+
+    assert [o.package for o in objets] == ["SP2"], "l'objet sans taille est écarté, lui seul"
+    assert objets[0].size_bytes == 4242, "et le suivant garde la sienne"
+
+
 def test_les_objets_portent_paquet_tranche_et_taille(tmp_path):
     transport = _TransportSimule(catalogue=_catalogue_complet())
     connecteur = MeteoFrancePntConnector(tmp_path, transport=transport)

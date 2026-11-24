@@ -105,12 +105,49 @@ VALID_KEY = re.compile(
     r"/[A-Za-z0-9_.:-]{1,128}\.grib2$"
 )
 
-_XML_KEY = re.compile(r"<Key>(.*?)</Key>.*?<Size>(\d+)</Size>", re.S)
+#: Un bloc `<Contents>` du listage, pris entier.
+#:
+#: **On extrait ensuite champ par champ à l'intérieur du bloc, jamais par
+#: une expression qui traverse les éléments.** Une expression traversante
+#: non gourmande qui ne trouve pas l'un de ses champs ne rate pas le champ :
+#: elle rate **l'objet entier**, et un granule disparaîtrait en silence. Le
+#: listage réel porte `LastModified`, `ETag` et `StorageClass` entre la clé
+#: et la taille ; leur ordre et leur présence ne nous appartiennent pas.
+_XML_CONTENTS = re.compile(r"<Contents>(.*?)</Contents>", re.S)
 _XML_PREFIX = re.compile(r"<CommonPrefixes><Prefix>(.+?)</Prefix></CommonPrefixes>")
 
 
 class MeteoFrancePntError(RuntimeError):
     """Échec d'une récupération de paquets Météo-France."""
+
+
+def _champ(bloc: str, nom: str) -> str | None:
+    """La valeur d'un élément dans un bloc, ou `None` s'il n'y est pas."""
+    debut, fin = f"<{nom}>", f"</{nom}>"
+    i = bloc.find(debut)
+    if i < 0:
+        return None
+    j = bloc.find(fin, i)
+    return bloc[i + len(debut) : j] if j > 0 else None
+
+
+def _horodatage(valeur: str | None) -> datetime | None:
+    """La date que l'origine déclare pour l'objet, ramenée en UTC.
+
+    **C'est la date du stockage, pas une déclaration du producteur** — le nom
+    du champ qui la porte le dit, et c'est voulu : le dépôt a mesuré ailleurs
+    qu'un horodatage d'objet bouge à la recopie sans que la donnée ait changé.
+
+    Une valeur illisible rend `None` plutôt que d'interrompre : l'absence se
+    verra dans la sortie, là où une exception ferait perdre l'acquisition
+    entière pour un champ accessoire.
+    """
+    if not valeur:
+        return None
+    try:
+        return datetime.fromisoformat(valeur).astimezone(UTC)
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -127,6 +164,11 @@ class RemoteObject:
     package: str
     time_range: str
     size_bytes: int
+    #: Date de dernière écriture **déclarée par l'origine** pour cet objet.
+    #: La Licence Ouverte 2.0 exige « la date de la dernière mise à jour de
+    #: l'Information réutilisée » ; le listage la rend déjà, et nous la
+    #: jetions. `None` quand l'origine ne la donne pas.
+    last_modified: datetime | None = None
 
     @property
     def url(self) -> str:
@@ -253,7 +295,11 @@ class MeteoFrancePntConnector(BaseConnector):
         prefix = f"{PREFIX}/{run}/{self.request.model}/{self.request.grid}/"
         xml = self._lister(prefix)
         out: list[RemoteObject] = []
-        for key, size in _XML_KEY.findall(xml):
+        for bloc in _XML_CONTENTS.findall(xml):
+            key = _champ(bloc, "Key")
+            size = _champ(bloc, "Size")
+            if key is None or size is None or not size.isdigit():
+                continue
             if not VALID_KEY.match(key):
                 continue
             parts = key.split("/")
@@ -261,7 +307,11 @@ class MeteoFrancePntConnector(BaseConnector):
             time_range = name.split("__")[-2] if name.count("__") >= 3 else ""
             out.append(
                 RemoteObject(
-                    key=key, package=parts[-2], time_range=time_range, size_bytes=int(size)
+                    key=key,
+                    package=parts[-2],
+                    time_range=time_range,
+                    size_bytes=int(size),
+                    last_modified=_horodatage(_champ(bloc, "LastModified")),
                 )
             )
         return tuple(sorted(out, key=lambda o: (o.package, o.time_range)))

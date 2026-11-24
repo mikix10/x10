@@ -365,6 +365,7 @@ x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.packages
 x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.run
 x10_connectors.meteofrance_pnt.MeteoFrancePntRequest.time_ranges
 x10_connectors.meteofrance_pnt.RemoteObject.key
+x10_connectors.meteofrance_pnt.RemoteObject.last_modified
 x10_connectors.meteofrance_pnt.RemoteObject.package
 x10_connectors.meteofrance_pnt.RemoteObject.size_bytes
 x10_connectors.meteofrance_pnt.RemoteObject.time_range
