@@ -37,7 +37,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 from urllib.request import Request, urlopen
 
-from x10_models import Retrieval
+from x10_models import Agent, Retrieval, Rights
 
 from .base import AGENT, BaseConnector, ConnectorResult, atomic_write, safe_target
 from .observability import (
@@ -66,6 +66,21 @@ SOURCE_FORMAT = "grib2"
 #: Identifiant SPDX de la Licence Ouverte 2.0.
 SOURCE_LICENSE = "etalab-2.0"
 SOURCE_URL = "https://www.data.gouv.fr/datasets/paquets-arome-resolution-0-025deg"
+
+#: Ce que la Licence Ouverte 2.0 exige, et **rien de plus** : elle demande
+#: « la paternité de l'Information : sa source, a minima le nom du
+#: Concédant ». Elle n'impose aucune phrase d'attribution, et le concédant
+#: ne fournit ni avis de droit d'auteur ni exclusion de garantie — les
+#: champs restent donc vides, ce qui est un constat et non une omission.
+#:
+#: L'adresse du concédant n'est pas portée ici : la page qui renvoie vers
+#: l'Information dépend du jeu, donc elle relève de la distribution au
+#: catalogue, et non de ce niveau.
+SOURCE_RIGHTS = Rights(
+    licensor=Agent(name="Météo-France", roles=("producer", "licensor")),
+    license_id=SOURCE_LICENSE,
+    license_url="https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+)
 
 BASE_URL = "https://meteofrance-pnt.s3.rbx.io.cloud.ovh.net"
 PREFIX = "pnt"
@@ -370,6 +385,7 @@ class MeteoFrancePntConnector(BaseConnector):
                 },
                 agent=AGENT,
                 license=SOURCE_LICENSE,
+                rights=SOURCE_RIGHTS,
             ),
         )
         _log.info("Meteo-France retrieval finished", extra=fetch_finished_fields(result))
@@ -388,6 +404,7 @@ __all__ = [
     "SOURCE_LICENSE",
     "SOURCE_NAME",
     "SOURCE_PRODUCER",
+    "SOURCE_RIGHTS",
     "SOURCE_URL",
     "VALID_KEY",
     "MeteoFrancePntConnector",

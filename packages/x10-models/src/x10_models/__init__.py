@@ -278,6 +278,48 @@ class Distribution(BaseModel):
     priority: int = Field(default=100, ge=0)
 
 
+class Rights(BaseModel):
+    """Ce qu'une licence oblige à conserver, et qui doit voyager avec la donnée.
+
+    **Les champs ne sont pas une conception, ce sont des clauses mesurées.**
+    CC BY 4.0 §3(a)(1) impose de conserver, *si le concédant les fournit*,
+    l'identification du créateur, un avis de droit d'auteur, un avis de
+    licence, une exclusion de garantie et une URI vers le matériel ; la
+    Licence Ouverte 2.0 impose la source, « a minima le nom du concédant ».
+    **Un champ vide dit que le concédant ne fournit pas la mention**, et non
+    que nous l'avons omise — c'est la gradation que le dépôt applique déjà à
+    `standard_name`.
+
+    **Deux notions voisines, deux champs.** `license_id` *identifie* la
+    licence, `license_url` *localise* son texte. SPDX donne le premier de
+    façon fiable ; il ne donne pas nécessairement le second sous la forme
+    que le concédant veut voir citée — mesuré le 24/11/2026, son `seeAlso`
+    pour `etalab-2.0` désigne un miroir et non le site du concédant.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    #: Qui créditer : le **concédant**, jamais le rediffuseur. Sur une source
+    #: republiée, ce ne sont pas le même organisme, et c'est le premier qui
+    #: détient les droits.
+    licensor: Agent
+    #: Identifiant SPDX — `CC-BY-4.0`, `etalab-2.0`.
+    license_id: str = Field(min_length=1)
+    #: URI du texte de la licence, telle que le concédant la cite.
+    license_url: str | None = None
+    #: La phrase d'attribution que le concédant **impose**, mot pour mot.
+    #: Vide quand il n'en impose aucune.
+    attribution: str | None = None
+    #: L'avis de droit d'auteur fourni par le concédant, mot pour mot.
+    copyright_notice: str | None = None
+    #: L'exclusion de garantie fournie par le concédant, mot pour mot.
+    disclaimer: str | None = None
+    #: Les instruments qui **s'ajoutent** à la licence. L'ECMWF en impose un,
+    #: et le taire reviendrait à annoncer une licence plus permissive que la
+    #: sienne.
+    additional_terms: tuple[str, ...] = ()
+
+
 class Retrieval(BaseModel):
     """Lignage d'une acquisition, structuré comme PROV-O.
 
@@ -303,6 +345,9 @@ class Retrieval(BaseModel):
     #: Agent responsable, avec sa version : `x10-connectors 0.1.0`.
     agent: str = Field(min_length=1)
     license: str | None = None
+    #: Ce que la licence oblige à conserver. `None` quand l'origine n'a pas
+    #: été instruite — l'absence doit se voir, et non se combler.
+    rights: Rights | None = None
 
 
 class GeoPoint(BaseModel):
@@ -361,6 +406,7 @@ __all__ = [
     "PhysicalDomain",
     "Provenance",
     "Retrieval",
+    "Rights",
     "SourceTerms",
     "Variable",
 ]
