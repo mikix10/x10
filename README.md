@@ -7,6 +7,12 @@
 [![Vérifié par mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 [![pre-commit](https://img.shields.io/badge/pre--commit-actif-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
+> **Par où entrer.** [CONTRIBUTING.md](CONTRIBUTING.md) pour contribuer —
+> mise en route, portes de qualité, et ce qui n'entre jamais dans ce dépôt.
+> [AGENTS.md](AGENTS.md) pour le guide de travail complet, y compris pour un
+> agent. [docs/README.md](docs/README.md) pour les décisions arrêtées et leur
+> mesure. [PLAN.md](PLAN.md) pour l'état des phases.
+
 ## Contexte
 
 X10 est la composante d'exploitation de données géo-hydro-océano-météo open data.
@@ -29,28 +35,23 @@ Objectif général : fournir une base technique robuste pour exposer ces donnée
 - Utiliser `uv` et un workspace Python basé sur `pyproject.toml`
 - Séparer les composants publiables dans un dossier `packages/`
 - Séparer les démonstrateurs / services dans un dossier `services/`
-- Python 3.12 comme cible de développement ; la CI exécute en plus un job 3.13 non bloquant, en canari de compatibilité ascendante
+- Python 3.12 comme cible de développement ; la CI exécute en plus deux jobs non bloquants, 3.13 et 3.14, en canaris de compatibilité ascendante
 - Licence BSD-3-Clause
 
-### Packages envisagés
+### Les six membres du workspace
 
-- `x10-models`
-  - modèles Pydantic v2, immuables (`frozen`)
-  - unités, emprises géographiques, horodatage
-  - qualité et provenance des données
+Quatre paquets publiables sous `packages/`, deux services sous `services/`.
+Les volumes à jour sont engendrés dans
+[chiffres.txt](workspace-tests/chiffres.txt).
 
-- `x10-catalog`
-  - registre des sources
-  - producteurs, diffuseurs, formats, licences, modalités d'accès
-  - sémantique des catalogues de données
-
-- `x10-connectors`
-  - interfaces de découverte, téléchargement, validation, normalisation
-  - adaptateurs pour sources externes
-
-- `x10-storage`
-  - abstractions de persistance
-  - adaptateurs de démonstration sans imposer de backend de stockage cible
+| Membre | Rôle | État |
+|---|---|---|
+| `x10-models` | modèles Pydantic v2 immuables : unités, emprises, horodatage, provenance, droits | **écrit** |
+| `x10-catalog` | registre des sources — producteurs, formats, licences, modalités d'accès — et recherche à facettes | **écrit et peuplé** |
+| `x10-connectors` | découverte, téléchargement, décodage GRIB2, normalisation NetCDF-CF | **écrit**, deux sources réelles |
+| `x10-storage` | abstractions de persistance | ébauche, aucun appelant |
+| `x10-api` | démonstrateur d'exposition | enveloppe seule |
+| `x10-client` | l'appelant de la chaîne, son compte rendu et ses sondes | **écrit** |
 
 ## Positionnement technique
 

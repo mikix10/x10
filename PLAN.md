@@ -20,14 +20,16 @@ Six membres, et un déséquilibre qui oriente la suite.
 
 | Membre | Source | Rôle tenu aujourd'hui |
 |---|---:|---|
-| `x10-connectors` | 4 443 l. | acquisition, décodage, normalisation, écriture, contrat |
-| `x10-client` | 1 857 l. | assemblage de la chaîne et compte rendu |
-| `x10-models` | 366 l. | vocabulaire de domaine |
+| `x10-connectors` | 4 618 l. | acquisition, décodage, normalisation, écriture, contrat |
+| `x10-client` | 1 884 l. | assemblage de la chaîne et compte rendu |
+| `x10-models` | 418 l. | vocabulaire de domaine |
 | `x10-catalog` | 300 l. | registre, interrogation à facettes, catalogue peuplé |
 | `x10-storage` | 25 l. | **une interface sans implémentation ni appelant** |
 | `x10-api` | 8 l. | une fonction `hello()` |
 
-`x10-connectors` porte **63 % des 6 999 lignes de source**. Ce n'est pas un défaut en soi
+`x10-connectors` porte **63 % des 7 253 lignes de source** au 26/11/2026 —
+les valeurs à jour sont engendrées dans
+[chiffres.txt](workspace-tests/chiffres.txt). Ce n'est pas un défaut en soi
 — c'est là que vit le métier — mais cela dit où se trouve le risque de
 concentration, et que trois membres sont encore des déclarations d'intention.
 
@@ -64,7 +66,7 @@ Six membres autonomes, versionnés, typés et publiables :
 - [x] `x10-models` — le vocabulaire de domaine
 - [x] `x10-connectors` — acquisition, décodage, normalisation
 - [x] `x10-client` — l'appelant de la chaîne, et son compte rendu
-- [~] `x10-catalog` — **le type d'entrée existe, le registre reste à écrire**
+- [x] `x10-catalog` — registre, recherche à facettes, catalogue peuplé
 - [~] `x10-storage` — abstraction posée, **sans implémentation ni appelant**
 - [ ] `x10-api` — enveloppe seule
 
@@ -154,7 +156,7 @@ action plutôt que l'étoffement des modèles. Trois choses en découlent, dans
 cet ordre :
 
 1. **Un registre** — enregistrer des entrées, les chercher, et rendre une
-   résolution. Le comportement que `x10-catalog` annonce sans l'avoir.
+   résolution. **Fait depuis le 19/10/2026** : `Registry`, `Query`, facettes.
 2. **Un inventaire de variables dérivé des fichiers**, et non des descriptifs
    des producteurs, qui se sont déjà révélés incomplets ou faux.
 3. **Une requête exprimée en besoin**, que le catalogue traduit en sélection
@@ -179,6 +181,22 @@ d'exploitation avant de trancher » dans [AGENTS.md](AGENTS.md).
 **Ce qui avance sans cette réponse** : l'inventaire de l'IFS, qui manque au
 catalogue faute de granule au corpus, et les modèles de domaine encore
 absents — emprises géographiques, séries temporelles, qualité.
+
+## Le travail en vol
+
+**Relevé le 26/11/2026.** Une branche porte du travail commité et jamais
+proposé : `feat/image-de-verification`, du 24/11 — 413 lignes, un
+`Dockerfile` à base épinglée par empreinte, un manifeste de Job, un
+vérificateur et son workflow de construction.
+
+> **Pourquoi cette ligne existe.** Le 26/11, une analyse de l'état du dépôt a
+> conclu qu'aucun `Dockerfile` n'existait. C'était vrai de `main` et faux du
+> dépôt, et personne n'avait de raison de le savoir. **Un travail commité et
+> non proposé est invisible à tout le monde, y compris à son auteur.**
+>
+> Cette ligne se périme par construction : elle est datée, et le relevé qui
+> la tient à jour est une commande, pas un paragraphe — `git branch -r` et
+> `gh pr list` disent l'état réel en deux secondes.
 
 ## Ce qui contraint une décision de conception
 

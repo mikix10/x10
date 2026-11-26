@@ -1,0 +1,24 @@
+# Engendre par workspace-tests/test_chiffres.py -- ne pas editer a la main.
+# Regenerer : X10_CHIFFRES_UPDATE=1 uv run pytest workspace-tests/test_chiffres.py
+workspace.membres	6
+src.x10-catalog	300
+src.x10-connectors	4618
+src.x10-models	418
+src.x10-storage	25
+src.x10-api	8
+src.x10-client	1884
+src.total	7253
+tests.fichiers	42
+tests.fonctions	551
+lexique.termes	524
+typage.derogations	15
+ecarts.entrees	20
+ecarts.status.confirmed	17
+ecarts.status.under_investigation	2
+ecarts.status.withdrawn	1
+ecarts.mode.automatic	7
+ecarts.mode.manual	10
+ecarts.mode.untested	3
+sondes	20
+docs.notes	18
+skills	7
