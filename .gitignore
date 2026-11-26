@@ -60,7 +60,30 @@ Thumbs.db
 # Projet
 *.log
 
-# Liste locale des termes proscrits dans les commits (voir CLAUDE.md)
+# --- Le niveau local, ferme par classe et non par cas -------------------
+#
+# Le depot vit a trois niveaux : celui-ci, public ; un depot prive ; et un
+# hors-depot qui ne porte aucun des deux. Rien du deuxieme ni du troisieme
+# ne doit entrer ici.
+#
+# **Ferme par classe, et c'est une correction datee du 26/11/2026.** Ce jour
+# la, `git add -A` a indexe 6 465 lignes d'un dossier voisin nomme
+# `docs-local-hors-depot/` : la liste nommait `docs-local/`, le voisin
+# portait un autre nom, et rien ne l'a vu. Le controle manuel l'a arrete.
+# Un motif par nom rate le nom suivant ; un motif par **marqueur** ne le
+# rate pas.
+#
+# Et `workspace-tests/test_niveaux.py` le tient en plus de ce fichier : un
+# chemin suivi portant un marqueur fait echouer la suite. Une liste
+# d'exclusion qu'aucun test ne double est une consigne, pas un controle.
+*hors-depot*
+*-local/
+*-local
+docs-local*
+*_priv/
+*_priv
+
+# Liste locale des termes proscrits dans les commits (voir AGENTS.md)
 .denylist
 
 # Configuration Claude Code : permissions, hooks et reglages du poste.
