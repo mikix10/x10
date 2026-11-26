@@ -179,3 +179,40 @@ d'exploitation avant de trancher » dans [AGENTS.md](AGENTS.md).
 **Ce qui avance sans cette réponse** : l'inventaire de l'IFS, qui manque au
 catalogue faute de granule au corpus, et les modèles de domaine encore
 absents — emprises géographiques, séries temporelles, qualité.
+
+## Ce qui contraint une décision de conception
+
+Déplacé depuis le guide d'agent le 26/11/2026 : c'est de la feuille de route,
+et un guide dit ce qui est, pas ce qui viendra. Ne figurent ici que les
+points qu'il faut **avoir en tête au moment de trancher**, pas au moment
+d'ouvrir un chantier.
+
+- **Codecov, à réexaminer une fois, à la publication de la 1.0.0.** La
+  barrière de couverture est locale et sans service tiers ; les courbes de
+  tendance et le commentaire de couverture différentielle prennent leur sens
+  quand le projet a une histoire et des contributeurs. Raisonnement complet
+  dans [tests-et-couverture](docs/tests-et-couverture.md).
+- **Métriques de supervision.** Les journaux permettent à une chaîne ELK de
+  dériver taux de succès, latence et volume, mais la détection d'incident
+  dépend alors du délai d'indexation. Un point d'entrée de métriques, ou un
+  contrôle de santé par source, se prévoit si un besoin de supervision temps
+  réel apparaît.
+- **Montée de majeure des actions GitHub** — proposée par Dependabot, **une
+  demande par majeure** et non groupée : c'est un changement fonctionnel, à
+  éprouver isolément. Sans jamais abandonner l'épinglage par empreinte, que
+  Dependabot comprend et met à jour de concert avec le commentaire de
+  version. Si un nom de job change au passage, suivre la règle d'ordre du
+  skill `github-protection` : un contexte requis sans job correspondant
+  bloque toute fusion définitivement.
+- **Documentation publiée : une version anglaise `/en/`.** La documentation
+  et les commentaires sont en français par décision ; une publication Read
+  the Docs porterait donc `/fr/` et `/en/`. Conséquence à garder en tête
+  **dès maintenant** : ce sont les **docstrings** qui alimenteraient une
+  référence d'API automatique, donc le coût de traduction croît à chaque
+  module ajouté. Même échéance que la publication PyPI.
+- **Sous-paquet `formats/` au troisième format.** À sept modules la structure
+  plate reste plus lisible, et un `formats/` appellerait un `sources/` par
+  symétrie. Le point de bascule est l'arrivée d'un troisième format.
+- **Publication PyPI** — par Trusted Publishing plutôt qu'un jeton. Le jour
+  venu, la matrice trois systèmes est la garantie que le paquet s'installe
+  ailleurs que sur la machine du mainteneur.
