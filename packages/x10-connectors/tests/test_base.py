@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from x10_connectors import BaseConnector, ConnectorResult
+from x10_connectors import BaseConnector, ConnectorResult, file_digest
 
 
 def _resultat(**surcharges: object) -> ConnectorResult:
@@ -77,3 +77,34 @@ def test_le_statut_suit_le_vocabulaire_ecs(valeur):
 def test_les_mesures_ne_peuvent_pas_etre_negatives(champ, valeur):
     with pytest.raises(ValidationError):
         _resultat(**{champ: valeur})
+
+
+def test_l_empreinte_est_celle_du_contenu(tmp_path):
+    """Les valeurs attendues sont **littérales**, et c'est voulu.
+
+    Les recalculer dans le test ne vérifierait que la cohérence de la
+    fonction avec elle-même. Une référence littérale la confronte à ce que
+    tout autre outil calculerait du même contenu.
+    """
+    vide = tmp_path / "vide.bin"
+    vide.write_bytes(b"")
+    assert file_digest(vide) == ("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+
+    court = tmp_path / "court.bin"
+    court.write_bytes(b"x10")
+    assert file_digest(court) == (
+        "96a610aee3735ad666d7a40a0f030498b6b8b26ea3240a7308723b61a7794a87"
+    )
+
+
+def test_l_empreinte_n_est_pas_tronquee(tmp_path):
+    """Contrairement à l'empreinte d'une table, tronquée à douze caractères.
+
+    L'empreinte de table est un **indicateur de dérive** : douze caractères
+    suffisent à dire que quelque chose a bougé. L'empreinte de fichier est une
+    **identité**, et la tronquer lui retirerait ce qui la rend utile de
+    l'autre côté d'une frontière.
+    """
+    fichier = tmp_path / "x.bin"
+    fichier.write_bytes(b"x10")
+    assert len(file_digest(fichier)) == 64

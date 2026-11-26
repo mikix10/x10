@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from x10_connectors import BaseConnector, ConnectorResult, grib2, netcdf_cf
+from x10_connectors import BaseConnector, ConnectorResult, base, grib2, netcdf_cf
 from x10_connectors.contract import output_contract
 from x10_models import Retrieval
 
@@ -236,22 +236,28 @@ class Session:
         )
 
         outputs: list[Path] = []
+        digests: list[str] = []
         if options.write:
             for index, dataset in enumerate(normalised):
                 target = self.settings.destination / f"{source.stem}__{index:02d}.nc"
-                outputs.append(
-                    netcdf_cf.write_netcdf(
-                        dataset,
-                        target,
-                        retrieval=retrieval,
-                        strict_units=options.strict_units,
-                        compress=options.compress,
-                    )
+                ecrit = netcdf_cf.write_netcdf(
+                    dataset,
+                    target,
+                    retrieval=retrieval,
+                    strict_units=options.strict_units,
+                    compress=options.compress,
                 )
+                outputs.append(ecrit)
+                # L'empreinte se prend **ici**, sur le fichier publié, et non
+                # dans l'écrivain : celui-ci rend un chemin, et changer son
+                # retour romprait une surface publique pour un besoin qui est
+                # celui de l'appelant.
+                digests.append(base.file_digest(ecrit))
 
         return GranuleReport(
             source=source,
             outputs=tuple(outputs),
+            output_digests=tuple(digests),
             parameters_in=len(incoming),
             fields_out=sum(len(d.data_vars) for d in normalised),
             dropped=dropped,

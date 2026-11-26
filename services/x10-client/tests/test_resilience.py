@@ -20,7 +20,7 @@ from fixtures_grib2_min import minimal_granule
 from x10_client import ErrorType, NormaliseOptions, Session, Verdict, observe
 from x10_client import session as module_session
 
-from x10_connectors import ConnectorResult
+from x10_connectors import ConnectorResult, file_digest
 from x10_models import Retrieval
 
 pytest.importorskip("cfgrib")
@@ -277,3 +277,26 @@ def test_chaque_execution_laisse_une_ligne_relisible(session, tmp_path, monkeypa
     lignes = (session.settings.state / "runs.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lignes) == 2
     assert all(json.loads(x)["verdict"] == "complete" for x in lignes)
+
+
+def test_le_compte_rendu_porte_l_empreinte_du_fichier_ecrit(session, tmp_path, monkeypatch):
+    """**D7**, et hors ligne.
+
+    Un chemin ne survit pas au franchissement d'une frontière : de l'autre
+    côté, il ne désigne rien. L'empreinte, lui, permet de rapprocher ce qui
+    a été écrit de ce qui est arrivé — et c'est la seule façon de voir une
+    perte en transit.
+    """
+    sain = minimal_granule(tmp_path / "raw" / "sain.grib2", ((0, 0),))
+    _wire(monkeypatch, (sain,))
+
+    report = session.run(FakeRequest())
+
+    paires = [
+        paire
+        for granule in report.granules
+        for paire in zip(granule.outputs, granule.output_digests, strict=True)
+    ]
+    assert paires, "le granule doit avoir ete ecrit"
+    for chemin, empreinte in paires:
+        assert empreinte == file_digest(chemin), chemin

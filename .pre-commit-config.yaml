@@ -57,6 +57,25 @@ repos:
   # README tout en manquant observability.py et le bloc de typage racine.
   - repo: local
     hooks:
+      # Le depot est public et son historique est permanent : un terme
+      # proscrit qui y entre n'en sort plus. Deux portees, parce qu'un terme
+      # passe aussi bien par le diff que par le message.
+      - id: termes-proscrits
+        name: Aucun terme proscrit dans le diff
+        language: python
+        entry: python .pre-commit-hooks/termes_proscrits.py --diff
+        stages: [pre-commit]
+        always_run: true
+        pass_filenames: false
+
+      - id: termes-proscrits-message
+        name: Aucun terme proscrit dans le message
+        language: python
+        entry: python .pre-commit-hooks/termes_proscrits.py --message
+        stages: [commit-msg]
+        always_run: true
+        pass_filenames: true
+
       - id: relecture-securite
         name: Relecture de securite sur chemin sensible
         language: python
