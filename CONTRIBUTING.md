@@ -189,6 +189,35 @@ Le dépôt est public.
 Les sources effectivement intégrées échappent à cette dernière règle : leur
 nom, leur licence et leur provenance doivent au contraire être explicites.
 
+### Trois niveaux, et celui-ci est le premier
+
+Ce qui précède n'est pas une liste d'interdits isolés : c'est la face visible
+d'une organisation en **trois niveaux**, et la connaître évite de se demander
+à chaque fichier s'il a le droit d'entrer.
+
+| Niveau | Ce qu'il porte | Où |
+|---|---|---|
+| **public** | le code, les tests, et le **pourquoi mesuré** de chaque décision | ce dépôt |
+| **privé** | ce que le public ne peut pas porter — analyses nommant des tiers, règles portant sur nos propres défenses, configuration du poste | un dépôt séparé |
+| **hors dépôt** | ce qu'aucun dépôt ne tient — transcrits, relevés, documents reçus | un dossier voisin, sauvegardé sélectivement |
+
+**La règle tient en une phrase : rien du deuxième ni du troisième n'entre
+dans le premier.** Et elle n'est pas tenue par la discipline seule — un
+chemin suivi par git dont un segment porte un marqueur de niveau
+(`-local`, `hors-depot`, `_priv`) **fait échouer la suite de tests**, voir
+`workspace-tests/test_niveaux.py`.
+
+> **Pourquoi un test et pas seulement une ligne de `.gitignore`.** Le
+> 26/11/2026, `git add -A` a indexé 6 465 lignes d'un dossier **voisin** de
+> celui que la liste nommait. Une liste dit ce qu'on a pensé à exclure ;
+> elle ne dit rien de ce qu'on n'a pas prévu. **On ferme la classe, pas le
+> cas** — et le test la ferme une seconde fois, parce que les deux peuvent
+> dériver séparément.
+
+Un contributeur extérieur n'a affaire qu'au premier niveau. Les deux autres
+sont ceux du mainteneur, et rien de ce dépôt n'en dépend pour être
+construit, testé ou relu.
+
 ## Signaler plutôt que contourner
 
 Si un contrôle bloque, il a le plus souvent raison. S'il a tort, c'est le
