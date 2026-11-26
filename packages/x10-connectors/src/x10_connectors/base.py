@@ -230,6 +230,24 @@ def module_constants(module: ModuleType) -> dict[str, object]:
     return {nom: valeurs[nom] for nom in sorted(set(noms)) if nom in valeurs}
 
 
+def file_digest(target: Path) -> str:
+    """L'empreinte SHA-256 d'un fichier, **en entier**.
+
+    **À ne pas confondre avec `table_fingerprint`, et le qualificatif le
+    dit.** Une *empreinte de table* est tronquée à douze caractères et
+    sert d'**indicateur de dérive** : elle répond à « quelque chose
+    a-t-il bougé ». Une *empreinte de fichier* est une **identité** : elle
+    répond à « est-ce bien ce fichier-là », de l'autre côté d'une frontière
+    où le chemin ne veut plus rien dire. Tronquer une identité lui retirerait
+    sa seule propriété utile.
+
+    Lu par blocs : un granule normalisé pèse une dizaine de mébioctets, et
+    rien ne garantit que ce reste vrai.
+    """
+    with target.open("rb") as flux:
+        return hashlib.file_digest(flux, "sha256").hexdigest()
+
+
 def table_fingerprint(module: ModuleType, *, exempt: Collection[str]) -> str:
     """Empreinte des tables d'un module, **dérivée de ses affectations**.
 
@@ -267,6 +285,7 @@ __all__ = [
     "Outcome",
     "UnsafeDestinationError",
     "atomic_write",
+    "file_digest",
     "module_constants",
     "safe_target",
     "table_fingerprint",

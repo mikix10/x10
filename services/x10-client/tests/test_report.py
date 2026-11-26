@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from x10_client import GranuleReport, PipelineReport, Verdict
 from x10_client.report import contract_fingerprint
 
@@ -134,3 +135,32 @@ def test_l_acquisition_est_reprise_telle_quelle():
     )
     assert report.acquisition == acquisition
     assert json.loads(report.model_dump_json())["acquisition"]["bytes_downloaded"] == 4096
+
+
+def test_une_empreinte_par_fichier_ecrit_ou_aucune(tmp_path):
+    """Deux suites parallèles se désynchronisent ; le modèle le refuse.
+
+    Le champ reste facultatif, parce qu'un compte rendu écrit avant lui n'en
+    porte pas. Mais une empreinte de trop ou de moins décalerait toute la
+    correspondance entre fichiers et empreintes **sans que rien ne le
+    signale** — et c'est précisément la classe de défaut que ce champ existe
+    pour fermer.
+    """
+    premier, second = tmp_path / "a.nc", tmp_path / "b.nc"
+
+    aligne = GranuleReport(
+        source=tmp_path / "e.grib2",
+        outputs=(premier, second),
+        output_digests=("a" * 64, "b" * 64),
+    )
+    assert len(aligne.output_digests) == len(aligne.outputs)
+
+    sans = GranuleReport(source=tmp_path / "e.grib2", outputs=(premier, second))
+    assert sans.output_digests == ()
+
+    with pytest.raises(ValidationError, match="décalée"):
+        GranuleReport(
+            source=tmp_path / "e.grib2",
+            outputs=(premier, second),
+            output_digests=("a" * 64,),
+        )

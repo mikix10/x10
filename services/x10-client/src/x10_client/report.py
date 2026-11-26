@@ -43,7 +43,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from x10_connectors import ConnectorResult
 
@@ -126,6 +126,11 @@ class GranuleReport(BaseModel):
 
     #: Les fichiers écrits. Plusieurs, un granule rendant plusieurs jeux.
     outputs: tuple[Path, ...] = ()
+    #: L'empreinte SHA-256 de chaque fichier écrit, **dans l'ordre de
+    #: `outputs`**. Un chemin ne survit pas au franchissement d'une
+    #: frontière ; une empreinte, si — c'est elle qui permet de rapprocher ce
+    #: qui a été écrit de ce qui est arrivé.
+    output_digests: tuple[str, ...] = ()
 
     #: Identifiants de paramètre lus dans les **en-têtes de l'entrée**.
     #: Lecture d'en-têtes seule : aucune donnée n'est décompressée, donc le
@@ -150,6 +155,22 @@ class GranuleReport(BaseModel):
 
     #: Pourquoi ce verdict, en clair. Vide quand il n'y a rien à dire.
     reason: str = ""
+
+    @model_validator(mode="after")
+    def _empreintes_alignees(self) -> GranuleReport:
+        """Deux suites parallèles se désynchronisent ; celle-ci ne peut pas.
+
+        Le champ reste facultatif — un compte rendu écrit avant lui n'en
+        porte pas —, mais **dès qu'il est renseigné il l'est pour chaque
+        sortie**. Sans ce contrôle, une empreinte de trop ou de moins
+        décalerait toute la correspondance sans que rien ne le signale.
+        """
+        if self.output_digests and len(self.output_digests) != len(self.outputs):
+            raise ValueError(
+                f"{len(self.output_digests)} empreintes pour {len(self.outputs)} "
+                "fichiers écrits : la correspondance serait décalée."
+            )
+        return self
 
 
 class PipelineReport(BaseModel):

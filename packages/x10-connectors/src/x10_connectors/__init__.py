@@ -20,6 +20,7 @@ from .base import (
     Outcome,
     UnsafeDestinationError,
     atomic_write,
+    file_digest,
     safe_target,
 )
 from .contract import Contract, Divergences, compare_contracts, output_contract
@@ -78,6 +79,7 @@ __all__ = [
     "failure_fields",
     "fetch_finished_fields",
     "fetch_started_fields",
+    "file_digest",
     "grib2",
     "meteofrance_pnt",
     "netcdf_cf",

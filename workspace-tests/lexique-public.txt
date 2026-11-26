@@ -143,6 +143,7 @@ x10_client.report.GranuleReport.contract
 x10_client.report.GranuleReport.dropped
 x10_client.report.GranuleReport.error_type
 x10_client.report.GranuleReport.fields_out
+x10_client.report.GranuleReport.output_digests
 x10_client.report.GranuleReport.outputs
 x10_client.report.GranuleReport.parameters_in
 x10_client.report.GranuleReport.reason
@@ -207,6 +208,7 @@ x10_connectors.__all__: ecmwf_ifs
 x10_connectors.__all__: failure_fields
 x10_connectors.__all__: fetch_finished_fields
 x10_connectors.__all__: fetch_started_fields
+x10_connectors.__all__: file_digest
 x10_connectors.__all__: grib2
 x10_connectors.__all__: meteofrance_pnt
 x10_connectors.__all__: netcdf_cf
@@ -231,6 +233,7 @@ x10_connectors.base.__all__: Outcome
 x10_connectors.base.__all__: PARTIAL_SUFFIX
 x10_connectors.base.__all__: UnsafeDestinationError
 x10_connectors.base.__all__: atomic_write
+x10_connectors.base.__all__: file_digest
 x10_connectors.base.__all__: module_constants
 x10_connectors.base.__all__: safe_target
 x10_connectors.base.__all__: table_fingerprint

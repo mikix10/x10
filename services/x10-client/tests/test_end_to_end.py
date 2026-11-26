@@ -16,6 +16,8 @@ from __future__ import annotations
 import pytest
 from x10_client import Session, Verdict, observe
 
+from x10_connectors import file_digest
+
 pytest.importorskip("cfgrib")
 pytest.importorskip("netCDF4")
 
@@ -60,6 +62,13 @@ def test_la_chaine_entiere_sur_un_granule_reel(tmp_path, monkeypatch, model, pac
         assert granule.fields_out <= granule.parameters_in
         assert granule.contract is not None
         assert all(output.is_file() for output in granule.outputs)
+
+        # **D7** : le compte rendu porte l'empreinte du fichier **réellement
+        # écrit**. Un chemin ne survit pas au franchissement d'une frontière ;
+        # ce rapprochement-là, si.
+        assert len(granule.output_digests) == len(granule.outputs)
+        for chemin, empreinte in zip(granule.outputs, granule.output_digests, strict=True):
+            assert empreinte == file_digest(chemin), chemin
 
     assert report.verdict is not Verdict.NOT_ASSESSED
 
