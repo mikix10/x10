@@ -132,7 +132,9 @@ C'est ainsi qu'est apparu `require_extra_approval_for_unattributed_changes`, ajo
 
 **Les approbations.** `required_approving_review_count` est à **0** et doit le rester tant que le projet a un seul mainteneur : GitHub interdit d'approuver sa propre PR, donc exiger une approbation bloquerait tout merge. La PR reste obligatoire — c'est elle qui déclenche la CI avant fusion.
 
-**Le canari 3.13.** Le job `Tests (Python 3.13)` est **délibérément absent** des vérifications obligatoires. Avec `continue-on-error: true` dans le workflow, il remonte toujours `success`, même quand les tests échouent. L'exiger donnerait une garantie illusoire.
+**Les canaris 3.13 et 3.14.** Les jobs `Tests (Python 3.13)` et `Tests (Python 3.14)` sont **délibérément absents** des vérifications obligatoires. Avec `continue-on-error: true` dans le workflow, ils remontent toujours `success`, même quand les tests échouent : l'exiger donnerait une garantie illusoire. Même régime pour les deux canaris de portabilité en 3.13.
+
+> Ce paragraphe n'a connu que 3.13 jusqu'au 26/11/2026 ; 3.14 était entré dans la matrice le 20/11 sans que le skill suive. **Un skill qui décrit la CI se relit quand la CI change** — c'est le même piège que les contextes requis, un cran plus haut.
 
 **macOS n'est pas un contexte requis, et ce n'est pas un oubli.** Les jobs
 macOS tournent et rapportent, mais ne bloquent pas la fusion. Constaté le
