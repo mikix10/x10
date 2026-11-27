@@ -27,9 +27,7 @@ Document vivant, à compléter au fil des sources et des moyens d'accès intégr
 
 ### Identifiants personnels — un angle mort distinct
 
-`gitleaks` traque des **secrets**. Une adresse de messagerie ou un chemin de répertoire personnel n'en est pas un : il les laisse passer, et le *push protection* de GitHub aussi. Ce ne sont pourtant pas des informations anodines sur un dépôt public, dont l'historique est permanent.
-
-Le hook `no-personal-identifiers` comble cet angle mort. Voir le skill `commit`.
+`gitleaks` traque des **secrets** ; une adresse de messagerie ou un chemin nominatif n'en est pas un, donc il les laisse passer. Le hook `no-personal-identifiers` comble cet angle mort — **le raisonnement et le motif sont dans le skill `commit`**, et ne se redisent pas ici.
 
 La configuration personnelle du mainteneur — identité, chemins, outillage du poste — vit dans un `CLAUDE.local.md` non versionné, jamais dans `AGENTS.md` ni dans un skill.
 

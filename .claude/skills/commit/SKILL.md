@@ -32,7 +32,18 @@ Un hook `pre-commit` exécute automatiquement ruff, les contrôles d'hygiène, `
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
-Tout doit passer. Ne jamais proposer un commit sur un arbre qui échoue — la CI le rejetterait de toute façon.
+Tout doit passer. Ne jamais proposer un commit sur un arbre qui échoue : la CI rejette lint, format, typage et tests.
+
+> **Ce que la CI ne rejette pas, et il faut le savoir.** Depuis le
+> 26/11/2026 le job « Contrôles de fichiers » y rejoue `gitleaks`, la
+> détection de clé privée, le motif d'identifiant personnel et l'hygiène de
+> fichiers — qui n'existaient qu'en local, et qu'un clone sans
+> `pre-commit install` contournait en silence. **Trois contrôles restent
+> locaux, et par nécessité** : `termes-proscrits` lit une liste
+> délibérément non versionnée, les hooks d'étape `commit-msg` n'ont pas de
+> message à lire en CI, et `no-commit-to-branch` n'a pas de sens sur une
+> référence détachée. **Sur un clone neuf, `pre-commit install` n'est donc
+> pas une commodité.**
 
 Ne jamais contourner le hook par `--no-verify`. S'il bloque, c'est qu'il a raison ou que sa configuration est à corriger.
 

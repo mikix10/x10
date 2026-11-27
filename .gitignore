@@ -105,3 +105,9 @@ docs-local/
 # Procedure de poste : elle nomme une cible d'exploitation que le depot
 # public ne nomme pas (voir « Confidentialite des tiers » dans AGENTS.md)
 .claude/skills/deploiement/
+# Procedures de poste : elles decrivent la tenue des trois niveaux et
+# le rythme des seances du mainteneur, pas le travail d'un contributeur.
+# Elles ne portent ni secret ni nom de tiers ; elles n'ont simplement
+# aucun lecteur dans un clone.
+.claude/skills/fin-de-session/
+.claude/skills/debut-de-session/

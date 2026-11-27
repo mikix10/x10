@@ -48,6 +48,36 @@ jobs:
       - name: Mypy
         run: uv run mypy
 
+  controles-locaux:
+    name: Controles de fichiers
+    # Les hooks `pre-commit` ne s'executaient QUE sur le poste de qui commite.
+    # Mesure du 26/11/2026 : un clone qui n'a jamais lance `pre-commit install`
+    # contournait en silence gitleaks, la detection de cle privee, le motif
+    # d'identifiant personnel et les controles d'hygiene de fichiers. Le skill
+    # `commit` affirmait pourtant que « la CI le rejetterait de toute facon ».
+    #
+    # Trois hooks restent hors de portee d'ici, et pour une raison :
+    #   - `termes-proscrits` lit `.denylist`, deliberement non versionnee ;
+    #   - les hooks d'etape `commit-msg` n'ont pas de message a lire ;
+    #   - `no-commit-to-branch` n'a pas de sens sur une reference detachee.
+    # Ils restent locaux, et le skill `commit` le dit desormais.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-packages --dev --locked
+
+      - name: Hooks de fichiers
+        env:
+          SKIP: termes-proscrits,no-commit-to-branch
+        run: uv run pre-commit run --all-files --hook-stage pre-commit --show-diff-on-failure
+
   signatures:
     # Le ruleset exige `required_signatures`, et cette exigence est aujourd'hui
     # SANS EFFET sous fusion par squash : GitHub cree alors un commit nouveau
