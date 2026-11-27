@@ -224,22 +224,12 @@ prennent leur sens quand le projet a une histoire et plusieurs contributeurs.
 
 ---
 
-## Décisions arrêtées, déplacées du guide le 20/11/2026
+## Ce que la CI garantit, et que le règlement ne garantit pas
 
-*Elles occupaient la moitié d'un fichier relu à chaque session. Le guide
-y renvoie désormais ; le texte est inchangé.*
-
-- **Les tests ne téléchargent rien et ne stockent rien.** Un message GRIB2 valide se construit en mémoire par ecCodes : quelques centaines d'octets suffisent à exercer géométrie, valeurs manquantes, cumuls et vent. Voir `tests/fixtures_grib2.py`. **Aucune donnée réelle n'est commise au dépôt**, et la suite par défaut tourne hors ligne. Les tests atteignant le service réel portent le marqueur `network`.
-
-- **Couverture : deux vues depuis une seule mesure.** La vue **informative**, dans `pyproject.toml`, n'exclut rien et affiche le taux réel. La vue **barrière**, dans `.coveragerc-offline`, écarte le code que seuls les tests `network` exercent et porte le seuil de **90 %**. Les deux taux du jour sont donnés plus haut, datés. Un seuil global serait mal posé dans les deux sens : trop haut il sanctionnerait une exclusion délibérée, trop bas il ne se déclencherait qu'après un effondrement.
-  **La mesure porte sur `packages/` **et** `services/`**, `source_pkgs` les énumérant : un membre de `services/` laissé hors du relevé ne serait pas moins mesuré, il serait mesuré sans être vu. Les paquets restent mesurables seuls — `pytest packages/` ne rapporte que ce qu'il a importé, donc le taux des paquets ne bouge pas d'un chantier mené dans `services/`.
-  **Piège à ne pas reproduire** : le marqueur est `# couvert par les tests reseau` et **ne contient pas `pragma: no cover`**, que les exclusions par défaut reconnaîtraient — le code serait alors masqué dans les **deux** vues, y compris celle qui doit montrer l'écart. Les exclusions s'appliquent au rapport et non à la mesure, donc un même fichier de données se relit des deux façons.
-
-- **Un contrat de sortie fige la forme, jamais les valeurs**, et sert d'**indicateur de dérive** du producteur. Voir `x10_connectors.contract`, et **ci-dessus**.
-  **Le niveau est le granule, et un seul.** Le message GRIB n'a pas besoin d'être un niveau distinct, chaque entrée portant l'identité GRIB du champ — une divergence nomme la variable **et** désigne les messages responsables. La variable seule ne détecterait pas une disparition. Un assemblage de plusieurs granules n'est pas contractable : il dépend de ce que l'appelant a demandé, pas de ce que le producteur publie.
-  **L'indexation est par nom de variable**, ni par ordre de jeu ni par type de niveau : vérifié le 08/10/2026, deux jeux d'AROME SP1 partagent `heightAboveGround = 10` et ne se distinguent que par leur axe temporel.
-  **Les écarts sont classés** — rupture contre nouveauté —, sans quoi l'indicateur serait désactivé au premier ajout de champ. Et **ce qui varie légitimement est exclu**, date de réseau en tête. Vérifié le 09/10/2026 : le contrat du réseau du 8 à 12 UTC et celui du réseau suivant sont **identiques**.
-  **Deux pièges de construction.** Les coordonnées longues sont **caractérisées** — taille, premier, dernier, pas, empreinte — et non énumérées, sans quoi la référence cesserait d'être relisible, seule qualité qui la distingue d'un binaire ; et toutes les valeurs sont **arrondies au millionième** avant comparaison, le pas réel sortant à `-0.02499999999999858`. Par ailleurs `numpy` range `timedelta64` parmi les entiers signés, donc `issubdtype(..., number)` ne l'attrape pas et les échéances resteraient en nanosecondes.
+Deux décisions qui portent sur l'**exécution** des contrôles, non sur leur
+contenu. Elles vivaient dans un bloc rapatrié du guide le 20/11/2026 ;
+trois de ses cinq entrées répétaient le corps de cette note, et ces deux-là
+ne le répétaient pas. Le bloc est dissous, ce qui restait est ici.
 
 - **Signatures des commits : le ruleset ne suffit pas, la CI le fait.** `required_signatures` exige qu'un commit soit signé, pas par qui. Or **sous fusion par squash, GitHub crée un commit nouveau et le signe de sa propre clé** — c'est le seul que la règle examine, et il l'est par construction. Les commits de la branche ne sont donc **jamais** contrôlés, et l'exigence est sans effet.
   Le constat s'était présenté le 09/10/2026, sur le `E` de `git log --show-signature` après la fusion de la PR #29 : j'avais noté que la signature n'était plus celle du mainteneur, sans en tirer la conséquence. La lecture d'un dépôt voisin l'a rendue évidente le 12.

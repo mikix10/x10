@@ -10,9 +10,9 @@ Définir des structures de données cohérentes pour les observations géo-hydro
 - horodatage,
 - représentation unifiée des valeurs.
 
-## Exemple
+## La forme
 
-Les modèles sont des `pydantic.BaseModel` immuables (`frozen=True`) : les valeurs sont validées à la construction (bornes géographiques, champs non vides) et sérialisables en JSON.
+Les modèles sont des `pydantic.BaseModel` immuables (`frozen=True`) : les valeurs sont validées à la construction — bornes géographiques, champs non vides — et sérialisables en JSON. **Le critère Pydantic plutôt que dataclass est le franchissement de frontière, pas le rôle de l'objet** : tout ce qui est sérialisé est un modèle, ce qui reste interne au processus ne l'est pas.
 
 ## Exemple
 
