@@ -120,9 +120,8 @@ La marche à suivre : avis de sécurité GitHub (GHSA) en mode privé, correctif
 
 ## 5. En place depuis
 
-- **Dependabot** et **CodeQL** sont actifs depuis le 12/10/2026, la condition posée ici — du code métier plutôt que des ébauches — étant remplie. Dependabot couvre `github-actions` et `uv`, en groupes relus ensemble et majeures isolées ; CodeQL analyse `python` **et** `actions`, cette seconde langue vérifiant nos propres workflows.
+- **Dependabot** et **CodeQL** sont actifs depuis le 09/10/2026 (`e449c02`), la condition posée ici — du code métier plutôt que des ébauches — étant remplie. Dependabot couvre `github-actions` et `uv`, en groupes relus ensemble et majeures isolées ; CodeQL analyse `python` **et** `actions`, cette seconde langue vérifiant nos propres workflows.
 
 ## 6. À mettre en place plus tard
 
 - **SECURITY.md** : politique de divulgation publique, à écrire au moment de la première publication PyPI, quand le projet aura des utilisateurs à qui s'adresser.
-- **Montée de version des actions GitHub** : `checkout` et `upload-artifact` sont en v4, `setup-uv` en v5, alors que v7 et v10 existent. Épinglés sur SHA donc immuables, mais en retard. À traiter comme un changement fonctionnel à part entière, testé, pas glissé dans un commit de sécurité.

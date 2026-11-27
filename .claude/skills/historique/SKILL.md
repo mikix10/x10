@@ -56,6 +56,11 @@ Toujours la même, pour qu'une analyse se retrouve et se compare à une autre.
 La racine se déduit du dépôt — `x10` donne `x10-hors-depot/info` — et
 `X10_HORS_DEPOT` la surcharge.
 
+> **`info/` n'est sauvegardé par rien.** La raison écrite dans la
+> configuration du poste ne vaut que pour les documents reçus d'un tiers, qui
+> se redemandent à leur auteur. Un relevé produit ici est de nous, et perdu
+> s'il n'est pas repris en synthèse dans `hors-depot/syntheses/`.
+
 > **L'emplacement et le nom du dossier se font confirmer avant d'être créés.**
 > Sans exception, et avant toute écriture. Ces dossiers s'accumulent et
 > servent à se repérer des mois plus tard : c'est le mainteneur qui sait sous

@@ -196,10 +196,12 @@ dans [docs/README.md](docs/README.md).
 
 ## Procédures outillées (skills)
 
-Dans `.claude/skills/`. **Quatre sont versionnées ; trois ne le sont pas** —
-`positioning`, `echanges` et `deploiement` nomment des tiers ou une cible que
-le dépôt public ne nomme pas. Elles fonctionnent : Claude Code charge les
-skills depuis le disque, pas depuis l'index.
+Dans `.claude/skills/`. **Quatre sont versionnées** — le compte est dans
+`workspace-tests/chiffres.txt`. **Cinq ne le sont pas** : `positioning`,
+`echanges` et `deploiement` nomment des tiers ou une cible que le dépôt
+public ne nomme pas ; `debut-de-session` et `fin-de-session` ne servent aucun
+lecteur d'un clone. Elles fonctionnent : Claude Code charge les skills depuis
+le disque, pas depuis l'index.
 
 | Skill | Quand l'invoquer |
 |---|---|
