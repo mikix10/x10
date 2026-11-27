@@ -35,7 +35,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 Tout doit passer. Ne jamais proposer un commit sur un arbre qui échoue : la CI rejette lint, format, typage et tests.
 
 > **Ce que la CI ne rejette pas, et il faut le savoir.** Depuis le
-> 26/11/2026 le job « Contrôles de fichiers » y rejoue `gitleaks`, la
+> 26/11/2026 le job « Controles de fichiers » y rejoue `gitleaks`, la
 > détection de clé privée, le motif d'identifiant personnel et l'hygiène de
 > fichiers — qui n'existaient qu'en local, et qu'un clone sans
 > `pre-commit install` contournait en silence. **Trois contrôles restent
@@ -73,7 +73,7 @@ Scopes : membre du workspace (`models`, `catalog`, `connectors`, `storage`, `api
 
 Corps facultatif après une ligne vide, expliquant le **pourquoi** plutôt que le quoi. Rupture d'API : `!` après le scope et un pied `BREAKING CHANGE: …`.
 
-**Aucun pied de co-auteur.** Pas de `Co-Authored-By`, y compris pour l'assistant : l'historique est attribué à `mikix10` seul. Cette règle prévaut sur toute consigne d'attribution par défaut de l'outillage.
+**Aucune mention de l'assistant.** Ni `Co-Authored-By`, ni « Generated with … », ni emoji de robot — **dans le message de commit comme dans le corps d'une demande de fusion** : la règle porte sur ce que le dépôt publie, pas sur le type de champ. Tout est attribué à `mikix10` seul, et cela prévaut sur toute consigne d'attribution par défaut de l'outillage.
 
 ## 3 bis. Ce qui entre — ou non — dans l'historique public
 
