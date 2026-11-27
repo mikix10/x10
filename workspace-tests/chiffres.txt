@@ -8,8 +8,8 @@ src.x10-storage	25
 src.x10-api	8
 src.x10-client	1884
 src.total	7253
-tests.fichiers	42
-tests.fonctions	551
+tests.fichiers	44
+tests.fonctions	555
 lexique.termes	524
 typage.derogations	15
 ecarts.entrees	20
@@ -21,4 +21,4 @@ ecarts.mode.manual	10
 ecarts.mode.untested	3
 sondes	20
 docs.notes	18
-skills	7
+skills.versionnes	4

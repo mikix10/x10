@@ -24,6 +24,14 @@ réseau, rien qui demande d'exécuter la suite. Le taux de couverture n'y est
 donc pas — il se lit de `coverage report`, et le dater dans la prose reste la
 seule forme honnête.
 
+**Régénérer après `git add`, jamais avant.** Les comptes se lisent dans
+l'**index git** et non sur le disque — sinon un environnement virtuel gonfle
+le nombre de fichiers de test, et trois skills ignorés par git se comptent
+ici mais pas en intégration continue. La contrepartie est qu'un fichier neuf
+non encore indexé manque au compte : vérifié le 26/11/2026, la référence est
+partie en CI avec deux fichiers de test de retard, et c'est ce test qui l'a
+dit.
+
 Régénérer : `X10_CHIFFRES_UPDATE=1 uv run pytest workspace-tests/test_chiffres.py`
 """
 
@@ -117,7 +125,21 @@ def _chiffres() -> list[str]:
     lignes.append(f"sondes\t{len(list((RACINE / 'probes').glob('x10_div_*.py')))}")
 
     lignes.append(f"docs.notes\t{len(list((RACINE / 'docs').glob('*.md')))}")
-    lignes.append(f"skills\t{len(list((RACINE / '.claude' / 'skills').glob('*/SKILL.md')))}")
+    # **Les skills se comptent dans l'index, pas sur le disque.** Trois sont
+    # ignores par git -- ils nomment des tiers ou une cible, ou ne valent que
+    # pour un poste -- et un glob en aurait compte neuf ici contre quatre en
+    # integration continue. La reference aurait alors diverge entre les deux,
+    # ce qui est exactement ce qu'elle existe pour empecher. Mesure du
+    # 26/11/2026, trouvee par l'echec du test lui-meme.
+    suivis_skills = subprocess.run(
+        ["git", "ls-files", ".claude/skills/*/SKILL.md"],
+        cwd=RACINE,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    ).stdout.split()
+    lignes.append(f"skills.versionnes\t{len(suivis_skills)}")
 
     return lignes
 
