@@ -15,7 +15,7 @@ porte sur le **portail d'API** lui-même : ce qu'il expose, comment on le
 découvre, et ce qu'il livre.
 
 Le relevé porte sur les **22 API** du catalogue, **398 opérations**,
-**35 documents de capacités WCS** totalisant environ **96 000 couvertures**,
+**35 documents de capacités WCS** totalisant environ **85 400 couvertures**,
 et **14 granules** téléchargés dans les deux formats que le service déclare.
 
 Elle complète [arome-paquets-et-api-ciblee.md](arome-paquets-et-api-ciblee.md)
@@ -93,7 +93,7 @@ chacune avec sa hauteur, sa période et sa direction.
 **Ces modèles sont servis en GRIB édition 1**, là où AROME et ARPEGE sont en
 édition 2 ; voir la section 4.
 
-### Trente-cinq services, environ 96 000 couvertures
+### Trente-cinq services, environ 85 400 couvertures
 
 | Famille | Services WCS | Couvertures |
 |---|---|---|
@@ -102,6 +102,14 @@ chacune avec sa hauteur, sa période et sa direction.
 | MFWAM | 2 | 975 |
 | WaveWatch III | 11 | ~2 900 |
 | HYCOM2D | 4 | 234 |
+| **total** | **35** | **~85 400** |
+
+> **Révision du 26/11/2026.** Ce document annonçait **96 000** couvertures en
+> deux endroits, quand la somme de son propre tableau en donne **85 409**.
+> Le relevé par famille est détaillé et le total ne l'était pas : c'est donc
+> le détail qui fait foi. L'écart de 10 600 n'est pas expliqué — il peut
+> venir d'un arrondi par excès, ou d'un relevé antérieur à une évolution du
+> portail. **Il se tranchera par un nouveau relevé, pas par un calcul.**
 
 ---
 

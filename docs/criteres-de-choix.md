@@ -70,9 +70,15 @@ effectivement attrapé une exemption devenue orpheline le 19/11/2026.
 
 ## C5 — Rendre l'écart lisible dans un `git diff` plutôt que le trancher
 
-Cinq références sont **engendrées** et commitées : vocabulaire public,
+Sept références sont **engendrées** et commitées : vocabulaire public,
 inventaire des tests, dérogations de typage, registre des écarts, contrat de
-sortie. Chaque ajout produit **une ligne qu'un relecteur lit**.
+sortie, unités canoniques CF, et **les chiffres du dépôt**. Chaque ajout
+produit **une ligne qu'un relecteur lit**.
+
+> **La septième est née d'un échec de ce critère, le 26/11/2026.** Les
+> chiffres étaient le seul relevé encore tenu à la main, et une note donnait
+> **quatre comptes différents de ses propres entrées**. Le critère valait
+> pour le code et pas pour la prose ; il vaut pour les deux.
 
 > C'est le piège qui a tué les tentatives recensées ailleurs : *une colonne
 > qu'un humain doit penser à mettre à jour ne l'est jamais.*

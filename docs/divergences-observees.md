@@ -3,9 +3,11 @@
 Note technique à l'usage de qui intègre X10, contribue au dépôt, ou maintient
 l'une des sources que nous exploitons.
 
-> **État au 20/10/2026** — 17 entrées, dont 15 confirmées et 2 sous
-> instruction. 6 sont rejouables automatiquement, dont une **sans rien
-> demander** : ni réseau, ni identifiant. Registre :
+> **État au 26/11/2026** — 20 entrées, dont 17 confirmées, 2 sous
+> instruction et 1 retirée. 7 sont rejouables automatiquement, dont une
+> **sans rien demander** : ni réseau, ni identifiant. Les comptes à jour
+> sont dans [chiffres.txt](../workspace-tests/chiffres.txt), engendré.
+> Registre :
 > [divergences.tsv](divergences.tsv). Catalogue : [`probes/`](../probes).
 > Mécanisme : `x10_client.probes`.
 
@@ -22,7 +24,7 @@ X10 fait en attendant.
 
 **C'est aussi la justification de la couche de normalisation.** Un lecteur
 qui se demande pourquoi X10 ne se contente pas de relayer des fichiers
-trouvera ici la réponse en dix-sept cas concrets : entre ce qu'un producteur
+trouvera ici la réponse en vingt cas concrets : entre ce qu'un producteur
 sert et ce qu'un consommateur peut exploiter sans se tromper, il y a un
 travail, et il est mesurable.
 
@@ -98,10 +100,10 @@ demande des identifiants, et son résultat n'a aucune raison d'être vert.
 
 ```python
 from pathlib import Path
-from x10_client.probes import charger, executer
+from x10_client.probes import load, run
 
-inscrites = charger(Path("probes"))
-rapport = executer(inscrites, seulement=["X10-DIV-0001"])  # ou sans filtre
+inscrites = load(Path("probes"))
+rapport = run(inscrites, only=["X10-DIV-0001"])  # ou sans filtre
 print(rapport.still_failing, rapport.newly_fixed)
 ```
 
@@ -132,8 +134,8 @@ continue ne les lance pas et personne ne les rejoue à notre place. Les dates
 disent quand nous avons regardé, pas que l'état décrit vaut aujourd'hui.
 Tenir la table nous revient ; la rejouer est ouvert à quiconque.
 
-**L'exhaustivité.** Dix-sept entrées sortent de deux journées de relevé sur
-deux producteurs. Il y en a d'autres, et des pans entiers n'ont pas été
+**L'exhaustivité.** Ces entrées sortent de deux journées de relevé sur deux
+producteurs. Il y en a d'autres, et des pans entiers n'ont pas été
 examinés — observations in-situ, projections climatiques, produits
 satellitaires.
 
@@ -187,7 +189,7 @@ empreints, et les sondes se suffisent à elles-mêmes pour rejouer.
 y renvoie désormais ; le texte est inchangé.*
 
 - **Les écarts des sources sont recensés, datés et rejouables.** **Cette note** pour le raisonnement, [divergences.tsv](divergences.tsv) pour le registre — **engendré** depuis `probes/` et vérifié par `workspace-tests/test_divergences.py`, jamais tenu à la main. Le mécanisme vit dans `x10_client.probes`, le catalogue dans `probes/` : *le paquet fournit le mécanisme, l'application fournit les valeurs*, comme pour `SecretRedactor`.
-  **Pourquoi ce registre justifie la couche de normalisation.** Quatorze entrées disent, cas par cas, ce qui sépare ce qu'un producteur sert de ce qu'un consommateur peut exploiter sans se tromper. « Redresser » est le mot retenu contre « absorber », qui ne dit que l'entrée, et contre « corriger », qui accuserait une source dont la divergence ne viole rien.
+  **Pourquoi ce registre justifie la couche de normalisation.** Ses entrées disent, cas par cas, ce qui sépare ce qu'un producteur sert de ce qu'un consommateur peut exploiter sans se tromper. « Redresser » est le mot retenu contre « absorber », qui ne dit que l'entrée, et contre « corriger », qui accuserait une source dont la divergence ne viole rien.
   **Trois natures qu'on ne confond pas** : une `non_conformity` **cite sa clause** — le modèle refuse de la porter sans —, une `divergence` surprend sans rien enfreindre, une `data_quality` est une coquille. Les mélanger abîmerait un signalement. Et un `status` distingue `confirmed` de `under_investigation` : le dépôt s'est trompé trois fois en une journée sur ce corpus, un registre qui nomme des organismes doit pouvoir le dire.
   **Une sonde n'est pas un test**, et le mot évite la confusion : un test dit si notre code est juste, une sonde si un constat daté sur un **tiers** tient toujours. Verdicts d'EARL, et le sens est inversé — le sujet est le producteur, donc `failed` veut dire que l'écart persiste et `passed` qu'il a été corrigé. Le rejeu est **libre** : nos sources s'ouvrent à qui s'inscrit, ce qui rend le registre contradictoire plutôt que déclaratif.
   **Une sonde ne justifie jamais à elle seule une dépendance nouvelle.** Elle se limite au nécessaire et suffisant — `urllib.request`, comme les connecteurs — et se renforcera le jour où une bibliothèque arrivera pour une raison produit. L'intégration continue ne les lance pas : elles exigent des identifiants, donc les dates disent quand nous avons regardé, pas que l'état décrit vaut aujourd'hui.

@@ -113,10 +113,12 @@ analyse rouge n'empêche donc pas de fusionner — mais elle se lit.
 
 ### Ce qui est groupé, et ce qui ne l'est pas
 
-Dependabot regroupe ce qui se relit ensemble : l'outillage d'un côté — ruff,
-mypy, pytest —, la pile scientifique de l'autre — cfgrib, eccodes, xarray,
-netCDF4, cf-units. Sans regroupement, une semaine ordinaire ouvrirait cinq
-demandes que personne ne lirait.
+Dependabot forme **trois** groupes, et `.github/dependabot.yml` fait foi :
+l'**outillage** — ruff, mypy, pytest, pre-commit, coverage —, la **pile
+scientifique** — cfgrib, eccodes, xarray, netCDF4, cf-units, numpy, pandas —,
+et les **autres mineures**, qui ramassent le reste en mineur et correctif.
+Sans regroupement, une semaine ordinaire ouvrirait cinq demandes que personne
+ne lirait.
 
 **Les montées de majeure restent isolées, une par demande.** C'est un
 changement fonctionnel, à éprouver à part. Dependabot comprend l'épinglage

@@ -73,7 +73,7 @@ CCSDS est désormais le défaut : un message complet pèse 244 octets, 254 avec
 sept valeurs manquantes, et toute la suite s'en trouve exercée contre
 l'empaquetage réel sans qu'aucun fichier ne soit commis.
 
-**Deux pièges, tous deux couverts par `test_packing.py`.** `grid_second_order`
+**Deux pièges, tous deux couverts par `test_grib2_packing.py`.** `grid_second_order`
 est accepté par ecCodes **sans être appliqué** : le message produit un
 `grid_simple`, et une fixture qui ne relit pas se croirait en train de tester
 autre chose — la fabrique relit donc et refuse. Et les empaquetages complexes
@@ -157,10 +157,18 @@ relit.
 | Informative | `pyproject.toml` | non | affiche le taux réel, sans rien masquer |
 | Barrière | `.coveragerc-offline` | oui | porte le seuil de **90 %** |
 
-Au 08/10/2026 : **93 %** en vue informative, **96 %** en vue barrière. La
-couverture est mesurée **par branches**, plus stricte que par lignes, parce
-que ce sont les conditionnelles non éprouvées qui comptent — bascule
-d'origine, repli de réseau.
+Au 26/11/2026 : **95 %** en vue informative, **97 %** en vue barrière, pour
+un seuil à 90 %. La couverture est mesurée **par branches**, plus stricte que
+par lignes, parce que ce sont les conditionnelles non éprouvées qui comptent
+— bascule d'origine, repli de réseau.
+
+> **Un taux se date, toujours.** Ce fichier a porté deux jeux de valeurs
+> incompatibles à quelques lignes d'écart — 93/96 et 95/97 — parce que l'un
+> avait été daté et l'autre mis à jour sans l'être. Les chiffres qui se
+> dérivent du dépôt sont désormais engendrés dans
+> [chiffres.txt](../workspace-tests/chiffres.txt) ; le taux de couverture n'y
+> est pas, car il demande d'exécuter la suite. **Il se date donc, ou il ne
+> s'écrit pas.**
 
 ### Le marqueur, et le piège à ne pas reproduire
 
@@ -197,8 +205,8 @@ ordre qu'en intégration continue — un échec local est donc un échec de CI.
 - **Du code atteignable seulement par le réseau porte le marqueur de
   couverture**, afin que la barrière continue de mesurer ce qu'elle prétend
   mesurer.
-- **La barrière reste franchie.** Elle a six points de marge ; du code non
-  testé les consomme, et c'est son rôle.
+- **La barrière reste franchie**, avec plusieurs points de marge ; du code
+  non testé les consomme, et c'est son rôle.
 - **Les portes de qualité passent** : `ruff check`, `ruff format --check`,
   `mypy --strict`, et la suite hors ligne. La tâche VSCode **« Portes de
   qualité »** les enchaîne.
@@ -223,7 +231,7 @@ y renvoie désormais ; le texte est inchangé.*
 
 - **Les tests ne téléchargent rien et ne stockent rien.** Un message GRIB2 valide se construit en mémoire par ecCodes : quelques centaines d'octets suffisent à exercer géométrie, valeurs manquantes, cumuls et vent. Voir `tests/fixtures_grib2.py`. **Aucune donnée réelle n'est commise au dépôt**, et la suite par défaut tourne hors ligne. Les tests atteignant le service réel portent le marqueur `network`.
 
-- **Couverture : deux vues depuis une seule mesure.** La vue **informative**, dans `pyproject.toml`, n'exclut rien et affiche le taux réel — 95 % en branches au 15/10/2026. La vue **barrière**, dans `.coveragerc-offline`, écarte le code que seuls les tests `network` exercent et porte le seuil de **90 %**, atteint à 97 %. Un seuil global serait mal posé dans les deux sens : trop haut il sanctionnerait une exclusion délibérée, trop bas il ne se déclencherait qu'après un effondrement.
+- **Couverture : deux vues depuis une seule mesure.** La vue **informative**, dans `pyproject.toml`, n'exclut rien et affiche le taux réel. La vue **barrière**, dans `.coveragerc-offline`, écarte le code que seuls les tests `network` exercent et porte le seuil de **90 %**. Les deux taux du jour sont donnés plus haut, datés. Un seuil global serait mal posé dans les deux sens : trop haut il sanctionnerait une exclusion délibérée, trop bas il ne se déclencherait qu'après un effondrement.
   **La mesure porte sur `packages/` **et** `services/`**, `source_pkgs` les énumérant : un membre de `services/` laissé hors du relevé ne serait pas moins mesuré, il serait mesuré sans être vu. Les paquets restent mesurables seuls — `pytest packages/` ne rapporte que ce qu'il a importé, donc le taux des paquets ne bouge pas d'un chantier mené dans `services/`.
   **Piège à ne pas reproduire** : le marqueur est `# couvert par les tests reseau` et **ne contient pas `pragma: no cover`**, que les exclusions par défaut reconnaîtraient — le code serait alors masqué dans les **deux** vues, y compris celle qui doit montrer l'écart. Les exclusions s'appliquent au rapport et non à la mesure, donc un même fichier de données se relit des deux façons.
 
